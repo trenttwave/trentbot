@@ -2,10 +2,10 @@ import os
 import io
 import json
 import time
+import base64
 import logging
 import requests
 from bs4 import BeautifulSoup
-from google import genai
 import PIL.Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import (
@@ -28,8 +28,35 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 HACOO_GW_TOKEN = os.environ.get("HACOO_GW_TOKEN")
 
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
-GEMINI_MODEL = "gemini-1.5-flash"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
+
+
+def gemini_text(prompt: str) -> str:
+    resp = requests.post(
+        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+        json={"contents": [{"parts": [{"text": prompt}]}]},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+
+def gemini_vision(image_bytes: bytes, prompt: str) -> str:
+    image_b64 = base64.b64encode(image_bytes).decode()
+    resp = requests.post(
+        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+        json={
+            "contents": [{
+                "parts": [
+                    {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
+                    {"text": prompt},
+                ]
+            }]
+        },
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -52,20 +79,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def extract_product_id(image_bytes: bytes) -> str:
-    image = PIL.Image.open(io.BytesIO(image_bytes))
-    response = gemini_client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=[
-            image,
-            (
-                "Analiza esta captura de pantalla de la app Hacoo. "
-                "Extrae SOLO el ID numerico del producto "
-                "(normalmente visible debajo del nombre del producto, ejemplo: 40140156). "
-                "Responde unicamente con el numero, sin texto adicional."
-            ),
-        ],
-    )
-    return response.text.strip()
+    return gemini_vision(
+        image_bytes,
+        (
+            "Analiza esta captura de pantalla de la app Hacoo. "
+            "Extrae SOLO el ID numerico del producto "
+            "(normalmente visible debajo del nombre del producto, ejemplo: 40140156). "
+            "Responde unicamente con el numero, sin texto adicional."
+        ),
+    ).strip()
 
 
 def scrape_product_images(product_id: str) -> list:
@@ -215,11 +237,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Message from {user.first_name} (@{user.username}): {user_message}")
     try:
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-        response = gemini_client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=user_message,
-        )
-        await update.message.reply_text(response.text)
+        reply = gemini_text(user_message)
+        await update.message.reply_text(reply)
     except Exception as e:
         logger.error(f"Error calling Gemini API: {e}")
         await update.message.reply_text(
