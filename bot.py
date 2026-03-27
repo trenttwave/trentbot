@@ -27,13 +27,12 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 HACOO_GW_TOKEN = os.environ.get("HACOO_GW_TOKEN")
 
-GEMINI_TEXT_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent"
-GEMINI_VISION_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent"
 
 
 def gemini_text(prompt: str) -> str:
     resp = requests.post(
-        f"{GEMINI_TEXT_URL}?key={GEMINI_API_KEY}",
+        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
         json={"contents": [{"parts": [{"text": prompt}]}]},
         timeout=30,
     )
@@ -45,7 +44,7 @@ def gemini_text(prompt: str) -> str:
 def gemini_vision(image_bytes: bytes, prompt: str) -> str:
     image_b64 = base64.b64encode(image_bytes).decode()
     resp = requests.post(
-        f"{GEMINI_VISION_URL}?key={GEMINI_API_KEY}",
+        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
         json={
             "contents": [{
                 "parts": [
