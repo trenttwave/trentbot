@@ -3,7 +3,7 @@ import base64
 import logging
 import requests
 from bs4 import BeautifulSoup
-from anthropic import Anthropic
+import google.generativeai as genai
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import (
     Application,
@@ -22,12 +22,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 HACOO_EMAIL = os.environ.get("HACOO_EMAIL")
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD")
 
-client = Anthropic(api_key=ANTHROPIC_API_KEY)
+genai.configure(api_key=GEMINI_API_KEY)
+vision_model = genai.GenerativeModel("gemini-1.5-flash")
+chat_model = genai.GenerativeModel("gemini-1.5-flash")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -50,39 +52,22 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def extract_product_id(image_bytes: bytes) -> str:
-    image_b64 = base64.standard_b64encode(image_bytes).decode("utf-8")
-    response = client.messages.create(
-        model="claude-opus-4-6",
-        max_tokens=50,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": "image/jpeg",
-                            "data": image_b64,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": (
-                            "Analiza esta captura de pantalla de la app Hacoo. "
-                            "Extrae SOLO el ID num\u00e9rico del producto "
-                            "(normalmente visible debajo del nombre del producto, ejemplo: 40140156). "
-                            "Responde \u00danicamente con el n\u00famero, sin texto adicional."
-                        ),
-                    },
-                ],
-            }
-        ],
-    )
-    return response.content[0].text.strip()
+    import PIL.Image
+    import io
+    image = PIL.Image.open(io.BytesIO(image_bytes))
+    response = vision_model.generate_content([
+        image,
+        (
+            "Analiza esta captura de pantalla de la app Hacoo. "
+            "Extrae SOLO el ID num\u00e9rico del producto "
+            "(normalmente visible debajo del nombre del producto, ejemplo: 40140156). "
+            "Responde \u00danicamente con el n\u00famero, sin texto adicional."
+        ),
+    ])
+    return response.text.strip()
 
 
-def scrape_product_images(product_id: str) -> list[str]:
+def scrape_product_images(product_id: str) -> list:
     url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     resp = requests.get(url, headers=headers, timeout=15)
@@ -149,7 +134,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         logger.info(f"Product ID: {product_id}")
-        await status_msg.edit_text(f"\u2705 Producto `{product_id}` encontrado.\n\u23f3 Descargando fotos y generando link...", parse_mode="Markdown")
+        await status_msg.edit_text(
+            f"\u2705 Producto `{product_id}` encontrado.\n\u23f3 Descargando fotos y generando link...",
+            parse_mode="Markdown"
+        )
 
         image_urls = scrape_product_images(product_id)
         affiliate_link = await generate_affiliate_link(product_id)
@@ -160,12 +148,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "affiliate_link": affiliate_link,
         }
 
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("\u2705 S\u00ed, publicar en el canal", callback_data="publish_yes"),
-                InlineKeyboardButton("\u274c No", callback_data="publish_no"),
-            ]
-        ])
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("\u2705 S\u00ed, publicar en el canal", callback_data="publish_yes"),
+            InlineKeyboardButton("\u274c No", callback_data="publish_no"),
+        ]])
 
         preview_text = (
             f"\ud83d\udcce *Producto:* `{product_id}`\n"
@@ -200,7 +186,6 @@ async def handle_publish_callback(update: Update, context: ContextTypes.DEFAULT_
 
     await query.edit_message_text("\u23f3 Publicando en el canal...")
 
-    product_id = pending["product_id"]
     image_urls = pending["image_urls"]
     affiliate_link = pending["affiliate_link"]
     caption = f"\ud83d\udd17 {affiliate_link}"
@@ -215,7 +200,7 @@ async def handle_publish_callback(update: Update, context: ContextTypes.DEFAULT_
         else:
             await context.bot.send_message(chat_id=CHANNEL_ID, text=caption)
 
-        await query.edit_message_text(f"\u2705 Publicado en el canal correctamente.")
+        await query.edit_message_text("\u2705 Publicado en el canal correctamente.")
         context.user_data.pop("pending", None)
 
     except Exception as e:
@@ -231,14 +216,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Message from {user.first_name} (@{user.username}): {user_message}")
     try:
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-        response = client.messages.create(
-            model="claude-opus-4-6",
-            max_tokens=1024,
-            messages=[{"role": "user", "content": user_message}],
-        )
-        await update.message.reply_text(response.content[0].text)
+        response = chat_model.generate_content(user_message)
+        await update.message.reply_text(response.text)
     except Exception as e:
-        logger.error(f"Error calling Anthropic API: {e}")
+        logger.error(f"Error calling Gemini API: {e}")
         await update.message.reply_text(
             "Lo siento, hubo un error procesando tu mensaje. Int\u00e9ntalo de nuevo."
         )
@@ -247,8 +228,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     if not BOT_TOKEN:
         raise ValueError("BOT_TOKEN is not set")
-    if not ANTHROPIC_API_KEY:
-        raise ValueError("ANTHROPIC_API_KEY is not set")
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY is not set")
     if not HACOO_EMAIL or not HACOO_PASSWORD:
         raise ValueError("HACOO_EMAIL and HACOO_PASSWORD are not set")
 
