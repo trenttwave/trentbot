@@ -2,7 +2,6 @@ import os
 import io
 import json
 import time
-import base64
 import logging
 import requests
 from bs4 import BeautifulSoup
@@ -30,8 +29,8 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID")
 HACOO_GW_TOKEN = os.environ.get("HACOO_GW_TOKEN")
 
 genai.configure(api_key=GEMINI_API_KEY)
-vision_model = genai.GenerativeModel("gemini-1.5-flash")
-chat_model = genai.GenerativeModel("gemini-1.5-flash")
+vision_model = genai.GenerativeModel("gemini-2.0-flash")
+chat_model = genai.GenerativeModel("gemini-2.0-flash")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -102,7 +101,6 @@ def generate_affiliate_link(product_id: str) -> str:
     resp.raise_for_status()
     result = resp.json()
     logger.info(f"Affiliate API response: {result}")
-    # Try common response key patterns
     data_field = result.get("data") or result.get("result") or result
     if isinstance(data_field, dict):
         link = (
