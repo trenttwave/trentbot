@@ -27,8 +27,8 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 HACOO_GW_TOKEN = os.environ.get("HACOO_GW_TOKEN")
 
-GEMINI_TEXT_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
-GEMINI_VISION_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent"
+GEMINI_TEXT_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent"
+GEMINI_VISION_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent"
 
 
 def gemini_text(prompt: str) -> str:
@@ -37,7 +37,7 @@ def gemini_text(prompt: str) -> str:
         json={"contents": [{"parts": [{"text": prompt}]}]},
         timeout=30,
     )
-    logger.info(f"Gemini text status: {resp.status_code} - {resp.text[:200]}")
+    logger.info(f"Gemini text status: {resp.status_code} - {resp.text[:300]}")
     resp.raise_for_status()
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
@@ -56,7 +56,7 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
         },
         timeout=30,
     )
-    logger.info(f"Gemini vision status: {resp.status_code} - {resp.text[:200]}")
+    logger.info(f"Gemini vision status: {resp.status_code} - {resp.text[:300]}")
     resp.raise_for_status()
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
