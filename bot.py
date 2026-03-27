@@ -1,9 +1,13 @@
 import os
+import io
+import json
+import time
 import base64
 import logging
 import requests
 from bs4 import BeautifulSoup
 import google.generativeai as genai
+import PIL.Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import (
     Application,
@@ -13,7 +17,6 @@ from telegram.ext import (
     filters,
     ContextTypes,
 )
-from playwright.async_api import async_playwright
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -24,8 +27,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
-HACOO_EMAIL = os.environ.get("HACOO_EMAIL")
-HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD")
+HACOO_GW_TOKEN = os.environ.get("HACOO_GW_TOKEN")
 
 genai.configure(api_key=GEMINI_API_KEY)
 vision_model = genai.GenerativeModel("gemini-1.5-flash")
@@ -52,8 +54,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def extract_product_id(image_bytes: bytes) -> str:
-    import PIL.Image
-    import io
     image = PIL.Image.open(io.BytesIO(image_bytes))
     response = vision_model.generate_content([
         image,
@@ -83,37 +83,37 @@ def scrape_product_images(product_id: str) -> list:
     return image_urls
 
 
-async def generate_affiliate_link(product_id: str) -> str:
+def generate_affiliate_link(product_id: str) -> str:
     product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-        try:
-            await page.goto("https://affiliate.hacoo.app/en-ES/login", timeout=30000)
-            await page.wait_for_load_state("networkidle")
-            await page.fill(
-                "input[type='email'], input[name='email'], input[placeholder*='email' i]",
-                HACOO_EMAIL,
-            )
-            await page.fill("input[type='password'], input[name='password']", HACOO_PASSWORD)
-            await page.click(
-                "button[type='submit'], button:has-text('Login'), button:has-text('Sign in')"
-            )
-            await page.wait_for_load_state("networkidle")
-            await page.goto(
-                "https://affiliate.hacoo.app/en-ES/promotion/link", timeout=30000
-            )
-            await page.wait_for_load_state("networkidle")
-            textarea = page.locator("textarea, input[type='text']").first
-            await textarea.clear()
-            await textarea.fill(product_url)
-            await page.click("button:has-text('Create Link')")
-            await page.wait_for_selector("text=https://c.onlyaff.app", timeout=15000)
-            link_element = page.locator("text=/https://c\\.onlyaff\\.app\/\\S+/")
-            affiliate_link = await link_element.inner_text()
-            return affiliate_link.strip()
-        finally:
-            await browser.close()
+    api_url = "https://gw.hacoo.app/gw/dwp-home-core.promoLink/1"
+    headers = {
+        "Cookie": f"gw-token={HACOO_GW_TOKEN}",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    }
+    data = {
+        "data": json.dumps({"link": product_url}),
+        "gw_ver": "1",
+        "ct": str(int(time.time() * 1000)),
+        "plat": "pc",
+        "appname": "saramart",
+    }
+    resp = requests.post(api_url, data=data, headers=headers, params={"sid": "12"}, timeout=15)
+    resp.raise_for_status()
+    result = resp.json()
+    logger.info(f"Affiliate API response: {result}")
+    # Try common response key patterns
+    data_field = result.get("data") or result.get("result") or result
+    if isinstance(data_field, dict):
+        link = (
+            data_field.get("short_url")
+            or data_field.get("link")
+            or data_field.get("url")
+            or data_field.get("shortUrl")
+        )
+        if link:
+            return link
+    raise ValueError(f"Could not extract link from response: {result}")
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -140,7 +140,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         image_urls = scrape_product_images(product_id)
-        affiliate_link = await generate_affiliate_link(product_id)
+        affiliate_link = generate_affiliate_link(product_id)
 
         context.user_data["pending"] = {
             "product_id": product_id,
@@ -230,8 +230,8 @@ def main():
         raise ValueError("BOT_TOKEN is not set")
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY is not set")
-    if not HACOO_EMAIL or not HACOO_PASSWORD:
-        raise ValueError("HACOO_EMAIL and HACOO_PASSWORD are not set")
+    if not HACOO_GW_TOKEN:
+        raise ValueError("HACOO_GW_TOKEN is not set")
 
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
