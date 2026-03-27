@@ -5,7 +5,7 @@ import time
 import logging
 import requests
 from bs4 import BeautifulSoup
-import google.generativeai as genai
+from google import genai
 import PIL.Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import (
@@ -28,9 +28,8 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 CHANNEL_ID = os.environ.get("CHANNEL_ID")
 HACOO_GW_TOKEN = os.environ.get("HACOO_GW_TOKEN")
 
-genai.configure(api_key=GEMINI_API_KEY)
-vision_model = genai.GenerativeModel("gemini-1.5-flash-latest")
-chat_model = genai.GenerativeModel("gemini-1.5-flash-latest")
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+GEMINI_MODEL = "gemini-1.5-flash"
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -54,15 +53,18 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def extract_product_id(image_bytes: bytes) -> str:
     image = PIL.Image.open(io.BytesIO(image_bytes))
-    response = vision_model.generate_content([
-        image,
-        (
-            "Analiza esta captura de pantalla de la app Hacoo. "
-            "Extrae SOLO el ID numerico del producto "
-            "(normalmente visible debajo del nombre del producto, ejemplo: 40140156). "
-            "Responde unicamente con el numero, sin texto adicional."
-        ),
-    ])
+    response = gemini_client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=[
+            image,
+            (
+                "Analiza esta captura de pantalla de la app Hacoo. "
+                "Extrae SOLO el ID numerico del producto "
+                "(normalmente visible debajo del nombre del producto, ejemplo: 40140156). "
+                "Responde unicamente con el numero, sin texto adicional."
+            ),
+        ],
+    )
     return response.text.strip()
 
 
@@ -213,7 +215,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"Message from {user.first_name} (@{user.username}): {user_message}")
     try:
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-        response = chat_model.generate_content(user_message)
+        response = gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=user_message,
+        )
         await update.message.reply_text(response.text)
     except Exception as e:
         logger.error(f"Error calling Gemini API: {e}")
