@@ -35,10 +35,10 @@ chat_model = genai.GenerativeModel("gemini-2.0-flash")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "\u00a1Hola! Soy TrentBot.\n\n"
-        "Env\u00edame una captura de un producto de Hacoo y te generar\u00e9 el link de afiliado "
+        "Hola! Soy TrentBot.\n\n"
+        "Enviame una captura de un producto de Hacoo y te generare el link de afiliado "
         "con las fotos del producto, listo para publicar en el canal.\n\n"
-        "Tambi\u00e9n puedes escribirme cualquier pregunta."
+        "Tambien puedes escribirme cualquier pregunta."
     )
 
 
@@ -47,7 +47,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Comandos disponibles:\n"
         "/start - Iniciar el bot\n"
         "/help - Ver este mensaje de ayuda\n\n"
-        "Env\u00edame una captura de un producto de Hacoo y te dar\u00e9 el link de afiliado "
+        "Enviame una captura de un producto de Hacoo y te dare el link de afiliado "
         "con sus fotos, listo para publicar en el canal."
     )
 
@@ -58,9 +58,9 @@ async def extract_product_id(image_bytes: bytes) -> str:
         image,
         (
             "Analiza esta captura de pantalla de la app Hacoo. "
-            "Extrae SOLO el ID num\u00e9rico del producto "
+            "Extrae SOLO el ID numerico del producto "
             "(normalmente visible debajo del nombre del producto, ejemplo: 40140156). "
-            "Responde \u00danicamente con el n\u00famero, sin texto adicional."
+            "Responde unicamente con el numero, sin texto adicional."
         ),
     ])
     return response.text.strip()
@@ -116,7 +116,7 @@ def generate_affiliate_link(product_id: str) -> str:
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    status_msg = await update.message.reply_text("\ud83d\udd0d Analizando la imagen...")
+    status_msg = await update.message.reply_text("Analizando la imagen...")
 
     try:
         photo = update.message.photo[-1]
@@ -127,14 +127,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not product_id.isdigit():
             await status_msg.edit_text(
                 "No he podido encontrar el ID del producto en la imagen. "
-                "Aseg\u00farate de que la captura muestre el ID num\u00e9rico."
+                "Asegurate de que la captura muestre el ID numerico."
             )
             return
 
         logger.info(f"Product ID: {product_id}")
         await status_msg.edit_text(
-            f"\u2705 Producto `{product_id}` encontrado.\n\u23f3 Descargando fotos y generando link...",
-            parse_mode="Markdown"
+            f"Producto {product_id} encontrado. Descargando fotos y generando link..."
         )
 
         image_urls = scrape_product_images(product_id)
@@ -147,24 +146,24 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
 
         keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("\u2705 S\u00ed, publicar en el canal", callback_data="publish_yes"),
-            InlineKeyboardButton("\u274c No", callback_data="publish_no"),
+            InlineKeyboardButton("Si, publicar en el canal", callback_data="publish_yes"),
+            InlineKeyboardButton("No", callback_data="publish_no"),
         ]])
 
         preview_text = (
-            f"\ud83d\udcce *Producto:* `{product_id}`\n"
-            f"\ud83d\udd17 *Link de afiliado:*\n{affiliate_link}\n\n"
-            f"\ud83d\uddbc\ufe0f Fotos encontradas: {len(image_urls)}\n\n"
-            "\u00bfPublico esto en el canal?"
+            f"Producto: {product_id}\n"
+            f"Link de afiliado:\n{affiliate_link}\n\n"
+            f"Fotos encontradas: {len(image_urls)}\n\n"
+            "Publico esto en el canal?"
         )
 
         await status_msg.delete()
-        await update.message.reply_text(preview_text, parse_mode="Markdown", reply_markup=keyboard)
+        await update.message.reply_text(preview_text, reply_markup=keyboard)
 
     except Exception as e:
         logger.error(f"Error processing photo: {e}")
         await status_msg.edit_text(
-            "Lo siento, hubo un error procesando la imagen. Int\u00e9ntalo de nuevo."
+            "Lo siento, hubo un error procesando la imagen. Intentalo de nuevo."
         )
 
 
@@ -173,20 +172,20 @@ async def handle_publish_callback(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
 
     if query.data == "publish_no":
-        await query.edit_message_text("\u274c Publicaci\u00f3n cancelada.")
+        await query.edit_message_text("Publicacion cancelada.")
         context.user_data.pop("pending", None)
         return
 
     pending = context.user_data.get("pending")
     if not pending:
-        await query.edit_message_text("No hay ninguna publicaci\u00f3n pendiente.")
+        await query.edit_message_text("No hay ninguna publicacion pendiente.")
         return
 
-    await query.edit_message_text("\u23f3 Publicando en el canal...")
+    await query.edit_message_text("Publicando en el canal...")
 
     image_urls = pending["image_urls"]
     affiliate_link = pending["affiliate_link"]
-    caption = f"\ud83d\udd17 {affiliate_link}"
+    caption = affiliate_link
 
     try:
         if image_urls:
@@ -198,7 +197,7 @@ async def handle_publish_callback(update: Update, context: ContextTypes.DEFAULT_
         else:
             await context.bot.send_message(chat_id=CHANNEL_ID, text=caption)
 
-        await query.edit_message_text("\u2705 Publicado en el canal correctamente.")
+        await query.edit_message_text("Publicado en el canal correctamente.")
         context.user_data.pop("pending", None)
 
     except Exception as e:
@@ -219,7 +218,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error calling Gemini API: {e}")
         await update.message.reply_text(
-            "Lo siento, hubo un error procesando tu mensaje. Int\u00e9ntalo de nuevo."
+            "Lo siento, hubo un error procesando tu mensaje. Intentalo de nuevo."
         )
 
 
