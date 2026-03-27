@@ -29,8 +29,8 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID")
 HACOO_GW_TOKEN = os.environ.get("HACOO_GW_TOKEN")
 
 genai.configure(api_key=GEMINI_API_KEY)
-vision_model = genai.GenerativeModel("gemini-2.0-flash")
-chat_model = genai.GenerativeModel("gemini-2.0-flash")
+vision_model = genai.GenerativeModel("gemini-1.5-flash-latest")
+chat_model = genai.GenerativeModel("gemini-1.5-flash-latest")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
