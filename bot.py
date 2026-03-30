@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-HACOO_GW_TOKEN = os.environ.get("HACOO_GW_TOKEN", "").strip()
+HACOO_COOKIE = os.environ.get("HACOO_COOKIE", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
 
@@ -60,7 +60,7 @@ def generate_affiliate_link(product_id: str) -> str:
     product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
     api_url = "https://gw.hacoo.app/gw/dwp.aff-home-core.promoLink/1"
     headers = {
-        "Cookie": f"gw-token={HACOO_GW_TOKEN}",
+        "Cookie": HACOO_COOKIE,
         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
         "Origin": "https://affiliate.hacoo.app",
@@ -154,8 +154,8 @@ def main():
         raise ValueError("BOT_TOKEN is not set")
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY is not set")
-    if not HACOO_GW_TOKEN:
-        raise ValueError("HACOO_GW_TOKEN is not set")
+    if not HACOO_COOKIE:
+        raise ValueError("HACOO_COOKIE is not set")
 
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
