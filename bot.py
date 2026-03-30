@@ -25,8 +25,11 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 HACOO_COOKIE = os.environ.get("HACOO_COOKIE", "").strip()
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
+HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
+HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
+_SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
 
 
 def gemini_text(prompt: str) -> str:
@@ -59,96 +62,245 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def _parse_f_tracking(cookie: str) -> str | None:
-    """Extract affiliate tracking from the f cookie value.
+# ---------------------------------------------------------------------------
+# Playwright-based affiliate link generation
+# ---------------------------------------------------------------------------
 
-    Example f cookie: p_aff.o_charmmcn2409.g_affiliate-coupon.m_trenttwave.c_aid-124516-aog-x-aoge.t_20251005-164022.v_1
-    Returns the parts relevant for affiliate tracking (strips timestamp/version).
+async def _hacoo_login(page) -> None:
+    """Log in to affiliate.hacoo.app using HACOO_EMAIL and HACOO_PASSWORD."""
+    from playwright.async_api import TimeoutError as PWTimeout
+
+    logger.info("Performing Hacoo affiliate login...")
+    await page.wait_for_load_state("networkidle")
+
+    # Fill email
+    email_filled = False
+    for sel in [
+        'input[type="email"]',
+        'input[name*="email" i]',
+        'input[placeholder*="email" i]',
+        'input[placeholder*="Email"]',
+        'input[type="text"]',
+    ]:
+        try:
+            el = await page.wait_for_selector(sel, timeout=4000)
+            if el:
+                await el.fill(HACOO_EMAIL)
+                email_filled = True
+                logger.info(f"Email filled using selector: {sel}")
+                break
+        except PWTimeout:
+            continue
+
+    if not email_filled:
+        raise ValueError("Could not find email input on login page")
+
+    # Fill password
+    pw_el = await page.wait_for_selector('input[type="password"]', timeout=5000)
+    await pw_el.fill(HACOO_PASSWORD)
+
+    # Submit
+    submitted = False
+    for sel in [
+        'button[type="submit"]',
+        'button:has-text("Login")',
+        'button:has-text("Log in")',
+        'button:has-text("Sign in")',
+        'button:has-text("登录")',
+    ]:
+        try:
+            el = await page.query_selector(sel)
+            if el:
+                await el.click()
+                submitted = True
+                break
+        except Exception:
+            continue
+
+    if not submitted:
+        await pw_el.press("Enter")
+
+    # Wait until no longer on login page
+    try:
+        await page.wait_for_function(
+            "!window.location.href.toLowerCase().includes('login')",
+            timeout=20000,
+        )
+        logger.info(f"Login successful, redirected to: {page.url}")
+    except Exception:
+        raise ValueError(f"Login failed or timed out. Current URL: {page.url}")
+
+
+async def _generate_via_playwright(product_id: str) -> str | None:
+    """Use a headless Chromium browser to generate an affiliate short link.
+
+    Logs in to affiliate.hacoo.app, navigates to the promotion/link page,
+    enters the product URL, clicks Create Link, and extracts the result.
+    Caches the session cookies to avoid re-login on every call.
     """
+    from playwright.async_api import async_playwright, TimeoutError as PWTimeout
+
+    product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+        )
+        context = await browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/145.0.0.0 Safari/537.36"
+            ),
+            locale="en-US",
+        )
+
+        # Restore cached session cookies
+        if os.path.exists(_SESSION_COOKIES_FILE):
+            try:
+                with open(_SESSION_COOKIES_FILE) as f:
+                    await context.add_cookies(json.load(f))
+                logger.info("Restored cached Hacoo session cookies")
+            except Exception as e:
+                logger.warning(f"Could not restore cookies: {e}")
+
+        page = await context.new_page()
+
+        try:
+            promo_url = "https://affiliate.hacoo.app/en-ES/promotion/link"
+            await page.goto(promo_url, timeout=30000, wait_until="networkidle")
+
+            # Re-login if redirected to login page
+            if "login" in page.url.lower():
+                await _hacoo_login(page)
+                await page.goto(promo_url, timeout=30000, wait_until="networkidle")
+
+            # Persist cookies after successful navigation
+            cookies = await context.cookies()
+            with open(_SESSION_COOKIES_FILE, "w") as f:
+                json.dump(cookies, f)
+
+            # Find URL input and fill it
+            input_el = None
+            for sel in [
+                'input[placeholder*="link" i]',
+                'input[placeholder*="url" i]',
+                'input[placeholder*="http" i]',
+                'input[placeholder*="product" i]',
+                'input[type="text"]',
+            ]:
+                try:
+                    input_el = await page.wait_for_selector(sel, timeout=5000)
+                    if input_el:
+                        logger.info(f"Found URL input with selector: {sel}")
+                        break
+                except PWTimeout:
+                    continue
+
+            if not input_el:
+                raise ValueError("Could not find URL input on promotion/link page")
+
+            await input_el.triple_click()
+            await input_el.fill(product_url)
+
+            # Click Create Link
+            await page.click('button:has-text("Create Link")', timeout=8000)
+
+            # Wait for the short link to appear
+            await page.wait_for_selector("text=onlyaff.app", timeout=20000)
+
+            # Extract the link
+            result_link = None
+
+            for sel in [
+                'input[readonly]',
+                '[class*="link-value"]',
+                '[class*="promote"] input',
+                '[class*="result"] input',
+                '[class*="copy"] input',
+            ]:
+                try:
+                    el = await page.query_selector(sel)
+                    if el:
+                        val = (
+                            await el.get_attribute("value")
+                            or await el.text_content()
+                        )
+                        if val and "onlyaff.app" in val:
+                            result_link = val.strip()
+                            break
+                except Exception:
+                    continue
+
+            # Fallback: regex in page HTML
+            if not result_link:
+                html = await page.content()
+                m = re.search(r'https://c\.onlyaff\.app/[A-Za-z0-9]+', html)
+                if m:
+                    result_link = m.group(0)
+
+            logger.info(f"Playwright result: {result_link}")
+            return result_link
+
+        except PWTimeout as e:
+            logger.error(f"Playwright timeout: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Playwright error: {e}")
+            if os.path.exists(_SESSION_COOKIES_FILE):
+                os.remove(_SESSION_COOKIES_FILE)
+            return None
+        finally:
+            await browser.close()
+
+
+# ---------------------------------------------------------------------------
+# Fallback: direct URL with f-cookie affiliate tracking
+# ---------------------------------------------------------------------------
+
+def _parse_f_tracking(cookie: str) -> str | None:
     match = re.search(r'(?:^|;\s*)f=([^;]+)', cookie)
     if not match:
         return None
     f_value = match.group(1).strip()
-    # Keep all parts except session-specific timestamp (t_) and version (v_)
     parts = [p for p in f_value.split('.') if not p.startswith('t_') and not p.startswith('v_')]
     return '.'.join(parts) if parts else None
 
 
-def _make_sign(params: dict) -> str:
-    sorted_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
-    return hashlib.md5(sorted_string.encode()).hexdigest()
+# ---------------------------------------------------------------------------
+# Main link generation: Playwright first, then fallbacks
+# ---------------------------------------------------------------------------
 
-
-def _try_promo_link_api(product_url: str) -> str | None:
-    """Attempt to get a short affiliate link from the Hacoo promoLink API.
-    Returns None if the API fails or returns an error code.
-    """
-    api_url = "https://gw.hacoo.app/gw/dwp.aff-home-core.promoLink/1"
-    ct = str(int(time.time() * 1000))
-    params = {
-        "data": json.dumps({"link": product_url}, separators=(",", ":")),
-        "gw_ver": "1",
-        "ct": ct,
-        "plat": "pc",
-        "appname": "saramart",
-    }
-    sign = _make_sign(params)
-    logger.info(f"PromoLink sign: {sign} | params: {'&'.join(f'{k}={v}' for k,v in sorted(params.items()))}")
-    headers = {
-        "Cookie": HACOO_COOKIE,
-        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-        "Origin": "https://affiliate.hacoo.app",
-        "Referer": "https://affiliate.hacoo.app/",
-        "Accept": "application/json, text/plain, */*",
-    }
-    data = {**params, "sign": sign}
-    resp = requests.post(api_url, data=data, headers=headers, params={"sid": "9"}, timeout=15)
-    resp.raise_for_status()
-    result = resp.json()
-    logger.info(f"PromoLink API response: {result}")
-    if result.get("code") not in (200, 0, "200", "0", None) or result.get("code") == 3012:
-        logger.warning(f"PromoLink API error code {result.get('code')}: {result.get('msg') or result.get('message', '')}")
-        return None
-    data_field = result.get("data") or result.get("result") or {}
-    if isinstance(data_field, dict):
-        return (
-            data_field.get("short_url")
-            or data_field.get("link")
-            or data_field.get("url")
-            or data_field.get("shortUrl")
-        )
-    return None
-
-
-def generate_affiliate_link(product_id: str) -> str:
-    """Generate an affiliate link for a Hacoo product ID.
-
-    Tries the promoLink API first. If it fails (e.g. sign check error),
-    falls back to constructing a direct affiliate URL using the f-cookie tracking value.
-    """
+async def generate_affiliate_link(product_id: str) -> str:
     product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
 
-    # 1. Try the official promoLink API
-    try:
-        link = _try_promo_link_api(product_url)
-        if link:
-            logger.info(f"PromoLink API success: {link}")
-            return link
-    except Exception as e:
-        logger.warning(f"PromoLink API exception: {e}")
+    # 1. Playwright (headless browser) — returns c.onlyaff.app short link
+    if HACOO_EMAIL and HACOO_PASSWORD:
+        try:
+            link = await _generate_via_playwright(product_id)
+            if link:
+                logger.info(f"Affiliate link via Playwright: {link}")
+                return link
+        except Exception as e:
+            logger.warning(f"Playwright failed: {e}")
 
-    # 2. Fallback: direct URL with affiliate f-cookie tracking parameter
-    f_tracking = _parse_f_tracking(HACOO_COOKIE)
-    if f_tracking:
-        direct_link = f"{product_url}?f={f_tracking}"
-        logger.info(f"Using direct affiliate link: {direct_link}")
-        return direct_link
+    # 2. Direct URL with f-cookie tracking
+    if HACOO_COOKIE:
+        f_tracking = _parse_f_tracking(HACOO_COOKIE)
+        if f_tracking:
+            direct_link = f"{product_url}?f={f_tracking}"
+            logger.info(f"Affiliate link via f-tracking: {direct_link}")
+            return direct_link
 
-    # 3. Last resort: plain product URL
-    logger.warning("No affiliate tracking found in cookie, returning plain URL")
+    # 3. Plain product URL
+    logger.warning("No affiliate method worked, returning plain URL")
     return product_url
 
+
+# ---------------------------------------------------------------------------
+# Telegram handlers
+# ---------------------------------------------------------------------------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -184,18 +336,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
-        affiliate_link = generate_affiliate_link(product_id)
+        affiliate_link = await generate_affiliate_link(product_id)
 
         reply_text = f"ID del producto: `{product_id}`\n\nLink de afiliado:\n{affiliate_link}"
         await status_msg.edit_text(reply_text, parse_mode="Markdown")
 
-        # Post to channel if configured
         if CHANNEL_ID:
             try:
-                await context.bot.send_message(
-                    chat_id=CHANNEL_ID,
-                    text=affiliate_link,
-                )
+                await context.bot.send_message(chat_id=CHANNEL_ID, text=affiliate_link)
                 logger.info(f"Posted affiliate link to channel {CHANNEL_ID}")
             except Exception as e:
                 logger.error(f"Failed to post to channel {CHANNEL_ID}: {e}")
@@ -223,8 +371,6 @@ def main():
         raise ValueError("BOT_TOKEN is not set")
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY is not set")
-    if not HACOO_COOKIE:
-        raise ValueError("HACOO_COOKIE is not set")
 
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
