@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import time
 import base64
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 HACOO_COOKIE = os.environ.get("HACOO_COOKIE", "").strip()
+CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
 
@@ -57,13 +59,30 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def make_sign(params: dict) -> str:
+def _parse_f_tracking(cookie: str) -> str | None:
+    """Extract affiliate tracking from the f cookie value.
+
+    Example f cookie: p_aff.o_charmmcn2409.g_affiliate-coupon.m_trenttwave.c_aid-124516-aog-x-aoge.t_20251005-164022.v_1
+    Returns the parts relevant for affiliate tracking (strips timestamp/version).
+    """
+    match = re.search(r'(?:^|;\s*)f=([^;]+)', cookie)
+    if not match:
+        return None
+    f_value = match.group(1).strip()
+    # Keep all parts except session-specific timestamp (t_) and version (v_)
+    parts = [p for p in f_value.split('.') if not p.startswith('t_') and not p.startswith('v_')]
+    return '.'.join(parts) if parts else None
+
+
+def _make_sign(params: dict) -> str:
     sorted_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
     return hashlib.md5(sorted_string.encode()).hexdigest()
 
 
-def generate_affiliate_link(product_id: str) -> str:
-    product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
+def _try_promo_link_api(product_url: str) -> str | None:
+    """Attempt to get a short affiliate link from the Hacoo promoLink API.
+    Returns None if the API fails or returns an error code.
+    """
     api_url = "https://gw.hacoo.app/gw/dwp.aff-home-core.promoLink/1"
     ct = str(int(time.time() * 1000))
     params = {
@@ -73,8 +92,8 @@ def generate_affiliate_link(product_id: str) -> str:
         "plat": "pc",
         "appname": "saramart",
     }
-    sign = make_sign(params)
-    logger.info(f"Sign: {sign}, params string: {'&'.join(f'{k}={v}' for k, v in sorted(params.items()))}")
+    sign = _make_sign(params)
+    logger.info(f"PromoLink sign: {sign} | params: {'&'.join(f'{k}={v}' for k,v in sorted(params.items()))}")
     headers = {
         "Cookie": HACOO_COOKIE,
         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
@@ -87,18 +106,48 @@ def generate_affiliate_link(product_id: str) -> str:
     resp = requests.post(api_url, data=data, headers=headers, params={"sid": "9"}, timeout=15)
     resp.raise_for_status()
     result = resp.json()
-    logger.info(f"Affiliate API response: {result}")
-    data_field = result.get("data") or result.get("result") or result
+    logger.info(f"PromoLink API response: {result}")
+    if result.get("code") not in (200, 0, "200", "0", None) or result.get("code") == 3012:
+        logger.warning(f"PromoLink API error code {result.get('code')}: {result.get('msg') or result.get('message', '')}")
+        return None
+    data_field = result.get("data") or result.get("result") or {}
     if isinstance(data_field, dict):
-        link = (
+        return (
             data_field.get("short_url")
             or data_field.get("link")
             or data_field.get("url")
             or data_field.get("shortUrl")
         )
+    return None
+
+
+def generate_affiliate_link(product_id: str) -> str:
+    """Generate an affiliate link for a Hacoo product ID.
+
+    Tries the promoLink API first. If it fails (e.g. sign check error),
+    falls back to constructing a direct affiliate URL using the f-cookie tracking value.
+    """
+    product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
+
+    # 1. Try the official promoLink API
+    try:
+        link = _try_promo_link_api(product_url)
         if link:
+            logger.info(f"PromoLink API success: {link}")
             return link
-    raise ValueError(f"No se pudo extraer el link: {result}")
+    except Exception as e:
+        logger.warning(f"PromoLink API exception: {e}")
+
+    # 2. Fallback: direct URL with affiliate f-cookie tracking parameter
+    f_tracking = _parse_f_tracking(HACOO_COOKIE)
+    if f_tracking:
+        direct_link = f"{product_url}?f={f_tracking}"
+        logger.info(f"Using direct affiliate link: {direct_link}")
+        return direct_link
+
+    # 3. Last resort: plain product URL
+    logger.warning("No affiliate tracking found in cookie, returning plain URL")
+    return product_url
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -137,9 +186,19 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         affiliate_link = generate_affiliate_link(product_id)
 
-        await status_msg.edit_text(
-            f"ID del producto: {product_id}\n\nLink de afiliado:\n{affiliate_link}"
-        )
+        reply_text = f"ID del producto: `{product_id}`\n\nLink de afiliado:\n{affiliate_link}"
+        await status_msg.edit_text(reply_text, parse_mode="Markdown")
+
+        # Post to channel if configured
+        if CHANNEL_ID:
+            try:
+                await context.bot.send_message(
+                    chat_id=CHANNEL_ID,
+                    text=affiliate_link,
+                )
+                logger.info(f"Posted affiliate link to channel {CHANNEL_ID}")
+            except Exception as e:
+                logger.error(f"Failed to post to channel {CHANNEL_ID}: {e}")
 
     except Exception as e:
         logger.error(f"Error processing photo: {e}")
