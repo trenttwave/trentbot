@@ -67,13 +67,11 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
 # ---------------------------------------------------------------------------
 
 async def _hacoo_login(page) -> None:
-    """Log in to affiliate.hacoo.app using HACOO_EMAIL and HACOO_PASSWORD."""
     from playwright.async_api import TimeoutError as PWTimeout
 
     logger.info("Performing Hacoo affiliate login...")
     await page.wait_for_load_state("networkidle")
 
-    # Fill email
     email_filled = False
     for sel in [
         'input[type="email"]',
@@ -95,11 +93,9 @@ async def _hacoo_login(page) -> None:
     if not email_filled:
         raise ValueError("Could not find email input on login page")
 
-    # Fill password
     pw_el = await page.wait_for_selector('input[type="password"]', timeout=5000)
     await pw_el.fill(HACOO_PASSWORD)
 
-    # Submit
     submitted = False
     for sel in [
         'button[type="submit"]',
@@ -120,7 +116,6 @@ async def _hacoo_login(page) -> None:
     if not submitted:
         await pw_el.press("Enter")
 
-    # Wait until no longer on login page
     try:
         await page.wait_for_function(
             "!window.location.href.toLowerCase().includes('login')",
@@ -132,12 +127,6 @@ async def _hacoo_login(page) -> None:
 
 
 async def _generate_via_playwright(product_id: str) -> str | None:
-    """Use a headless Chromium browser to generate an affiliate short link.
-
-    Logs in to affiliate.hacoo.app, navigates to the promotion/link page,
-    enters the product URL, clicks Create Link, and extracts the result.
-    Caches the session cookies to avoid re-login on every call.
-    """
     from playwright.async_api import async_playwright, TimeoutError as PWTimeout
 
     product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
@@ -156,7 +145,6 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             locale="en-US",
         )
 
-        # Restore cached session cookies
         if os.path.exists(_SESSION_COOKIES_FILE):
             try:
                 with open(_SESSION_COOKIES_FILE) as f:
@@ -171,50 +159,65 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             promo_url = "https://affiliate.hacoo.app/en-ES/promotion/link"
             await page.goto(promo_url, timeout=30000, wait_until="networkidle")
 
-            # Re-login if redirected to login page
             if "login" in page.url.lower():
                 await _hacoo_login(page)
                 await page.goto(promo_url, timeout=30000, wait_until="networkidle")
 
-            # Persist cookies after successful navigation
             cookies = await context.cookies()
             with open(_SESSION_COOKIES_FILE, "w") as f:
                 json.dump(cookies, f)
 
-            # Find URL input and fill it
+            # Wait for page to fully render (Vue SPA)
+            await page.wait_for_load_state("networkidle")
+            await page.wait_for_timeout(2000)
+
+            # Find URL input — try many selectors including Element UI
             input_el = None
             for sel in [
+                '.el-input__inner',
                 'input[placeholder*="link" i]',
                 'input[placeholder*="url" i]',
                 'input[placeholder*="http" i]',
                 'input[placeholder*="product" i]',
+                'input[placeholder*="Please" i]',
+                'input[placeholder*="Enter" i]',
+                'textarea',
                 'input[type="text"]',
+                'input:not([type="hidden"]):not([type="submit"]):not([type="button"])',
             ]:
                 try:
-                    input_el = await page.wait_for_selector(sel, timeout=5000)
-                    if input_el:
+                    el = await page.wait_for_selector(sel, timeout=3000)
+                    if el and await el.is_visible():
                         logger.info(f"Found URL input with selector: {sel}")
+                        input_el = el
                         break
                 except PWTimeout:
                     continue
 
             if not input_el:
+                # Log page content to help debug
+                inputs = await page.query_selector_all('input')
+                logger.error(f"Found {len(inputs)} input(s) on page but none matched. URL: {page.url}")
+                for i, inp in enumerate(inputs[:5]):
+                    attrs = await inp.evaluate('el => ({type: el.type, placeholder: el.placeholder, class: el.className})')
+                    logger.error(f"  input[{i}]: {attrs}")
                 raise ValueError("Could not find URL input on promotion/link page")
 
             await input_el.triple_click()
             await input_el.fill(product_url)
+            await page.wait_for_timeout(500)
 
             # Click Create Link
             await page.click('button:has-text("Create Link")', timeout=8000)
 
-            # Wait for the short link to appear
+            # Wait for the short link
             await page.wait_for_selector("text=onlyaff.app", timeout=20000)
 
-            # Extract the link
             result_link = None
 
             for sel in [
                 'input[readonly]',
+                '.el-input__inner[readonly]',
                 '[class*="link-value"]',
                 '[class*="promote"] input',
                 '[class*="result"] input',
@@ -233,7 +236,6 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 except Exception:
                     continue
 
-            # Fallback: regex in page HTML
             if not result_link:
                 html = await page.content()
                 m = re.search(r'https://c\.onlyaff\.app/[A-Za-z0-9]+', html)
@@ -269,13 +271,12 @@ def _parse_f_tracking(cookie: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Main link generation: Playwright first, then fallbacks
+# Main link generation
 # ---------------------------------------------------------------------------
 
 async def generate_affiliate_link(product_id: str) -> str:
     product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
 
-    # 1. Playwright (headless browser) — returns c.onlyaff.app short link
     if HACOO_EMAIL and HACOO_PASSWORD:
         try:
             link = await _generate_via_playwright(product_id)
@@ -285,7 +286,6 @@ async def generate_affiliate_link(product_id: str) -> str:
         except Exception as e:
             logger.warning(f"Playwright failed: {e}")
 
-    # 2. Direct URL with f-cookie tracking
     if HACOO_COOKIE:
         f_tracking = _parse_f_tracking(HACOO_COOKIE)
         if f_tracking:
@@ -293,7 +293,6 @@ async def generate_affiliate_link(product_id: str) -> str:
             logger.info(f"Affiliate link via f-tracking: {direct_link}")
             return direct_link
 
-    # 3. Plain product URL
     logger.warning("No affiliate method worked, returning plain URL")
     return product_url
 
@@ -338,8 +337,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         affiliate_link = await generate_affiliate_link(product_id)
 
-        reply_text = f"ID del producto: `{product_id}`\n\nLink de afiliado:\n{affiliate_link}"
-        await status_msg.edit_text(reply_text, parse_mode="Markdown")
+        # No parse_mode to avoid Markdown issues with underscores in URLs
+        reply_text = f"ID del producto: {product_id}\n\nLink de afiliado:\n{affiliate_link}"
+        await status_msg.edit_text(reply_text)
 
         if CHANNEL_ID:
             try:
