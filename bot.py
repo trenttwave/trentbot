@@ -58,11 +58,14 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
 
 def generate_affiliate_link(product_id: str) -> str:
     product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
-    api_url = "https://gw.hacoo.app/gw/dwp-home-core.promoLink/1"
+    api_url = "https://gw.hacoo.app/gw/dwp.aff-home-core.promoLink/1"
     headers = {
         "Cookie": f"gw-token={HACOO_GW_TOKEN}",
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
+        "Origin": "https://affiliate.hacoo.app",
+        "Referer": "https://affiliate.hacoo.app/",
+        "Accept": "application/json, text/plain, */*",
     }
     data = {
         "data": json.dumps({"link": product_url}),
