@@ -1,4 +1,6 @@
 import os
+import json
+import time
 import base64
 import logging
 import requests
@@ -19,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+HACOO_GW_TOKEN = os.environ.get("HACOO_GW_TOKEN")
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
@@ -53,10 +56,42 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
+def generate_affiliate_link(product_id: str) -> str:
+    product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
+    api_url = "https://gw.hacoo.app/gw/dwp-home-core.promoLink/1"
+    headers = {
+        "Cookie": f"gw-token={HACOO_GW_TOKEN}",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    }
+    data = {
+        "data": json.dumps({"link": product_url}),
+        "gw_ver": "1",
+        "ct": str(int(time.time() * 1000)),
+        "plat": "pc",
+        "appname": "saramart",
+    }
+    resp = requests.post(api_url, data=data, headers=headers, params={"sid": "12"}, timeout=15)
+    resp.raise_for_status()
+    result = resp.json()
+    logger.info(f"Affiliate API response: {result}")
+    data_field = result.get("data") or result.get("result") or result
+    if isinstance(data_field, dict):
+        link = (
+            data_field.get("short_url")
+            or data_field.get("link")
+            or data_field.get("url")
+            or data_field.get("shortUrl")
+        )
+        if link:
+            return link
+    raise ValueError(f"No se pudo extraer el link: {result}")
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Hola! Soy TrentBot.\n\n"
-        "Enviame una captura de un producto de Hacoo y te dire el ID del producto."
+        "Enviame una captura de un producto de Hacoo y te generare el link de afiliado."
     )
 
 
@@ -79,11 +114,23 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ),
         ).strip()
 
-        await status_msg.edit_text(f"ID del producto: {product_id}")
+        if not product_id.isdigit():
+            await status_msg.edit_text(
+                "No encontre el ID del producto. Asegurate de que la captura muestre el ID numerico."
+            )
+            return
+
+        await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
+
+        affiliate_link = generate_affiliate_link(product_id)
+
+        await status_msg.edit_text(
+            f"ID del producto: {product_id}\n\nLink de afiliado:\n{affiliate_link}"
+        )
 
     except Exception as e:
         logger.error(f"Error processing photo: {e}")
-        await status_msg.edit_text("Error al analizar la imagen. Intentalo de nuevo.")
+        await status_msg.edit_text(f"Error: {e}")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -104,6 +151,8 @@ def main():
         raise ValueError("BOT_TOKEN is not set")
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY is not set")
+    if not HACOO_GW_TOKEN:
+        raise ValueError("HACOO_GW_TOKEN is not set")
 
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
