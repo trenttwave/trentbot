@@ -2,6 +2,7 @@ import os
 import json
 import time
 import base64
+import hashlib
 import logging
 import requests
 from telegram import Update
@@ -56,9 +57,24 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
+def make_sign(params: dict) -> str:
+    sorted_string = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+    return hashlib.md5(sorted_string.encode()).hexdigest()
+
+
 def generate_affiliate_link(product_id: str) -> str:
     product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
     api_url = "https://gw.hacoo.app/gw/dwp.aff-home-core.promoLink/1"
+    ct = str(int(time.time() * 1000))
+    params = {
+        "data": json.dumps({"link": product_url}, separators=(",", ":")),
+        "gw_ver": "1",
+        "ct": ct,
+        "plat": "pc",
+        "appname": "saramart",
+    }
+    sign = make_sign(params)
+    logger.info(f"Sign: {sign}, params string: {'&'.join(f'{k}={v}' for k, v in sorted(params.items()))}")
     headers = {
         "Cookie": HACOO_COOKIE,
         "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
@@ -67,13 +83,7 @@ def generate_affiliate_link(product_id: str) -> str:
         "Referer": "https://affiliate.hacoo.app/",
         "Accept": "application/json, text/plain, */*",
     }
-    data = {
-        "data": json.dumps({"link": product_url}),
-        "gw_ver": "1",
-        "ct": str(int(time.time() * 1000)),
-        "plat": "pc",
-        "appname": "saramart",
-    }
+    data = {**params, "sign": sign}
     resp = requests.post(api_url, data=data, headers=headers, params={"sid": "9"}, timeout=15)
     resp.raise_for_status()
     result = resp.json()
