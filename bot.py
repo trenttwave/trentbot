@@ -71,7 +71,7 @@ def generate_affiliate_link(product_id: str) -> str:
         "plat": "pc",
         "appname": "saramart",
     }
-    resp = requests.post(api_url, data=data, headers=headers, params={"sid": "12"}, timeout=15)
+    resp = requests.post(api_url, data=data, headers=headers, params={"sid": "9"}, timeout=15)
     resp.raise_for_status()
     result = resp.json()
     logger.info(f"Affiliate API response: {result}")
