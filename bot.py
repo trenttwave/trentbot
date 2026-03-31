@@ -275,6 +275,10 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             if not input_el:
                 inputs = await page.query_selector_all('input')
                 logger.error(f"No input found. {len(inputs)} inputs on page. URL: {page.url}")
+                body_len = await page.evaluate("document.body ? document.body.innerHTML.length : 0")
+                snippet = await page.evaluate("document.body ? document.body.innerHTML.substring(0, 2000) : 'no body'")
+                logger.error(f"Promotion page HTML length: {body_len}")
+                logger.error(f"Promotion page snippet: {snippet}")
                 for i, inp in enumerate(inputs[:8]):
                     attrs = await inp.evaluate('el => ({type: el.type, placeholder: el.placeholder, class: el.className, visible: el.offsetParent !== null})')
                     logger.error(f"  input[{i}]: {attrs}")
