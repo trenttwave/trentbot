@@ -411,10 +411,24 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
+        # Extraer marca del producto
+        try:
+            brand_info = gemini_vision(
+                image_bytes,
+                (
+                    "Analiza esta captura de pantalla de la app Hacoo. "
+                    "Dime la marca del producto (brand). "
+                    "Si no se ve claramente la marca, responde 'No especificada'. "
+                    "Responde solo con el nombre de la marca, sin texto adicional."
+                ),
+            ).strip()
+        except Exception:
+            brand_info = "No disponible"
+
         affiliate_link = await generate_affiliate_link(product_id)
 
         # No parse_mode to avoid Markdown issues with underscores in URLs
-        reply_text = f"ID del producto: {product_id}\n\nLink de afiliado:\n{affiliate_link}"
+        reply_text = f"ID del producto: {product_id}\nMarca: {brand_info}\n\nLink de afiliado:\n{affiliate_link}"
         await status_msg.edit_text(reply_text)
 
         if CHANNEL_ID:
