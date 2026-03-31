@@ -70,14 +70,20 @@ async def _hacoo_login(page) -> None:
     from playwright.async_api import TimeoutError as PWTimeout
 
     logger.info(f"Performing Hacoo affiliate login... Current URL: {page.url}")
-    await page.wait_for_load_state("domcontentloaded")
-    await page.wait_for_timeout(2000)
+    await page.wait_for_load_state("networkidle")
+    await page.wait_for_timeout(4000)
     logger.info(f"Login page URL after load: {page.url}")
+    title = await page.title()
+    body_len = await page.evaluate("document.body ? document.body.innerHTML.length : 0")
+    logger.info(f"Page title: {title!r}, body HTML length: {body_len}")
     all_inputs = await page.query_selector_all('input')
     logger.info(f"Inputs found on login page: {len(all_inputs)}")
     for i, inp in enumerate(all_inputs[:10]):
         attrs = await inp.evaluate('el => ({type: el.type, name: el.name, placeholder: el.placeholder, class: el.className, id: el.id})')
         logger.info(f"  input[{i}]: {attrs}")
+    if not all_inputs:
+        snippet = await page.evaluate("document.body ? document.body.innerHTML.substring(0, 800) : 'no body'")
+        logger.info(f"Body HTML snippet: {snippet}")
 
     email_filled = False
     for sel in [
