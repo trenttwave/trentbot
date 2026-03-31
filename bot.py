@@ -417,12 +417,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 image_bytes,
                 (
                     "Analiza esta captura de la app Hacoo. Extrae exactamente:\n"
-                    "1. El nombre del producto tal como aparece escrito en pantalla\n"
-                    "2. La marca (busca logos o texto de marca en el producto/imagen). "
-                    "Si no hay marca visible, escribe 'Sin marca'.\n\n"
+                    "1. El nombre del producto tal como aparece escrito en pantalla.\n"
+                    "2. La marca del producto. Busca en este orden:\n"
+                    "   a) Texto o logo de marca visible en el propio producto (zapato, ropa, etc.)\n"
+                    "   b) Nombre de marca mencionado en el título o descripción del producto\n"
+                    "   c) Si el producto parece de una marca conocida por su diseño/estilo, indícala\n"
+                    "   d) Solo si es completamente imposible identificarla, escribe 'Sin marca'\n\n"
                     "Responde EXACTAMENTE en este formato (dos líneas):\n"
                     "Nombre: [nombre del producto]\n"
-                    "Marca: [marca o 'Sin marca']"
+                    "Marca: [marca]"
                 ),
             ).strip()
             nombre_producto = "No disponible"
