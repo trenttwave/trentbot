@@ -29,6 +29,7 @@ HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
+GEMINI_SEARCH_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
 
 
@@ -45,6 +46,7 @@ def gemini_text(prompt: str) -> str:
 
 def gemini_vision(image_bytes: bytes, prompt: str, use_search: bool = False) -> str:
     image_b64 = base64.b64encode(image_bytes).decode()
+    url = GEMINI_SEARCH_URL if use_search else GEMINI_URL
     body = {
         "contents": [{
             "parts": [
@@ -56,13 +58,15 @@ def gemini_vision(image_bytes: bytes, prompt: str, use_search: bool = False) -> 
     if use_search:
         body["tools"] = [{"google_search": {}}]
     resp = requests.post(
-        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+        f"{url}?key={GEMINI_API_KEY}",
         json=body,
         timeout=30,
     )
     logger.info(f"Gemini vision status: {resp.status_code} - {resp.text[:300]}")
     resp.raise_for_status()
-    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    parts = resp.json()["candidates"][0]["content"]["parts"]
+    # Con search grounding puede haber múltiples partes; tomar la primera con texto
+    return next(p["text"] for p in parts if "text" in p)
 
 
 # ---------------------------------------------------------------------------
