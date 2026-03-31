@@ -43,18 +43,21 @@ def gemini_text(prompt: str) -> str:
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def gemini_vision(image_bytes: bytes, prompt: str) -> str:
+def gemini_vision(image_bytes: bytes, prompt: str, use_search: bool = False) -> str:
     image_b64 = base64.b64encode(image_bytes).decode()
+    body = {
+        "contents": [{
+            "parts": [
+                {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
+                {"text": prompt},
+            ]
+        }]
+    }
+    if use_search:
+        body["tools"] = [{"google_search": {}}]
     resp = requests.post(
         f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-        json={
-            "contents": [{
-                "parts": [
-                    {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
-                    {"text": prompt},
-                ]
-            }]
-        },
+        json=body,
         timeout=30,
     )
     logger.info(f"Gemini vision status: {resp.status_code} - {resp.text[:300]}")
@@ -465,7 +468,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "Nombre: [nombre del producto]\n"
                     "Marca: [marca]"
                 )
-            product_info = gemini_vision(analysis_image, prompt).strip()
+            product_info = gemini_vision(analysis_image, prompt, use_search=True).strip()
             nombre_producto = "No disponible"
             marca_producto = "No disponible"
             for line in product_info.splitlines():
