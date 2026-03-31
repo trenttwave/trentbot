@@ -207,7 +207,7 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 try:
                     body = await response.json()
                     data = body.get("data") or {}
-                    link = data.get("short_url") or data.get("link") or data.get("url")
+                    link = data.get("promoLink") or data.get("short_url") or data.get("link") or data.get("url")
                     if link:
                         logger.info(f"promoLink API intercepted, short link: {link}")
                         link_future.set_result(link)
