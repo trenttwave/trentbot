@@ -374,6 +374,31 @@ async def generate_affiliate_link(product_id: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Product image helper
+# ---------------------------------------------------------------------------
+
+def _get_product_image(product_id: str) -> bytes | None:
+    """Descarga la imagen principal del producto de Hacoo (og:image)."""
+    try:
+        url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
+        resp = requests.get(url, timeout=10, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
+        m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', resp.text)
+        if not m:
+            m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', resp.text)
+        if m:
+            img_url = m.group(1)
+            img_resp = requests.get(img_url, timeout=10)
+            img_resp.raise_for_status()
+            logger.info(f"Downloaded product image for {product_id}: {img_url}")
+            return img_resp.content
+    except Exception as e:
+        logger.warning(f"Could not fetch product image for {product_id}: {e}")
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Telegram handlers
 # ---------------------------------------------------------------------------
 
@@ -411,11 +436,24 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
+        # Intentar obtener imagen del producto en alta resolución
+        product_image = _get_product_image(product_id)
+        analysis_image = product_image if product_image else image_bytes
+
         # Extraer nombre y marca del producto en una sola llamada
         try:
-            product_info = gemini_vision(
-                image_bytes,
-                (
+            if product_image:
+                prompt = (
+                    "Analiza esta imagen de un producto de catálogo. Extrae exactamente:\n"
+                    "1. El nombre del producto\n"
+                    "2. La marca — busca logos, texto bordado, estampado o impreso en el producto. "
+                    "Esta es una foto de catálogo del fabricante, la marca suele estar claramente visible.\n\n"
+                    "Responde EXACTAMENTE en este formato (dos líneas):\n"
+                    "Nombre: [nombre del producto]\n"
+                    "Marca: [marca]"
+                )
+            else:
+                prompt = (
                     "Analiza esta captura de la app Hacoo. Extrae exactamente:\n"
                     "1. El nombre del producto tal como aparece escrito en pantalla.\n"
                     "2. La marca del producto. Busca en este orden:\n"
@@ -426,8 +464,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "Responde EXACTAMENTE en este formato (dos líneas):\n"
                     "Nombre: [nombre del producto]\n"
                     "Marca: [marca]"
-                ),
-            ).strip()
+                )
+            product_info = gemini_vision(analysis_image, prompt).strip()
             nombre_producto = "No disponible"
             marca_producto = "No disponible"
             for line in product_info.splitlines():
