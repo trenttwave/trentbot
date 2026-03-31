@@ -128,8 +128,11 @@ async def _hacoo_login(page) -> None:
 
 async def _generate_via_playwright(product_id: str) -> str | None:
     from playwright.async_api import async_playwright, TimeoutError as PWTimeout
+    import asyncio
 
     product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
+    loop = asyncio.get_event_loop()
+    link_future: asyncio.Future = loop.create_future()
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -155,51 +158,70 @@ async def _generate_via_playwright(product_id: str) -> str | None:
 
         page = await context.new_page()
 
+        # Intercept promoLink API response to extract short link reliably
+        async def handle_response(response):
+            if "promoLink" in response.url and not link_future.done():
+                try:
+                    body = await response.json()
+                    data = body.get("data") or {}
+                    link = data.get("short_url") or data.get("link") or data.get("url")
+                    if link:
+                        logger.info(f"promoLink API intercepted, short link: {link}")
+                        link_future.set_result(link)
+                    else:
+                        logger.warning(f"promoLink response has no link field: {body}")
+                except Exception as e:
+                    logger.warning(f"Response interception error: {e}")
+
+        page.on("response", handle_response)
+
         try:
             promo_url = "https://affiliate.hacoo.app/en-ES/promotion/link"
-            await page.goto(promo_url, timeout=30000, wait_until="networkidle")
+            await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
+            await page.wait_for_timeout(2000)
 
             if "login" in page.url.lower():
                 await _hacoo_login(page)
-                await page.goto(promo_url, timeout=30000, wait_until="networkidle")
+                await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(2000)
 
             cookies = await context.cookies()
             with open(_SESSION_COOKIES_FILE, "w") as f:
                 json.dump(cookies, f)
 
-            # Wait for page to fully render (Vue SPA)
-            await page.wait_for_load_state("networkidle")
-            await page.wait_for_timeout(2000)
-
-            # Find URL input — try many selectors including Element UI
+            # Find URL input — loop through visible inputs, not just first match
             input_el = None
             for sel in [
-                '.el-input__inner',
                 'input[placeholder*="link" i]',
                 'input[placeholder*="url" i]',
                 'input[placeholder*="http" i]',
                 'input[placeholder*="product" i]',
                 'input[placeholder*="Please" i]',
                 'input[placeholder*="Enter" i]',
-                'textarea',
+                '.el-input__inner',
                 'input[type="text"]',
-                'input:not([type="hidden"]):not([type="submit"]):not([type="button"])',
+                'input[type="url"]',
+                'input:not([type])',
             ]:
                 try:
-                    el = await page.wait_for_selector(sel, timeout=3000)
-                    if el and await el.is_visible():
-                        logger.info(f"Found URL input with selector: {sel}")
-                        input_el = el
+                    els = page.locator(sel)
+                    count = await els.count()
+                    for i in range(count):
+                        el = els.nth(i)
+                        if await el.is_visible():
+                            logger.info(f"Found URL input [{i}] with selector: {sel}")
+                            input_el = el
+                            break
+                    if input_el:
                         break
-                except PWTimeout:
+                except Exception:
                     continue
 
             if not input_el:
-                # Log page content to help debug
                 inputs = await page.query_selector_all('input')
-                logger.error(f"Found {len(inputs)} input(s) on page but none matched. URL: {page.url}")
-                for i, inp in enumerate(inputs[:5]):
-                    attrs = await inp.evaluate('el => ({type: el.type, placeholder: el.placeholder, class: el.className})')
+                logger.error(f"No input found. {len(inputs)} inputs on page. URL: {page.url}")
+                for i, inp in enumerate(inputs[:8]):
+                    attrs = await inp.evaluate('el => ({type: el.type, placeholder: el.placeholder, class: el.className, visible: el.offsetParent !== null})')
                     logger.error(f"  input[{i}]: {attrs}")
                 raise ValueError("Could not find URL input on promotion/link page")
 
@@ -207,43 +229,37 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             await input_el.fill(product_url)
             await page.wait_for_timeout(500)
 
-            # Click Create Link
-            await page.click('button:has-text("Create Link")', timeout=8000)
-
-            # Wait for the short link
-            await page.wait_for_selector("text=onlyaff.app", timeout=20000)
-
-            result_link = None
-
-            for sel in [
-                'input[readonly]',
-                '.el-input__inner[readonly]',
-                '[class*="link-value"]',
-                '[class*="promote"] input',
-                '[class*="result"] input',
-                '[class*="copy"] input',
+            # Click Create Link button
+            clicked = False
+            for btn_sel in [
+                'button:has-text("Create Link")',
+                'button:has-text("Generate")',
+                'button:has-text("Create")',
+                'button:has-text("Get Link")',
+                'button[type="submit"]',
+                '.el-button--primary',
             ]:
                 try:
-                    el = await page.query_selector(sel)
-                    if el:
-                        val = (
-                            await el.get_attribute("value")
-                            or await el.text_content()
-                        )
-                        if val and "onlyaff.app" in val:
-                            result_link = val.strip()
-                            break
+                    btn = page.locator(btn_sel).first
+                    if await btn.is_visible():
+                        await btn.click()
+                        clicked = True
+                        logger.info(f"Clicked button: {btn_sel}")
+                        break
                 except Exception:
                     continue
 
-            if not result_link:
-                html = await page.content()
-                m = re.search(r'https://c\.onlyaff\.app/[A-Za-z0-9]+', html)
-                if m:
-                    result_link = m.group(0)
+            if not clicked:
+                raise ValueError("Could not find Create Link button")
 
-            logger.info(f"Playwright result: {result_link}")
-            return result_link
+            # Wait for intercepted promoLink API response (up to 25s)
+            try:
+                result_link = await asyncio.wait_for(asyncio.shield(link_future), timeout=25)
+                logger.info(f"Playwright short link: {result_link}")
+                return result_link
+            except asyncio.TimeoutError:
+                logger.error("Timed out waiting for promoLink API response")
+                return None
 
         except PWTimeout as e:
             logger.error(f"Playwright timeout: {e}")
