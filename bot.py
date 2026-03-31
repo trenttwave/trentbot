@@ -74,30 +74,39 @@ async def _hacoo_login(page) -> None:
     await page.wait_for_timeout(3000)
     logger.info(f"Login page URL after load: {page.url}")
 
-    # Si no hay inputs visibles, puede que el formulario esté detrás de un botón/tab
+    # Si no hay inputs visibles, el formulario está detrás de un botón/modal
     all_inputs = await page.query_selector_all('input')
     logger.info(f"Inputs on page before click: {len(all_inputs)}")
     if not all_inputs:
-        # Intentar clicar en un botón/link de Login para mostrar el formulario
+        # Usar page.locator() que sí soporta :has-text()
+        clicked = False
         for login_trigger in [
+            'a:has-text("Sign In")',
+            'a:has-text("Sign in")',
             'a:has-text("Login")',
             'a:has-text("Log in")',
-            'a:has-text("Sign in")',
+            'button:has-text("Sign In")',
             'button:has-text("Login")',
-            'button:has-text("Log in")',
-            'button:has-text("Sign in")',
-            '[href*="login"]',
-            'a[href*="sign-in"]',
         ]:
             try:
-                el = await page.query_selector(login_trigger)
-                if el and await el.is_visible():
+                loc = page.locator(login_trigger).first
+                if await loc.is_visible():
                     logger.info(f"Clicking login trigger: {login_trigger}")
-                    await el.click()
+                    await loc.click()
                     await page.wait_for_timeout(2000)
+                    clicked = True
                     break
             except Exception:
                 continue
+        if not clicked:
+            logger.warning("No login trigger found, trying XPath")
+            try:
+                loc = page.locator('//a[contains(., "Sign")]').first
+                if await loc.is_visible():
+                    await loc.click()
+                    await page.wait_for_timeout(2000)
+            except Exception:
+                pass
         all_inputs = await page.query_selector_all('input')
         logger.info(f"Inputs after login trigger click: {len(all_inputs)}")
         if not all_inputs:
@@ -130,17 +139,19 @@ async def _hacoo_login(page) -> None:
 
     submitted = False
     for sel in [
-        'button[type="submit"]',
+        'button:has-text("Sign In")',
+        'button:has-text("Sign in")',
         'button:has-text("Login")',
         'button:has-text("Log in")',
-        'button:has-text("Sign in")',
+        'button[type="submit"]',
         'button:has-text("登录")',
     ]:
         try:
-            el = await page.query_selector(sel)
-            if el:
-                await el.click()
+            btn = page.locator(sel).first
+            if await btn.is_visible():
+                await btn.click()
                 submitted = True
+                logger.info(f"Clicked submit button: {sel}")
                 break
         except Exception:
             continue
