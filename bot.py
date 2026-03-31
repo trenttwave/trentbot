@@ -69,8 +69,15 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
 async def _hacoo_login(page) -> None:
     from playwright.async_api import TimeoutError as PWTimeout
 
-    logger.info("Performing Hacoo affiliate login...")
-    await page.wait_for_load_state("networkidle")
+    logger.info(f"Performing Hacoo affiliate login... Current URL: {page.url}")
+    await page.wait_for_load_state("domcontentloaded")
+    await page.wait_for_timeout(2000)
+    logger.info(f"Login page URL after load: {page.url}")
+    all_inputs = await page.query_selector_all('input')
+    logger.info(f"Inputs found on login page: {len(all_inputs)}")
+    for i, inp in enumerate(all_inputs[:10]):
+        attrs = await inp.evaluate('el => ({type: el.type, name: el.name, placeholder: el.placeholder, class: el.className, id: el.id})')
+        logger.info(f"  input[{i}]: {attrs}")
 
     email_filled = False
     for sel in [
