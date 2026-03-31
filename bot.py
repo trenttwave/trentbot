@@ -219,7 +219,7 @@ async def _generate_via_playwright(product_id: str) -> str | None:
         page.on("response", handle_response)
 
         try:
-            promo_url = "https://affiliate.hacoo.app/en-ES/promotion/link"
+            promo_url = "https://affiliate.hacoo.app/es-ES/promotion/link"
             await page.goto(promo_url, timeout=30000, wait_until="networkidle")
             await page.wait_for_timeout(3000)
 
@@ -228,7 +228,7 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 if os.path.exists(_SESSION_COOKIES_FILE):
                     os.remove(_SESSION_COOKIES_FILE)
                 # Navegar a la página de login real (no /join que es registro)
-                await page.goto("https://affiliate.hacoo.app/en-ES/login", timeout=30000, wait_until="domcontentloaded")
+                await page.goto("https://affiliate.hacoo.app/es-ES/login", timeout=30000, wait_until="domcontentloaded")
                 await page.wait_for_timeout(1500)
                 await _hacoo_login(page)
                 await page.goto(promo_url, timeout=30000, wait_until="networkidle")
@@ -238,15 +238,16 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             with open(_SESSION_COOKIES_FILE, "w") as f:
                 json.dump(cookies, f)
 
-            # Esperar a que Vue monte el formulario antes de buscar inputs
+            # Esperar a que Vue monte el formulario (puede ser textarea)
             try:
-                await page.wait_for_selector('input', timeout=10000)
+                await page.wait_for_selector('textarea, input', timeout=10000)
             except Exception:
                 pass
 
-            # Find URL input — loop through visible inputs, not just first match
+            # Find URL input — el campo es un textarea en esta página
             input_el = None
             for sel in [
+                'textarea',
                 'input[placeholder*="link" i]',
                 'input[placeholder*="url" i]',
                 'input[placeholder*="http" i]',
