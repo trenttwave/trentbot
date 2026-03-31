@@ -285,7 +285,7 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                     logger.error(f"  input[{i}]: {attrs}")
                 raise ValueError("Could not find URL input on promotion/link page")
 
-            await input_el.triple_click()
+            await input_el.click(click_count=3)
             await input_el.fill(product_url)
             await page.wait_for_timeout(500)
 
