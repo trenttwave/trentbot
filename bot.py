@@ -220,8 +220,8 @@ async def _generate_via_playwright(product_id: str) -> str | None:
 
         try:
             promo_url = "https://affiliate.hacoo.app/en-ES/promotion/link"
-            await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
-            await page.wait_for_timeout(2000)
+            await page.goto(promo_url, timeout=30000, wait_until="networkidle")
+            await page.wait_for_timeout(3000)
 
             if "login" in page.url.lower() or "join" in page.url.lower():
                 # Borrar sesión caducada
@@ -231,12 +231,18 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 await page.goto("https://affiliate.hacoo.app/en-ES/login", timeout=30000, wait_until="domcontentloaded")
                 await page.wait_for_timeout(1500)
                 await _hacoo_login(page)
-                await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
-                await page.wait_for_timeout(2000)
+                await page.goto(promo_url, timeout=30000, wait_until="networkidle")
+                await page.wait_for_timeout(3000)
 
             cookies = await context.cookies()
             with open(_SESSION_COOKIES_FILE, "w") as f:
                 json.dump(cookies, f)
+
+            # Esperar a que Vue monte el formulario antes de buscar inputs
+            try:
+                await page.wait_for_selector('input', timeout=10000)
+            except Exception:
+                pass
 
             # Find URL input — loop through visible inputs, not just first match
             input_el = None
