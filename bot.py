@@ -118,7 +118,7 @@ async def _hacoo_login(page) -> None:
 
     try:
         await page.wait_for_function(
-            "!window.location.href.toLowerCase().includes('login')",
+            "!window.location.href.toLowerCase().includes('login') && !window.location.href.toLowerCase().includes('join')",
             timeout=20000,
         )
         logger.info(f"Login successful, redirected to: {page.url}")
@@ -181,9 +181,12 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             await page.wait_for_timeout(2000)
 
             if "login" in page.url.lower() or "join" in page.url.lower():
-                # Clear expired session cache before re-login
+                # Borrar sesión caducada
                 if os.path.exists(_SESSION_COOKIES_FILE):
                     os.remove(_SESSION_COOKIES_FILE)
+                # Navegar a la página de login real (no /join que es registro)
+                await page.goto("https://affiliate.hacoo.app/en-ES/login", timeout=30000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(1500)
                 await _hacoo_login(page)
                 await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
                 await page.wait_for_timeout(2000)
