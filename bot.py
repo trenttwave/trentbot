@@ -436,46 +436,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
-        # Extraer nombre y marca del producto en una sola llamada
-        try:
-            product_info = gemini_vision(
-                image_bytes,
-                (
-                    "Analiza esta captura de la app Hacoo. Extrae exactamente:\n"
-                    "1. El nombre del producto tal como aparece escrito en pantalla\n"
-                    "2. La marca (busca logos o texto de marca en el producto/imagen). "
-                    "Si no hay marca visible, escribe 'Sin marca'.\n\n"
-                    "Responde EXACTAMENTE en este formato (dos líneas):\n"
-                    "Nombre: [nombre del producto]\n"
-                    "Marca: [marca o 'Sin marca']"
-                ),
-            ).strip()
-            nombre_producto = "No disponible"
-            marca_producto = "No disponible"
-            for line in product_info.splitlines():
-                if line.startswith("Nombre:"):
-                    nombre_producto = line.replace("Nombre:", "").strip()
-                elif line.startswith("Marca:"):
-                    marca_producto = line.replace("Marca:", "").strip()
-        except Exception:
-            nombre_producto = "No disponible"
-            marca_producto = "No disponible"
-
         affiliate_link = await generate_affiliate_link(product_id)
-
-        reply_text = (
-            f"ID del producto: {product_id}\n"
-            f"Nombre: {nombre_producto}\n"
-            f"Marca: {marca_producto}\n\n"
-            f"Link de afiliado:\n{affiliate_link}"
-        )
-
         product_image = _get_product_image(product_id)
+
         if product_image:
             await status_msg.delete()
-            await update.message.reply_photo(photo=product_image, caption=reply_text)
+            await update.message.reply_photo(photo=product_image, caption=affiliate_link)
         else:
-            await status_msg.edit_text(reply_text)
+            await status_msg.edit_text(affiliate_link)
 
         if CHANNEL_ID:
             try:
