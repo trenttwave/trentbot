@@ -27,6 +27,7 @@ HACOO_COOKIE = os.environ.get("HACOO_COOKIE", "").strip()
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
+GOOGLE_VISION_API_KEY = os.environ.get("GOOGLE_VISION_API_KEY", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
@@ -60,6 +61,32 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
     logger.info(f"Gemini vision status: {resp.status_code} - {resp.text[:300]}")
     resp.raise_for_status()
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+
+def google_vision_brand(image_bytes: bytes) -> str | None:
+    """Usa Google Cloud Vision Web Detection para identificar la marca del producto."""
+    if not GOOGLE_VISION_API_KEY:
+        return None
+    try:
+        image_b64 = base64.b64encode(image_bytes).decode()
+        resp = requests.post(
+            f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_API_KEY}",
+            json={"requests": [{"image": {"content": image_b64}, "features": [{"type": "WEB_DETECTION", "maxResults": 5}]}]},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        web = resp.json()["responses"][0].get("webDetection", {})
+        # Buscar en best guess labels primero
+        for label in web.get("bestGuessLabels", []):
+            if label.get("label"):
+                return label["label"]
+        # Luego en web entities con score alto
+        for entity in web.get("webEntities", []):
+            if entity.get("score", 0) > 0.7 and entity.get("description"):
+                return entity["description"]
+    except Exception as e:
+        logger.warning(f"Google Vision brand detection failed: {e}")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -411,30 +438,23 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
-        # Extraer nombre y marca del producto en una sola llamada
+        # Extraer nombre con Gemini y marca con Google Vision
         try:
-            product_info = gemini_vision(
+            nombre_producto = gemini_vision(
                 image_bytes,
                 (
-                    "Analiza esta captura de la app Hacoo. Extrae exactamente:\n"
-                    "1. El nombre del producto tal como aparece escrito en pantalla\n"
-                    "2. La marca (busca logos o texto de marca en el producto/imagen). "
-                    "Si no hay marca visible, escribe 'Sin marca'.\n\n"
-                    "Responde EXACTAMENTE en este formato (dos líneas):\n"
-                    "Nombre: [nombre del producto]\n"
-                    "Marca: [marca o 'Sin marca']"
+                    "Analiza esta captura de la app Hacoo. "
+                    "Extrae SOLO el nombre del producto tal como aparece escrito en pantalla. "
+                    "Responde únicamente con el nombre, sin texto adicional."
                 ),
             ).strip()
-            nombre_producto = "No disponible"
-            marca_producto = "No disponible"
-            for line in product_info.splitlines():
-                if line.startswith("Nombre:"):
-                    nombre_producto = line.replace("Nombre:", "").strip()
-                elif line.startswith("Marca:"):
-                    marca_producto = line.replace("Marca:", "").strip()
         except Exception:
             nombre_producto = "No disponible"
-            marca_producto = "No disponible"
+
+        try:
+            marca_producto = google_vision_brand(image_bytes) or "Sin marca"
+        except Exception:
+            marca_producto = "Sin marca"
 
         affiliate_link = await generate_affiliate_link(product_id)
 
