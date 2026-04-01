@@ -27,7 +27,6 @@ HACOO_COOKIE = os.environ.get("HACOO_COOKIE", "").strip()
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
-GOOGLE_VISION_API_KEY = os.environ.get("GOOGLE_VISION_API_KEY", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
@@ -61,56 +60,6 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
     logger.info(f"Gemini vision status: {resp.status_code} - {resp.text[:300]}")
     resp.raise_for_status()
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-
-def google_lens_brand(image_bytes: bytes) -> str | None:
-    """Usa Google Lens (web scraping) para identificar la marca del producto."""
-    try:
-        import time
-        timestamp = int(time.time() * 1000)
-        resp = requests.post(
-            f"https://lens.google.com/v3/upload?hl=es&re=df&st={timestamp}&ep=gsbubb",
-            files={"encoded_image": ("image.jpg", image_bytes, "image/jpeg")},
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
-            timeout=15,
-            allow_redirects=True,
-        )
-        text = resp.text
-        # Buscar "best guess" label en la respuesta
-        m = re.search(r'"Best guess result for this image[^"]*"[^:]*:[^"]*"([^"]+)"', text)
-        if m:
-            return m.group(1)
-        # Buscar en los datos JSON embebidos
-        m = re.search(r'\["([A-Za-z][^"]{2,40})",null,null,\d+\]', text)
-        if m:
-            return m.group(1)
-    except Exception as e:
-        logger.warning(f"Google Lens brand detection failed: {e}")
-    return None
-
-
-def google_vision_brand(image_bytes: bytes) -> str | None:
-    """Usa Google Cloud Vision Web Detection para identificar la marca del producto."""
-    if not GOOGLE_VISION_API_KEY:
-        return None
-    try:
-        image_b64 = base64.b64encode(image_bytes).decode()
-        resp = requests.post(
-            f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_API_KEY}",
-            json={"requests": [{"image": {"content": image_b64}, "features": [{"type": "WEB_DETECTION", "maxResults": 5}]}]},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        web = resp.json()["responses"][0].get("webDetection", {})
-        for label in web.get("bestGuessLabels", []):
-            if label.get("label"):
-                return label["label"]
-        for entity in web.get("webEntities", []):
-            if entity.get("score", 0) > 0.7 and entity.get("description"):
-                return entity["description"]
-    except Exception as e:
-        logger.warning(f"Google Vision brand detection failed: {e}")
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -462,32 +411,30 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
-        # Extraer nombre con Gemini
+        # Extraer nombre y marca del producto en una sola llamada
         try:
-            nombre_producto = gemini_vision(
+            product_info = gemini_vision(
                 image_bytes,
                 (
-                    "Analiza esta captura de la app Hacoo. "
-                    "Extrae SOLO el nombre del producto tal como aparece escrito en pantalla. "
-                    "Responde únicamente con el nombre, sin texto adicional."
+                    "Analiza esta captura de la app Hacoo. Extrae exactamente:\n"
+                    "1. El nombre del producto tal como aparece escrito en pantalla\n"
+                    "2. La marca (busca logos o texto de marca en el producto/imagen). "
+                    "Si no hay marca visible, escribe 'Sin marca'.\n\n"
+                    "Responde EXACTAMENTE en este formato (dos líneas):\n"
+                    "Nombre: [nombre del producto]\n"
+                    "Marca: [marca o 'Sin marca']"
                 ),
             ).strip()
+            nombre_producto = "No disponible"
+            marca_producto = "No disponible"
+            for line in product_info.splitlines():
+                if line.startswith("Nombre:"):
+                    nombre_producto = line.replace("Nombre:", "").strip()
+                elif line.startswith("Marca:"):
+                    marca_producto = line.replace("Marca:", "").strip()
         except Exception:
             nombre_producto = "No disponible"
-
-        # Descargar imagen del producto en alta resolución para identificar la marca
-        product_image = _get_product_image(product_id)
-        analysis_image = product_image if product_image else image_bytes
-
-        # Intentar Google Lens primero, luego Google Vision como fallback
-        try:
-            marca_producto = (
-                google_lens_brand(analysis_image)
-                or google_vision_brand(analysis_image)
-                or "Sin marca"
-            )
-        except Exception:
-            marca_producto = "Sin marca"
+            marca_producto = "No disponible"
 
         affiliate_link = await generate_affiliate_link(product_id)
 
