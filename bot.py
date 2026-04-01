@@ -63,6 +63,32 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
+def google_lens_brand(image_bytes: bytes) -> str | None:
+    """Usa Google Lens (web scraping) para identificar la marca del producto."""
+    try:
+        import time
+        timestamp = int(time.time() * 1000)
+        resp = requests.post(
+            f"https://lens.google.com/v3/upload?hl=es&re=df&st={timestamp}&ep=gsbubb",
+            files={"encoded_image": ("image.jpg", image_bytes, "image/jpeg")},
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+            timeout=15,
+            allow_redirects=True,
+        )
+        text = resp.text
+        # Buscar "best guess" label en la respuesta
+        m = re.search(r'"Best guess result for this image[^"]*"[^:]*:[^"]*"([^"]+)"', text)
+        if m:
+            return m.group(1)
+        # Buscar en los datos JSON embebidos
+        m = re.search(r'\["([A-Za-z][^"]{2,40})",null,null,\d+\]', text)
+        if m:
+            return m.group(1)
+    except Exception as e:
+        logger.warning(f"Google Lens brand detection failed: {e}")
+    return None
+
+
 def google_vision_brand(image_bytes: bytes) -> str | None:
     """Usa Google Cloud Vision Web Detection para identificar la marca del producto."""
     if not GOOGLE_VISION_API_KEY:
@@ -76,11 +102,9 @@ def google_vision_brand(image_bytes: bytes) -> str | None:
         )
         resp.raise_for_status()
         web = resp.json()["responses"][0].get("webDetection", {})
-        # Buscar en best guess labels primero
         for label in web.get("bestGuessLabels", []):
             if label.get("label"):
                 return label["label"]
-        # Luego en web entities con score alto
         for entity in web.get("webEntities", []):
             if entity.get("score", 0) > 0.7 and entity.get("description"):
                 return entity["description"]
@@ -438,7 +462,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
-        # Extraer nombre con Gemini y marca con Google Vision
+        # Extraer nombre con Gemini
         try:
             nombre_producto = gemini_vision(
                 image_bytes,
@@ -451,8 +475,17 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             nombre_producto = "No disponible"
 
+        # Descargar imagen del producto en alta resolución para identificar la marca
+        product_image = _get_product_image(product_id)
+        analysis_image = product_image if product_image else image_bytes
+
+        # Intentar Google Lens primero, luego Google Vision como fallback
         try:
-            marca_producto = google_vision_brand(image_bytes) or "Sin marca"
+            marca_producto = (
+                google_lens_brand(analysis_image)
+                or google_vision_brand(analysis_image)
+                or "Sin marca"
+            )
         except Exception:
             marca_producto = "Sin marca"
 
