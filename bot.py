@@ -63,6 +63,31 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Product image helper
+# ---------------------------------------------------------------------------
+
+def _get_product_image(product_id: str) -> bytes | None:
+    """Descarga la imagen principal del producto de Hacoo (og:image)."""
+    try:
+        url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
+        resp = requests.get(url, timeout=10, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
+        m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', resp.text)
+        if not m:
+            m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', resp.text)
+        if m:
+            img_url = m.group(1)
+            img_resp = requests.get(img_url, timeout=10)
+            img_resp.raise_for_status()
+            logger.info(f"Downloaded product image for {product_id}: {img_url}")
+            return img_resp.content
+    except Exception as e:
+        logger.warning(f"Could not fetch product image for {product_id}: {e}")
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Playwright-based affiliate link generation
 # ---------------------------------------------------------------------------
 
@@ -444,7 +469,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Marca: {marca_producto}\n\n"
             f"Link de afiliado:\n{affiliate_link}"
         )
-        await status_msg.edit_text(reply_text)
+
+        product_image = _get_product_image(product_id)
+        if product_image:
+            await status_msg.delete()
+            await update.message.reply_photo(photo=product_image, caption=reply_text)
+        else:
+            await status_msg.edit_text(reply_text)
 
         if CHANNEL_ID:
             try:
