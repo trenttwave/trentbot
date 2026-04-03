@@ -466,13 +466,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
-        affiliate_link, product_image = await generate_affiliate_link(product_id)
+        affiliate_link, _ = await generate_affiliate_link(product_id)
 
-        if product_image:
-            await status_msg.delete()
-            await update.message.reply_photo(photo=product_image, caption=affiliate_link)
-        else:
-            await status_msg.edit_text(affiliate_link)
+        await status_msg.delete()
+        await update.message.reply_photo(photo=image_bytes, caption=affiliate_link)
 
         if CHANNEL_ID:
             try:
