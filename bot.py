@@ -73,7 +73,7 @@ def crop_product_image(image_bytes: bytes) -> bytes:
     img = Image.open(io.BytesIO(image_bytes))
     w, h = img.size
     logger.info(f"Cropping image {w}x{h} to top 48%")
-    cropped = img.crop((0, int(h * 0.08), w, int(h * 0.65)))
+    cropped = img.crop((0, int(h * 0.17), w, int(h * 0.68)))
     buf = io.BytesIO()
     cropped.save(buf, format="JPEG", quality=90)
     return buf.getvalue()
