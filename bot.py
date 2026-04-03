@@ -67,34 +67,16 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
 # ---------------------------------------------------------------------------
 
 def crop_product_image(image_bytes: bytes) -> bytes:
-    """Recorta la captura para mostrar solo la imagen del producto usando Gemini."""
+    """Recorta la mitad superior de la captura donde está la foto del producto."""
     try:
         from PIL import Image
         import io
-        result = gemini_vision(
-            image_bytes,
-            (
-                "Esta es una captura de la app Hacoo. "
-                "Encuentra la imagen principal del producto (la foto grande arriba del todo). "
-                "Devuelve SOLO las coordenadas del recuadro en este formato exacto: "
-                "ymin,xmin,ymax,xmax "
-                "donde los valores son entre 0 y 1000 (normalizados). "
-                "Ejemplo: 50,0,450,1000"
-            ),
-        ).strip()
-        parts = re.findall(r"\d+", result)
-        if len(parts) >= 4:
-            ymin, xmin, ymax, xmax = [int(p) for p in parts[:4]]
-            img = Image.open(io.BytesIO(image_bytes))
-            w, h = img.size
-            left = int(xmin / 1000 * w)
-            top = int(ymin / 1000 * h)
-            right = int(xmax / 1000 * w)
-            bottom = int(ymax / 1000 * h)
-            cropped = img.crop((left, top, right, bottom))
-            buf = io.BytesIO()
-            cropped.save(buf, format="JPEG", quality=90)
-            return buf.getvalue()
+        img = Image.open(io.BytesIO(image_bytes))
+        w, h = img.size
+        cropped = img.crop((0, 0, w, int(h * 0.48)))
+        buf = io.BytesIO()
+        cropped.save(buf, format="JPEG", quality=90)
+        return buf.getvalue()
     except Exception as e:
         logger.warning(f"Crop failed: {e}")
     return image_bytes
