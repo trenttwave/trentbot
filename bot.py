@@ -347,19 +347,42 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             try:
                 result_link = await asyncio.wait_for(asyncio.shield(link_future), timeout=25)
                 logger.info(f"Playwright short link: {result_link}")
-                return result_link
             except asyncio.TimeoutError:
                 logger.error("Timed out waiting for promoLink API response")
-                return None
+                return result_link, None
+
+            # Aprovechar el mismo browser para obtener imagen del producto
+            image_bytes = None
+            try:
+                product_page = await context.new_page()
+                await product_page.goto(
+                    f"https://www.hacoo.com/en-ES/detail/{product_id}",
+                    wait_until="domcontentloaded",
+                    timeout=15000,
+                )
+                await product_page.wait_for_timeout(3000)
+                img_url = await product_page.evaluate(
+                    "() => { const m = document.querySelector('meta[property=\"og:image\"]'); return m ? m.content : null; }"
+                )
+                await product_page.close()
+                if img_url:
+                    img_resp = requests.get(img_url, timeout=10)
+                    img_resp.raise_for_status()
+                    image_bytes = img_resp.content
+                    logger.info(f"Product image downloaded: {img_url}")
+            except Exception as e:
+                logger.warning(f"Could not get product image: {e}")
+
+            return result_link, image_bytes
 
         except PWTimeout as e:
             logger.error(f"Playwright timeout: {e}")
-            return None
+            return None, None
         except Exception as e:
             logger.error(f"Playwright error: {e}")
             if os.path.exists(_SESSION_COOKIES_FILE):
                 os.remove(_SESSION_COOKIES_FILE)
-            return None
+            return None, None
         finally:
             await browser.close()
 
@@ -381,15 +404,16 @@ def _parse_f_tracking(cookie: str) -> str | None:
 # Main link generation
 # ---------------------------------------------------------------------------
 
-async def generate_affiliate_link(product_id: str) -> str:
+async def generate_affiliate_link(product_id: str) -> tuple[str, bytes | None]:
+    """Devuelve (link_afiliado, image_bytes_o_None)."""
     product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
 
     if HACOO_EMAIL and HACOO_PASSWORD:
         try:
-            link = await _generate_via_playwright(product_id)
+            link, image_bytes = await _generate_via_playwright(product_id)
             if link:
                 logger.info(f"Affiliate link via Playwright: {link}")
-                return link
+                return link, image_bytes
         except Exception as e:
             logger.warning(f"Playwright failed: {e}")
 
@@ -398,10 +422,10 @@ async def generate_affiliate_link(product_id: str) -> str:
         if f_tracking:
             direct_link = f"{product_url}?f={f_tracking}"
             logger.info(f"Affiliate link via f-tracking: {direct_link}")
-            return direct_link
+            return direct_link, None
 
     logger.warning("No affiliate method worked, returning plain URL")
-    return product_url
+    return product_url, None
 
 
 # ---------------------------------------------------------------------------
@@ -442,8 +466,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
-        affiliate_link = await generate_affiliate_link(product_id)
-        product_image = await _get_product_image(product_id)
+        affiliate_link, product_image = await generate_affiliate_link(product_id)
 
         if product_image:
             await status_msg.delete()
