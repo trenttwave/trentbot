@@ -1,3 +1,4 @@
+import io
 import os
 import re
 import json
@@ -6,6 +7,7 @@ import base64
 import hashlib
 import logging
 import requests
+from PIL import Image
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -68,18 +70,13 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
 
 def crop_product_image(image_bytes: bytes) -> bytes:
     """Recorta la mitad superior de la captura donde está la foto del producto."""
-    try:
-        from PIL import Image
-        import io
-        img = Image.open(io.BytesIO(image_bytes))
-        w, h = img.size
-        cropped = img.crop((0, 0, w, int(h * 0.48)))
-        buf = io.BytesIO()
-        cropped.save(buf, format="JPEG", quality=90)
-        return buf.getvalue()
-    except Exception as e:
-        logger.warning(f"Crop failed: {e}")
-    return image_bytes
+    img = Image.open(io.BytesIO(image_bytes))
+    w, h = img.size
+    logger.info(f"Cropping image {w}x{h} to top 48%")
+    cropped = img.crop((0, 0, w, int(h * 0.48)))
+    buf = io.BytesIO()
+    cropped.save(buf, format="JPEG", quality=90)
+    return buf.getvalue()
 
 
 async def _get_product_image(product_id: str) -> bytes | None:
