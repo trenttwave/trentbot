@@ -79,6 +79,43 @@ def crop_product_image(image_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
+def google_lens_search(image_bytes: bytes) -> str | None:
+    """Busca la imagen en Google Lens y devuelve el mejor resultado."""
+    try:
+        import time
+        session = requests.Session()
+        session.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept-Language": "es-ES,es;q=0.9",
+        })
+        ts = int(time.time() * 1000)
+        resp = session.post(
+            f"https://lens.google.com/v3/upload?hl=es&re=df&st={ts}&ep=gsbubb",
+            files={"encoded_image": ("product.jpg", image_bytes, "image/jpeg")},
+            timeout=20,
+            allow_redirects=True,
+        )
+        logger.info(f"Google Lens status: {resp.status_code}, url: {resp.url}")
+        text = resp.text
+
+        # Buscar "best guess" en el JSON embebido
+        patterns = [
+            r'"text"\s*:\s*"([^"]{3,60})"[^}]*"type"\s*:\s*"(?:HEADER|TITLE)"',
+            r'bestGuess["\s:]+([A-Za-z][^"\\]{2,50})"',
+            r'"visualMatches".*?"title"\s*:\s*"([^"]{3,60})"',
+            r'data-item-title="([^"]{3,60})"',
+        ]
+        for pattern in patterns:
+            m = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+            if m:
+                result = m.group(1).strip()
+                logger.info(f"Google Lens result: {result}")
+                return result
+    except Exception as e:
+        logger.warning(f"Google Lens failed: {e}")
+    return None
+
+
 async def _get_product_image(product_id: str) -> bytes | None:
     """Descarga la imagen principal del producto de Hacoo usando Playwright."""
     from playwright.async_api import async_playwright
@@ -482,8 +519,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         affiliate_link, _ = await generate_affiliate_link(product_id)
 
         cropped = crop_product_image(image_bytes)
+
+        marca = google_lens_search(cropped) or "Sin marca"
+        caption = f"{affiliate_link}\n\nMarca: {marca}"
+
         await status_msg.delete()
-        await update.message.reply_photo(photo=cropped, caption=affiliate_link)
+        await update.message.reply_photo(photo=cropped, caption=caption)
 
         if CHANNEL_ID:
             try:
