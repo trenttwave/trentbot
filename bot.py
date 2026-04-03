@@ -29,6 +29,7 @@ HACOO_COOKIE = os.environ.get("HACOO_COOKIE", "").strip()
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
+GOOGLE_VISION_API_KEY = os.environ.get("GOOGLE_VISION_API_KEY", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
 GEMINI_FLASH_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
@@ -82,22 +83,39 @@ def crop_product_image(image_bytes: bytes) -> bytes:
 
 
 def detect_brand(image_bytes: bytes) -> str:
-    """Detecta la marca del producto usando Gemini sobre la imagen recortada."""
+    """Detecta la marca usando Google Vision Web Detection (igual que Google Lens)."""
+    if GOOGLE_VISION_API_KEY:
+        try:
+            image_b64 = base64.b64encode(image_bytes).decode()
+            resp = requests.post(
+                f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_API_KEY}",
+                json={"requests": [{"image": {"content": image_b64}, "features": [{"type": "WEB_DETECTION", "maxResults": 3}]}]},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            web = resp.json()["responses"][0].get("webDetection", {})
+            # bestGuessLabels es lo que Google Lens muestra como resultado principal
+            for label in web.get("bestGuessLabels", []):
+                if label.get("label"):
+                    logger.info(f"Vision bestGuess: {label['label']}")
+                    return label["label"]
+            for entity in web.get("webEntities", []):
+                if entity.get("score", 0) > 0.5 and entity.get("description"):
+                    logger.info(f"Vision entity: {entity['description']}")
+                    return entity["description"]
+        except Exception as e:
+            logger.warning(f"Google Vision failed: {e}")
+
+    # Fallback: Gemini lee texto/logo directamente de la imagen
     try:
         result = gemini_vision(
             image_bytes,
-            (
-                "Mira esta imagen de un producto. Identifica la marca.\n"
-                "Busca: logos, texto impreso o bordado en el producto, etiquetas, diseño característico.\n"
-                "Si ves texto escrito en el producto (ropa, zapatos, etc.) eso suele ser la marca.\n"
-                "Responde SOLO con el nombre de la marca, sin explicación.\n"
-                "Si no puedes identificar ninguna marca, responde: Sin marca"
-            ),
+            "Mira esta imagen de un producto. ¿Qué marca es? Busca logos o texto impreso. Responde SOLO el nombre de la marca, o 'Sin marca' si no la ves.",
             use_flash=True,
         )
         return result.strip()
     except Exception as e:
-        logger.warning(f"Brand detection failed: {e}")
+        logger.warning(f"Gemini brand detection failed: {e}")
         return "Sin marca"
     """Busca la imagen en Google Lens y devuelve el mejor resultado."""
     try:
