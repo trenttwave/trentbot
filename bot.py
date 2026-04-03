@@ -66,6 +66,40 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
 # Product image helper
 # ---------------------------------------------------------------------------
 
+def crop_product_image(image_bytes: bytes) -> bytes:
+    """Recorta la captura para mostrar solo la imagen del producto usando Gemini."""
+    try:
+        from PIL import Image
+        import io
+        result = gemini_vision(
+            image_bytes,
+            (
+                "Esta es una captura de la app Hacoo. "
+                "Encuentra la imagen principal del producto (la foto grande arriba del todo). "
+                "Devuelve SOLO las coordenadas del recuadro en este formato exacto: "
+                "ymin,xmin,ymax,xmax "
+                "donde los valores son entre 0 y 1000 (normalizados). "
+                "Ejemplo: 50,0,450,1000"
+            ),
+        ).strip()
+        parts = re.findall(r"\d+", result)
+        if len(parts) >= 4:
+            ymin, xmin, ymax, xmax = [int(p) for p in parts[:4]]
+            img = Image.open(io.BytesIO(image_bytes))
+            w, h = img.size
+            left = int(xmin / 1000 * w)
+            top = int(ymin / 1000 * h)
+            right = int(xmax / 1000 * w)
+            bottom = int(ymax / 1000 * h)
+            cropped = img.crop((left, top, right, bottom))
+            buf = io.BytesIO()
+            cropped.save(buf, format="JPEG", quality=90)
+            return buf.getvalue()
+    except Exception as e:
+        logger.warning(f"Crop failed: {e}")
+    return image_bytes
+
+
 async def _get_product_image(product_id: str) -> bytes | None:
     """Descarga la imagen principal del producto de Hacoo usando Playwright."""
     from playwright.async_api import async_playwright
@@ -468,8 +502,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         affiliate_link, _ = await generate_affiliate_link(product_id)
 
+        cropped = crop_product_image(image_bytes)
         await status_msg.delete()
-        await update.message.reply_photo(photo=image_bytes, caption=affiliate_link)
+        await update.message.reply_photo(photo=cropped, caption=affiliate_link)
 
         if CHANNEL_ID:
             try:
