@@ -31,6 +31,7 @@ HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
+GEMINI_FLASH_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
 
 
@@ -45,10 +46,11 @@ def gemini_text(prompt: str) -> str:
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def gemini_vision(image_bytes: bytes, prompt: str) -> str:
+def gemini_vision(image_bytes: bytes, prompt: str, use_flash: bool = False) -> str:
     image_b64 = base64.b64encode(image_bytes).decode()
+    url = GEMINI_FLASH_URL if use_flash else GEMINI_URL
     resp = requests.post(
-        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+        f"{url}?key={GEMINI_API_KEY}",
         json={
             "contents": [{
                 "parts": [
@@ -79,7 +81,24 @@ def crop_product_image(image_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
-def google_lens_search(image_bytes: bytes) -> str | None:
+def detect_brand(image_bytes: bytes) -> str:
+    """Detecta la marca del producto usando Gemini sobre la imagen recortada."""
+    try:
+        result = gemini_vision(
+            image_bytes,
+            (
+                "Mira esta imagen de un producto. Identifica la marca.\n"
+                "Busca: logos, texto impreso o bordado en el producto, etiquetas, diseño característico.\n"
+                "Si ves texto escrito en el producto (ropa, zapatos, etc.) eso suele ser la marca.\n"
+                "Responde SOLO con el nombre de la marca, sin explicación.\n"
+                "Si no puedes identificar ninguna marca, responde: Sin marca"
+            ),
+            use_flash=True,
+        )
+        return result.strip()
+    except Exception as e:
+        logger.warning(f"Brand detection failed: {e}")
+        return "Sin marca"
     """Busca la imagen en Google Lens y devuelve el mejor resultado."""
     try:
         import time
@@ -520,7 +539,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         cropped = crop_product_image(image_bytes)
 
-        marca = google_lens_search(cropped) or "Sin marca"
+        marca = detect_brand(cropped)
         caption = f"{affiliate_link}\n\nMarca: {marca}"
 
         await status_msg.delete()
