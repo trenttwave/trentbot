@@ -38,6 +38,7 @@ _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
 # Estado de conversación por usuario
 # {user_id: {"link": str, "price": str, "title": str, "photos": [file_id], "state": str}}
 user_states: dict = {}
+media_group_buffer: dict = {}  # {media_group_id: {"photos": [], "caption": "", "user_id": int, "chat_id": int}}
 
 
 def gemini_text(prompt: str) -> str:
@@ -509,25 +510,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
-    # Si esperamos título: foto recibida antes del título → guardarla sin cambiar estado
-    if user_states.get(user_id, {}).get("state") == "waiting_title":
+    state = user_states.get(user_id, {}).get("state")
+    if state in ("waiting_title", "waiting_photos"):
+        mg_id = update.message.media_group_id
+        file_id = update.message.photo[-1].file_id
         caption = update.message.caption or ""
-        file_id = update.message.photo[-1].file_id
-        user_states[user_id]["photos"].append(file_id)
-        if caption:
-            user_states[user_id]["title"] = caption
-            user_states[user_id]["state"] = "waiting_photos"
-            await update.message.reply_text(f"✅ Título: {caption}\nFoto añadida. Envía más fotos o /listo.")
-        else:
-            await update.message.reply_text("Foto guardada. Ahora escríbeme el título del producto.")
-        return
 
-    # Si estamos esperando más fotos
-    if user_states.get(user_id, {}).get("state") == "waiting_photos":
-        file_id = update.message.photo[-1].file_id
-        user_states[user_id]["photos"].append(file_id)
-        count = len(user_states[user_id]["photos"])
-        await update.message.reply_text(f"Foto {count} añadida. Envía más o escribe /listo para crear el mensaje.")
+        if mg_id:
+            # Foto parte de un álbum — bufferizar y procesar cuando lleguen todas
+            if mg_id not in media_group_buffer:
+                media_group_buffer[mg_id] = {"photos": [], "caption": "", "user_id": user_id, "chat_id": update.effective_chat.id}
+                context.application.job_queue.run_once(
+                    _process_media_group, 2, data=mg_id, name=mg_id
+                )
+            media_group_buffer[mg_id]["photos"].append(file_id)
+            if caption:
+                media_group_buffer[mg_id]["caption"] = caption
+        else:
+            # Foto individual
+            if caption and state == "waiting_title":
+                user_states[user_id]["title"] = caption
+                user_states[user_id]["state"] = "waiting_photos"
+            user_states[user_id]["photos"].append(file_id)
+            count = len(user_states[user_id]["photos"])
+            await update.message.reply_text(f"Foto {count} añadida. Envía más o /listo.")
         return
 
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
@@ -581,6 +587,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Error processing photo: {e}")
         await status_msg.edit_text(f"Error: {e}")
+
+
+async def _process_media_group(context) -> None:
+    mg_id = context.job.data
+    group = media_group_buffer.pop(mg_id, None)
+    if not group:
+        return
+    user_id = group["user_id"]
+    chat_id = group["chat_id"]
+    state = user_states.get(user_id, {})
+    if not state:
+        return
+    if state.get("state") == "waiting_title" and group["caption"]:
+        user_states[user_id]["title"] = group["caption"]
+        user_states[user_id]["state"] = "waiting_photos"
+    for fid in group["photos"]:
+        user_states[user_id]["photos"].append(fid)
+    count = len(user_states[user_id]["photos"])
+    await context.bot.send_message(chat_id=chat_id, text=f"✅ {count} fotos añadidas. Escribe /listo para crear el mensaje.")
 
 
 async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -644,6 +669,7 @@ def main():
         raise ValueError("GEMINI_API_KEY is not set")
 
     app = Application.builder().token(BOT_TOKEN).build()
+    # job_queue está habilitado por defecto en python-telegram-bot v21
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("listo", cmd_listo))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
