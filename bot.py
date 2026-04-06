@@ -509,17 +509,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
-    # Si esperamos título: foto con caption = título + primera foto
+    # Si esperamos título: foto recibida antes del título → guardarla sin cambiar estado
     if user_states.get(user_id, {}).get("state") == "waiting_title":
         caption = update.message.caption or ""
         file_id = update.message.photo[-1].file_id
-        user_states[user_id]["title"] = caption
         user_states[user_id]["photos"].append(file_id)
-        user_states[user_id]["state"] = "waiting_photos"
-        await update.message.reply_text("Foto añadida. Envía más fotos o escribe /listo para crear el mensaje.")
+        if caption:
+            user_states[user_id]["title"] = caption
+            user_states[user_id]["state"] = "waiting_photos"
+            await update.message.reply_text(f"✅ Título: {caption}\nFoto añadida. Envía más fotos o /listo.")
+        else:
+            await update.message.reply_text("Foto guardada. Ahora escríbeme el título del producto.")
         return
 
-    # Si estamos esperando más fotos para el post
+    # Si estamos esperando más fotos
     if user_states.get(user_id, {}).get("state") == "waiting_photos":
         file_id = update.message.photo[-1].file_id
         user_states[user_id]["photos"].append(file_id)
