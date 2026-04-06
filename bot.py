@@ -8,7 +8,7 @@ import hashlib
 import logging
 import requests
 from PIL import Image
-from telegram import Update
+from telegram import Update, InputMediaPhoto
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -34,6 +34,10 @@ GOOGLE_VISION_API_KEY = os.environ.get("GOOGLE_VISION_API_KEY", "").strip()
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
 GEMINI_FLASH_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
+
+# Estado de conversación por usuario
+# {user_id: {"link": str, "price": str, "title": str, "photos": [file_id], "state": str}}
+user_states: dict = {}
 
 
 def gemini_text(prompt: str) -> str:
@@ -503,6 +507,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    # Si estamos esperando fotos para el post, recopilarlas
+    if user_states.get(user_id, {}).get("state") == "waiting_photos":
+        file_id = update.message.photo[-1].file_id
+        user_states[user_id]["photos"].append(file_id)
+        count = len(user_states[user_id]["photos"])
+        await update.message.reply_text(f"Foto {count} añadida. Envía más o escribe /listo para crear el mensaje.")
+        return
+
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     status_msg = await update.message.reply_text("Analizando la imagen...")
 
@@ -530,24 +544,77 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
         affiliate_link = await generate_affiliate_link(product_id)
-        await status_msg.edit_text(affiliate_link)
 
-        if CHANNEL_ID:
-            try:
-                await context.bot.send_message(chat_id=CHANNEL_ID, text=affiliate_link)
-                logger.info(f"Posted affiliate link to channel {CHANNEL_ID}")
-            except Exception as e:
-                logger.error(f"Failed to post to channel {CHANNEL_ID}: {e}")
+        # Extraer precio del screenshot
+        try:
+            price_raw = gemini_vision(
+                image_bytes,
+                "Extrae SOLO el precio del producto en esta captura de Hacoo (ejemplo: 29€). Responde únicamente con el precio, sin texto adicional."
+            ).strip()
+        except Exception:
+            price_raw = ""
+
+        user_states[user_id] = {
+            "state": "waiting_title",
+            "link": affiliate_link,
+            "price": price_raw,
+            "photos": [],
+        }
+
+        await status_msg.edit_text(
+            f"{affiliate_link}\n\nAhora envíame el título del producto."
+        )
 
     except Exception as e:
         logger.error(f"Error processing photo: {e}")
         await status_msg.edit_text(f"Error: {e}")
 
 
+async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    state = user_states.get(user_id, {})
+
+    if state.get("state") != "waiting_photos":
+        await update.message.reply_text("No hay ningún mensaje en preparación.")
+        return
+
+    link = state["link"]
+    price = state.get("price", "")
+    title = state.get("title", "")
+    photos = state.get("photos", [])
+
+    price_clean = price.replace(",", ".").split(".")[0].replace("€", "").strip()
+    try:
+        price_int = int(float(price_clean))
+        price_str = f"{price_int}€"
+    except Exception:
+        price_str = price
+
+    message_text = f"{title} — {price_str}💎\nMás colores 🎨\n\n{link}"
+
+    if photos:
+        media = [InputMediaPhoto(media=pid) for pid in photos]
+        media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
+        await context.bot.send_media_group(chat_id=update.effective_chat.id, media=media)
+    else:
+        await update.message.reply_text(message_text)
+
+    user_states.pop(user_id, None)
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     user_message = update.message.text
     user = update.effective_user
     logger.info(f"Message from {user.first_name} (@{user.username}): {user_message}")
+
+    # Si esperamos título, guardarlo
+    if user_states.get(user_id, {}).get("state") == "waiting_title":
+        user_states[user_id]["title"] = user_message
+        user_states[user_id]["state"] = "waiting_photos"
+        await update.message.reply_text("Perfecto. Ahora envíame las fotos. Cuando termines escribe /listo.")
+        return
+
     try:
         await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
         reply = gemini_text(user_message)
@@ -565,6 +632,7 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("listo", cmd_listo))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
