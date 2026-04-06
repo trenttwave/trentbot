@@ -509,6 +509,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     user_id = update.effective_user.id
 
     state = user_states.get(user_id, {}).get("state")
@@ -676,6 +678,8 @@ async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
     user_id = update.effective_user.id
     user_message = update.message.text
     user = update.effective_user
