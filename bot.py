@@ -637,7 +637,16 @@ async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(message_text)
 
-    user_states.pop(user_id, None)
+    # Guardar estado de edición
+    user_states[user_id] = {
+        "state": "editing",
+        "message_text": message_text,
+        "photos": photos,
+    }
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="¿Quieres modificar algo? Dímelo o escribe /cancelar para terminar."
+    )
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -651,6 +660,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_states[user_id]["title"] = user_message
         user_states[user_id]["state"] = "waiting_photos"
         await update.message.reply_text("Perfecto. Ahora envíame las fotos. Cuando termines escribe /listo.")
+        return
+
+    # Si está editando el mensaje
+    if user_states.get(user_id, {}).get("state") == "editing":
+        current_text = user_states[user_id]["message_text"]
+        photos = user_states[user_id]["photos"]
+        try:
+            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+            new_text = gemini_text(
+                f"Tengo este mensaje de Telegram:\n\n{current_text}\n\n"
+                f"Aplica este cambio: {user_message}\n\n"
+                f"Devuelve SOLO el mensaje modificado, sin explicaciones."
+            ).strip()
+            user_states[user_id]["message_text"] = new_text
+            if photos:
+                media = [InputMediaPhoto(media=pid) for pid in photos]
+                media[0] = InputMediaPhoto(media=photos[0], caption=new_text)
+                await context.bot.send_media_group(chat_id=update.effective_chat.id, media=media)
+            else:
+                await update.message.reply_text(new_text)
+        except Exception as e:
+            await update.message.reply_text(f"Error al editar: {e}")
         return
 
     try:
@@ -672,6 +703,7 @@ def main():
     # job_queue está habilitado por defecto en python-telegram-bot v21
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("listo", cmd_listo))
+    app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
