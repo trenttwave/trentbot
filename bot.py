@@ -590,7 +590,7 @@ async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         price_str = price
 
-    message_text = f"{title} — {price_str}💎\nMás colores 🎨\n\n<{link}>"
+    message_text = f"{title} —> {price_str}💎\nMás colores 🎨\n\n{link}"
 
     if photos:
         media = [InputMediaPhoto(media=pid) for pid in photos]
