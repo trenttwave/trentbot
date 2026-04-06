@@ -545,15 +545,22 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         file = await context.bot.get_file(photo.file_id)
         image_bytes = bytes(await file.download_as_bytearray())
 
-        product_id = gemini_vision(
+        product_info = gemini_vision(
             image_bytes,
             (
-                "Analiza esta captura de pantalla de la app Hacoo. "
-                "Extrae SOLO el ID numerico del producto "
-                "(normalmente visible debajo del nombre del producto, ejemplo: 40140156). "
-                "Responde unicamente con el numero, sin texto adicional."
+                "Analiza esta captura de pantalla de la app Hacoo. Devuelve exactamente dos líneas:\n"
+                "ID: [solo el número de ID del producto]\n"
+                "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]"
             ),
         ).strip()
+
+        product_id = ""
+        price_raw = ""
+        for line in product_info.splitlines():
+            if line.startswith("ID:"):
+                product_id = line.replace("ID:", "").strip()
+            elif line.startswith("Precio:"):
+                price_raw = line.replace("Precio:", "").strip()
 
         if not product_id.isdigit():
             await status_msg.edit_text(
@@ -564,15 +571,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
         affiliate_link = await generate_affiliate_link(product_id)
-
-        # Extraer precio del screenshot
-        try:
-            price_raw = gemini_vision(
-                image_bytes,
-                "Extrae SOLO el precio del producto en esta captura de Hacoo (ejemplo: 29€). Responde únicamente con el precio, sin texto adicional."
-            ).strip()
-        except Exception:
-            price_raw = ""
 
         user_states[user_id] = {
             "state": "waiting_title",
