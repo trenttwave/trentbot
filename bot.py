@@ -3,6 +3,7 @@ import os
 import re
 import json
 import time
+import datetime
 import base64
 import hashlib
 import logging
@@ -608,6 +609,33 @@ async def _process_media_group(context) -> None:
     await context.bot.send_message(chat_id=chat_id, text=f"✅ {count} fotos añadidas. Escribe /listo para crear el mensaje.")
 
 
+async def cmd_programar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    state = user_states.get(user_id, {})
+    if state.get("state") not in ("editing", "waiting_photos"):
+        await update.message.reply_text("No hay ningún mensaje listo para programar.")
+        return
+    user_states[user_id]["state"] = "waiting_time"
+    await update.message.reply_text("¿A qué hora quieres enviarlo al grupo? (formato HH:MM, hora de España)")
+
+
+async def _send_scheduled_message(context) -> None:
+    data = context.job.data
+    chat_id = data["chat_id"]
+    message_text = data["message_text"]
+    photos = data["photos"]
+    try:
+        if photos:
+            media = [InputMediaPhoto(media=pid) for pid in photos]
+            media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
+            await context.bot.send_media_group(chat_id=CHANNEL_ID or chat_id, media=media)
+        else:
+            await context.bot.send_message(chat_id=CHANNEL_ID or chat_id, text=message_text)
+        await context.bot.send_message(chat_id=chat_id, text="✅ Mensaje enviado al grupo.")
+    except Exception as e:
+        await context.bot.send_message(chat_id=chat_id, text=f"❌ Error al enviar: {e}")
+
+
 async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     state = user_states.get(user_id, {})
@@ -662,6 +690,35 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Perfecto. Ahora envíame las fotos. Cuando termines escribe /listo.")
         return
 
+    # Si esperamos hora para programar
+    if user_states.get(user_id, {}).get("state") == "waiting_time":
+        try:
+            m = re.search(r"(\d{1,2}):(\d{2})", user_message)
+            if not m:
+                await update.message.reply_text("No entendí la hora. Usa el formato HH:MM (ej: 18:30)")
+                return
+            hour, minute = int(m.group(1)), int(m.group(2))
+            now = datetime.datetime.now()
+            target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if target <= now:
+                target += datetime.timedelta(days=1)
+            delay = (target - now).total_seconds()
+            state = user_states[user_id]
+            context.application.job_queue.run_once(
+                _send_scheduled_message,
+                delay,
+                data={
+                    "chat_id": update.effective_chat.id,
+                    "message_text": state["message_text"],
+                    "photos": state.get("photos", []),
+                },
+            )
+            user_states.pop(user_id, None)
+            await update.message.reply_text(f"✅ Programado para las {hour:02d}:{minute:02d}. Lo enviaré al grupo a esa hora.")
+        except Exception as e:
+            await update.message.reply_text(f"Error: {e}")
+        return
+
     # Si está editando el mensaje
     if user_states.get(user_id, {}).get("state") == "editing":
         current_text = user_states[user_id]["message_text"]
@@ -703,6 +760,7 @@ def main():
     # job_queue está habilitado por defecto en python-telegram-bot v21
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("listo", cmd_listo))
+    app.add_handler(CommandHandler("programar", cmd_programar))
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
