@@ -518,6 +518,17 @@ async def cmd_getid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"ID de este chat: `{chat.id}`", parse_mode="Markdown")
 
 
+async def cmd_testgrupo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not CHANNEL_ID:
+        await update.message.reply_text("⚠️ CHANNEL_ID no configurado en Railway.")
+        return
+    try:
+        await context.bot.send_message(chat_id=CHANNEL_ID, text="✅ Test: el bot puede enviar mensajes al grupo.")
+        await update.message.reply_text("✅ Mensaje de prueba enviado al grupo.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error al enviar al grupo: {e}")
+
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         logger.info(f"[GRUPO] chat_id={update.effective_chat.id} title='{update.effective_chat.title}'")
@@ -751,10 +762,8 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return
 
-    # Hora seleccionada → mostrar minutos
+    # Hora seleccionada → mostrar minutos  cal_hour_YYYY-MM-DD_HH
     if data.startswith("cal_hour_"):
-        _, date_str, hour = data.replace("cal_hour_", "").rsplit("_", 1) if data.count("_") > 2 else (None, *data.replace("cal_hour_", "").split("_", 1))
-        # cal_hour_YYYY-MM-DD_HH
         parts = data[len("cal_hour_"):].rsplit("_", 1)
         date_str, hour = parts[0], parts[1]
         d = datetime.date.fromisoformat(date_str)
@@ -913,6 +922,7 @@ def main():
     # job_queue está habilitado por defecto en python-telegram-bot v21
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("getid", cmd_getid))
+    app.add_handler(CommandHandler("testgrupo", cmd_testgrupo))
     app.add_handler(CommandHandler("listo", cmd_listo))
     app.add_handler(CommandHandler("programar", cmd_programar))
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
