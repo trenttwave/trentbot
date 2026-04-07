@@ -609,6 +609,19 @@ async def _process_media_group(context) -> None:
     await context.bot.send_message(chat_id=chat_id, text=f"✅ {count} fotos añadidas. Escribe /listo para crear el mensaje.")
 
 
+async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    jobs = context.application.job_queue.jobs()
+    scheduled = [j for j in jobs if j.name and j.name.startswith("scheduled_")]
+    if not scheduled:
+        await update.message.reply_text("No hay mensajes programados.")
+        return
+    lines = ["📅 Mensajes programados:"]
+    for j in scheduled:
+        when = datetime.datetime.now() + datetime.timedelta(seconds=max(0, (j.next_t - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
+        lines.append(f"• {when.strftime('%H:%M')}")
+    await update.message.reply_text("\n".join(lines))
+
+
 async def cmd_programar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     state = user_states.get(user_id, {})
@@ -714,9 +727,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "message_text": state["message_text"],
                     "photos": state.get("photos", []),
                 },
+                name=f"scheduled_{user_id}_{hour:02d}{minute:02d}",
             )
             user_states.pop(user_id, None)
-            await update.message.reply_text(f"✅ Programado para las {hour:02d}:{minute:02d}. Lo enviaré al grupo a esa hora.")
+            destino = f"al grupo ({CHANNEL_ID})" if CHANNEL_ID else "⚠️ CHANNEL_ID no configurado — se enviará aquí"
+            await update.message.reply_text(
+                f"✅ Programado para las {hour:02d}:{minute:02d}\n"
+                f"📤 Destino: {destino}\n\n"
+                f"Usa /pendientes para ver los mensajes programados."
+            )
         except Exception as e:
             await update.message.reply_text(f"Error: {e}")
         return
@@ -763,6 +782,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("listo", cmd_listo))
     app.add_handler(CommandHandler("programar", cmd_programar))
+    app.add_handler(CommandHandler("pendientes", cmd_pendientes))
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
