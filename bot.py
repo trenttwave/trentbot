@@ -508,6 +508,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def cmd_getid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat = update.effective_chat
+    await update.message.reply_text(f"ID de este chat: `{chat.id}`", parse_mode="Markdown")
+
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         return
@@ -781,6 +786,7 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
     # job_queue está habilitado por defecto en python-telegram-bot v21
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("getid", cmd_getid))
     app.add_handler(CommandHandler("listo", cmd_listo))
     app.add_handler(CommandHandler("programar", cmd_programar))
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
