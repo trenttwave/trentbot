@@ -712,7 +712,7 @@ def _build_hours(date_str: str) -> InlineKeyboardMarkup:
 def _build_minutes(date_str: str, hour: str) -> InlineKeyboardMarkup:
     now = datetime.datetime.now(SPAIN_TZ)
     d = datetime.date.fromisoformat(date_str)
-    minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+    minutes = list(range(60))
     rows = []
     row = []
     for m in minutes:
