@@ -529,6 +529,30 @@ async def cmd_testgrupo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Error al enviar al grupo: {e}")
 
 
+async def cmd_enviar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    state = user_states.get(user_id, {})
+    if state.get("state") not in ("editing", "waiting_photos"):
+        await update.message.reply_text("No hay ningún mensaje listo para enviar.")
+        return
+    if not CHANNEL_ID:
+        await update.message.reply_text("⚠️ CHANNEL_ID no configurado en Railway.")
+        return
+    try:
+        photos = state.get("photos", [])
+        message_text = state.get("message_text", _build_message(state))
+        if photos:
+            media = [InputMediaPhoto(media=pid) for pid in photos]
+            media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
+            await context.bot.send_media_group(chat_id=CHANNEL_ID, media=media)
+        else:
+            await context.bot.send_message(chat_id=CHANNEL_ID, text=message_text)
+        user_states.pop(user_id, None)
+        await update.message.reply_text("✅ Enviado al grupo.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
+
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         logger.info(f"[GRUPO] chat_id={update.effective_chat.id} title='{update.effective_chat.title}'")
@@ -852,7 +876,7 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
     else:
         await bot.send_message(chat_id=chat_id, text=message_text)
     user_states[user_id] = {"state": "editing", "message_text": message_text, "photos": photos}
-    await bot.send_message(chat_id=chat_id, text="¿Quieres modificar algo? Dímelo, usa /programar para enviarlo al grupo a una hora, o /cancelar para terminar.")
+    await bot.send_message(chat_id=chat_id, text="¿Quieres modificar algo? Dímelo.\n/enviar — mandar ahora al grupo\n/programar — programar para una hora\n/cancelar — terminar")
 
 
 async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -923,6 +947,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("getid", cmd_getid))
     app.add_handler(CommandHandler("testgrupo", cmd_testgrupo))
+    app.add_handler(CommandHandler("enviar", cmd_enviar))
     app.add_handler(CommandHandler("listo", cmd_listo))
     app.add_handler(CommandHandler("programar", cmd_programar))
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
