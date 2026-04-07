@@ -515,6 +515,7 @@ async def cmd_getid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
+        logger.info(f"[GRUPO] chat_id={update.effective_chat.id} title='{update.effective_chat.title}'")
         return
     user_id = update.effective_user.id
 
@@ -698,6 +699,7 @@ async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
+        logger.info(f"[GRUPO] chat_id={update.effective_chat.id} title='{update.effective_chat.title}'")
         return
     user_id = update.effective_user.id
     user_message = update.message.text
