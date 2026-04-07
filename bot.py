@@ -642,11 +642,19 @@ async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not scheduled:
         await update.message.reply_text("No hay mensajes programados.")
         return
-    lines = ["📅 Mensajes programados:"]
-    for j in scheduled:
+
+    for i, j in enumerate(scheduled, 1):
         when = datetime.datetime.now(SPAIN_TZ) + datetime.timedelta(seconds=max(0, (j.next_t - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
-        lines.append(f"• {when.strftime('%d/%m a las %H:%M')}")
-    await update.message.reply_text("\n".join(lines))
+        data = j.data or {}
+        message_text = data.get("message_text", "")
+        photos = data.get("photos", [])
+        header = f"📅 {i}. {when.strftime('%d/%m a las %H:%M')}\n\n{message_text}"
+        if photos:
+            media = [InputMediaPhoto(media=pid) for pid in photos]
+            media[0] = InputMediaPhoto(media=photos[0], caption=header)
+            await update.message.reply_media_group(media=media)
+        else:
+            await update.message.reply_text(header)
 
 
 MESES_ES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
