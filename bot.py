@@ -649,12 +649,31 @@ async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message_text = data.get("message_text", "")
         photos = data.get("photos", [])
         header = f"📅 {i}. {when.strftime('%d/%m a las %H:%M')}\n\n{message_text}"
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🗑 Cancelar este mensaje", callback_data=f"cancel_job_{j.name}")]])
         if photos:
             media = [InputMediaPhoto(media=pid) for pid in photos]
             media[0] = InputMediaPhoto(media=photos[0], caption=header)
             await update.message.reply_media_group(media=media)
+            await update.message.reply_text("↑ Este mensaje", reply_markup=kb)
         else:
-            await update.message.reply_text(header)
+            await update.message.reply_text(header, reply_markup=kb)
+
+
+async def callback_cancel_job(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    job_name = query.data.replace("cancel_job_", "")
+    jobs = context.application.job_queue.jobs()
+    found = False
+    for j in jobs:
+        if j.name == job_name:
+            j.schedule_removal()
+            found = True
+            break
+    if found:
+        await query.edit_message_text("✅ Mensaje cancelado.")
+    else:
+        await query.edit_message_text("❌ No se encontró el mensaje (ya fue enviado o cancelado).")
 
 
 MESES_ES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -943,6 +962,7 @@ def main():
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
     app.add_handler(CallbackQueryHandler(callback_calendario, pattern="^cal_"))
+    app.add_handler(CallbackQueryHandler(callback_cancel_job, pattern="^cancel_job_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
