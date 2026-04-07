@@ -529,29 +529,6 @@ async def cmd_testgrupo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Error al enviar al grupo: {e}")
 
 
-async def cmd_enviar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    state = user_states.get(user_id, {})
-    if state.get("state") not in ("editing", "waiting_photos"):
-        await update.message.reply_text("No hay ningún mensaje listo para enviar.")
-        return
-    if not CHANNEL_ID:
-        await update.message.reply_text("⚠️ CHANNEL_ID no configurado en Railway.")
-        return
-    try:
-        photos = state.get("photos", [])
-        message_text = state.get("message_text", _build_message(state))
-        if photos:
-            media = [InputMediaPhoto(media=pid) for pid in photos]
-            media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
-            await context.bot.send_media_group(chat_id=CHANNEL_ID, media=media)
-        else:
-            await context.bot.send_message(chat_id=CHANNEL_ID, text=message_text)
-        user_states.pop(user_id, None)
-        await update.message.reply_text("✅ Enviado al grupo.")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {e}")
-
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
@@ -718,9 +695,9 @@ def _build_hours(date_str: str) -> InlineKeyboardMarkup:
     rows = []
     row = []
     for h in range(24):
-        # Ocultar horas pasadas si es hoy
         d = datetime.date.fromisoformat(date_str)
-        if d == now.date() and h <= now.hour:
+        # Ocultar solo horas estrictamente pasadas (la hora actual sigue disponible)
+        if d == now.date() and h < now.hour:
             row.append(InlineKeyboardButton(" ", callback_data="cal_ignore"))
         else:
             row.append(InlineKeyboardButton(f"{h:02d}", callback_data=f"cal_hour_{date_str}_{h:02d}"))
@@ -733,11 +710,17 @@ def _build_hours(date_str: str) -> InlineKeyboardMarkup:
 
 
 def _build_minutes(date_str: str, hour: str) -> InlineKeyboardMarkup:
+    now = datetime.datetime.now(SPAIN_TZ)
+    d = datetime.date.fromisoformat(date_str)
     minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
     rows = []
     row = []
     for m in minutes:
-        row.append(InlineKeyboardButton(f":{m:02d}", callback_data=f"cal_min_{date_str}_{hour}_{m:02d}"))
+        # Ocultar minutos pasados si es hoy y la hora actual
+        if d == now.date() and int(hour) == now.hour and m <= now.minute:
+            row.append(InlineKeyboardButton(" ", callback_data="cal_ignore"))
+        else:
+            row.append(InlineKeyboardButton(f":{m:02d}", callback_data=f"cal_min_{date_str}_{hour}_{m:02d}"))
         if len(row) == 6:
             rows.append(row)
             row = []
@@ -876,7 +859,7 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
     else:
         await bot.send_message(chat_id=chat_id, text=message_text)
     user_states[user_id] = {"state": "editing", "message_text": message_text, "photos": photos}
-    await bot.send_message(chat_id=chat_id, text="¿Quieres modificar algo? Dímelo.\n/enviar — mandar ahora al grupo\n/programar — programar para una hora\n/cancelar — terminar")
+    await bot.send_message(chat_id=chat_id, text="¿Quieres modificar algo? Dímelo, usa /programar para enviarlo al grupo a una hora, o /cancelar para terminar.")
 
 
 async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -947,7 +930,6 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("getid", cmd_getid))
     app.add_handler(CommandHandler("testgrupo", cmd_testgrupo))
-    app.add_handler(CommandHandler("enviar", cmd_enviar))
     app.add_handler(CommandHandler("listo", cmd_listo))
     app.add_handler(CommandHandler("programar", cmd_programar))
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
