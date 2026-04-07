@@ -530,13 +530,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if caption:
                 media_group_buffer[mg_id]["caption"] = caption
         else:
-            # Foto individual
+            # Foto individual — auto-componer directamente
             if caption and state == "waiting_title":
                 user_states[user_id]["title"] = caption
                 user_states[user_id]["state"] = "waiting_photos"
             user_states[user_id]["photos"].append(file_id)
-            count = len(user_states[user_id]["photos"])
-            await update.message.reply_text(f"Foto {count} añadida. Envía más o /listo.")
+            await _compose_and_send(update.effective_chat.id, user_id, context.bot)
         return
 
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
@@ -550,19 +549,23 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         product_info = gemini_vision(
             image_bytes,
             (
-                "Analiza esta captura de pantalla de la app Hacoo. Devuelve exactamente dos líneas:\n"
+                "Analiza esta captura de pantalla de la app Hacoo. Devuelve exactamente tres líneas:\n"
                 "ID: [solo el número de ID del producto]\n"
-                "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]"
+                "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]\n"
+                "Colores: [número de variantes de color/estilo que aparecen en la sección Style o similar, solo el número]"
             ),
         ).strip()
 
         product_id = ""
         price_raw = ""
+        colores = ""
         for line in product_info.splitlines():
             if line.startswith("ID:"):
                 product_id = line.replace("ID:", "").strip()
             elif line.startswith("Precio:"):
                 price_raw = line.replace("Precio:", "").strip()
+            elif line.startswith("Colores:"):
+                colores = line.replace("Colores:", "").strip()
 
         if not product_id.isdigit():
             await status_msg.edit_text(
@@ -578,6 +581,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "state": "waiting_title",
             "link": affiliate_link,
             "price": price_raw,
+            "colores": colores,
             "photos": [],
         }
 
@@ -605,8 +609,8 @@ async def _process_media_group(context) -> None:
         user_states[user_id]["state"] = "waiting_photos"
     for fid in group["photos"]:
         user_states[user_id]["photos"].append(fid)
-    count = len(user_states[user_id]["photos"])
-    await context.bot.send_message(chat_id=chat_id, text=f"✅ {count} fotos añadidas. Escribe /listo para crear el mensaje.")
+    # Auto-componer sin necesidad de /listo
+    await _compose_and_send(chat_id, user_id, context.bot)
 
 
 async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -649,6 +653,34 @@ async def _send_scheduled_message(context) -> None:
         await context.bot.send_message(chat_id=chat_id, text=f"❌ Error al enviar: {e}")
 
 
+def _build_message(state: dict) -> str:
+    link = state.get("link", "")
+    price = state.get("price", "")
+    title = state.get("title", "")
+    colores = state.get("colores", "")
+    price_clean = price.replace(",", ".").split(".")[0].replace("€", "").strip()
+    try:
+        price_str = f"{int(float(price_clean))}€"
+    except Exception:
+        price_str = price
+    colores_line = f"{colores} colores 🎨" if colores.isdigit() else "Más colores 🎨"
+    return f"{title} —> {price_str}💎\n{colores_line}\n\n{link}"
+
+
+async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
+    state = user_states.get(user_id, {})
+    photos = state.get("photos", [])
+    message_text = _build_message(state)
+    if photos:
+        media = [InputMediaPhoto(media=pid) for pid in photos]
+        media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
+        await bot.send_media_group(chat_id=chat_id, media=media)
+    else:
+        await bot.send_message(chat_id=chat_id, text=message_text)
+    user_states[user_id] = {"state": "editing", "message_text": message_text, "photos": photos}
+    await bot.send_message(chat_id=chat_id, text="¿Quieres modificar algo? Dímelo, usa /programar para enviarlo al grupo a una hora, o /cancelar para terminar.")
+
+
 async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     state = user_states.get(user_id, {})
@@ -656,38 +688,7 @@ async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if state.get("state") != "waiting_photos":
         await update.message.reply_text("No hay ningún mensaje en preparación.")
         return
-
-    link = state["link"]
-    price = state.get("price", "")
-    title = state.get("title", "")
-    photos = state.get("photos", [])
-
-    price_clean = price.replace(",", ".").split(".")[0].replace("€", "").strip()
-    try:
-        price_int = int(float(price_clean))
-        price_str = f"{price_int}€"
-    except Exception:
-        price_str = price
-
-    message_text = f"{title} —> {price_str}💎\nMás colores 🎨\n\n{link}"
-
-    if photos:
-        media = [InputMediaPhoto(media=pid) for pid in photos]
-        media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
-        await context.bot.send_media_group(chat_id=update.effective_chat.id, media=media)
-    else:
-        await update.message.reply_text(message_text)
-
-    # Guardar estado de edición
-    user_states[user_id] = {
-        "state": "editing",
-        "message_text": message_text,
-        "photos": photos,
-    }
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="¿Quieres modificar algo? Dímelo, usa /programar para enviarlo al grupo a una hora, o /cancelar para terminar."
-    )
+    await _compose_and_send(update.effective_chat.id, user_id, context.bot)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
