@@ -673,7 +673,7 @@ async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="¿Quieres modificar algo? Dímelo o escribe /cancelar para terminar."
+        text="¿Quieres modificar algo? Dímelo, usa /programar para enviarlo al grupo a una hora, o /cancelar para terminar."
     )
 
 
