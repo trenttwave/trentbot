@@ -5,6 +5,9 @@ import json
 import time
 import datetime
 import calendar
+from zoneinfo import ZoneInfo
+
+SPAIN_TZ = ZoneInfo("Europe/Madrid")
 import base64
 import hashlib
 import logging
@@ -629,7 +632,7 @@ async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     lines = ["📅 Mensajes programados:"]
     for j in scheduled:
-        when = datetime.datetime.now() + datetime.timedelta(seconds=max(0, (j.next_t - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
+        when = datetime.datetime.now(SPAIN_TZ) + datetime.timedelta(seconds=max(0, (j.next_t - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
         lines.append(f"• {when.strftime('%d/%m a las %H:%M')}")
     await update.message.reply_text("\n".join(lines))
 
@@ -640,7 +643,7 @@ DIAS_ES = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"]
 
 
 def _build_calendar(year: int, month: int) -> InlineKeyboardMarkup:
-    now = datetime.date.today()
+    now = datetime.datetime.now(SPAIN_TZ).date()
     rows = []
 
     # Cabecera: mes/año con flechas
@@ -676,13 +679,13 @@ def _build_calendar(year: int, month: int) -> InlineKeyboardMarkup:
 
 
 def _build_hours(date_str: str) -> InlineKeyboardMarkup:
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(SPAIN_TZ)
     rows = []
     row = []
     for h in range(24):
         # Ocultar horas pasadas si es hoy
         d = datetime.date.fromisoformat(date_str)
-        if d == datetime.date.today() and h <= now.hour:
+        if d == now.date() and h <= now.hour:
             row.append(InlineKeyboardButton(" ", callback_data="cal_ignore"))
         else:
             row.append(InlineKeyboardButton(f"{h:02d}", callback_data=f"cal_hour_{date_str}_{h:02d}"))
@@ -715,7 +718,7 @@ async def cmd_programar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No hay ningún mensaje listo para programar.")
         return
 
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(SPAIN_TZ)
     kb = _build_calendar(now.year, now.month)
     await update.message.reply_text("📅 Selecciona el día:", reply_markup=kb)
 
@@ -772,8 +775,8 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
             await query.edit_message_text("❌ No hay ningún mensaje pendiente.")
             return
 
-        target = datetime.datetime.strptime(f"{date_str} {hour}:{minute}", "%Y-%m-%d %H:%M")
-        now = datetime.datetime.now()
+        target = datetime.datetime.strptime(f"{date_str} {hour}:{minute}", "%Y-%m-%d %H:%M").replace(tzinfo=SPAIN_TZ)
+        now = datetime.datetime.now(SPAIN_TZ)
         delay = (target - now).total_seconds()
         if delay <= 0:
             await query.edit_message_text("❌ Esa hora ya ha pasado. Usa /programar de nuevo.")
