@@ -4,6 +4,7 @@ import re
 import json
 import time
 import datetime
+import calendar
 import base64
 import hashlib
 import logging
@@ -633,6 +634,80 @@ async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines))
 
 
+MESES_ES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+DIAS_ES = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"]
+
+
+def _build_calendar(year: int, month: int) -> InlineKeyboardMarkup:
+    now = datetime.date.today()
+    rows = []
+
+    # Cabecera: mes/año con flechas
+    prev = datetime.date(year, month, 1) - datetime.timedelta(days=1)
+    nxt = datetime.date(year, month, 28) + datetime.timedelta(days=4)
+    nxt = nxt.replace(day=1)
+    rows.append([
+        InlineKeyboardButton("◀", callback_data=f"cal_{prev.year}-{prev.month:02d}"),
+        InlineKeyboardButton(f"{MESES_ES[month]} {year}", callback_data="cal_ignore"),
+        InlineKeyboardButton("▶", callback_data=f"cal_{nxt.year}-{nxt.month:02d}"),
+    ])
+
+    # Días de la semana
+    rows.append([InlineKeyboardButton(d, callback_data="cal_ignore") for d in DIAS_ES])
+
+    # Días del mes
+    cal = calendar.monthcalendar(year, month)
+    for week in cal:
+        row = []
+        for day in week:
+            if day == 0:
+                row.append(InlineKeyboardButton(" ", callback_data="cal_ignore"))
+            else:
+                date = datetime.date(year, month, day)
+                if date < now:
+                    row.append(InlineKeyboardButton(" ", callback_data="cal_ignore"))
+                else:
+                    label = f"{day}" if date != now else f"·{day}·"
+                    row.append(InlineKeyboardButton(label, callback_data=f"cal_day_{date.isoformat()}"))
+        rows.append(row)
+
+    return InlineKeyboardMarkup(rows)
+
+
+def _build_hours(date_str: str) -> InlineKeyboardMarkup:
+    now = datetime.datetime.now()
+    rows = []
+    row = []
+    for h in range(24):
+        # Ocultar horas pasadas si es hoy
+        d = datetime.date.fromisoformat(date_str)
+        if d == datetime.date.today() and h <= now.hour:
+            row.append(InlineKeyboardButton(" ", callback_data="cal_ignore"))
+        else:
+            row.append(InlineKeyboardButton(f"{h:02d}", callback_data=f"cal_hour_{date_str}_{h:02d}"))
+        if len(row) == 6:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    return InlineKeyboardMarkup(rows)
+
+
+def _build_minutes(date_str: str, hour: str) -> InlineKeyboardMarkup:
+    minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+    rows = []
+    row = []
+    for m in minutes:
+        row.append(InlineKeyboardButton(f":{m:02d}", callback_data=f"cal_min_{date_str}_{hour}_{m:02d}"))
+        if len(row) == 6:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    return InlineKeyboardMarkup(rows)
+
+
 async def cmd_programar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     state = user_states.get(user_id, {})
@@ -641,37 +716,86 @@ async def cmd_programar(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     now = datetime.datetime.now()
-    buttons = []
-    for i in range(5):
-        day = now + datetime.timedelta(days=i)
-        if i == 0:
-            label = f"Hoy {day.strftime('%d/%m')}"
-        elif i == 1:
-            label = f"Mañana {day.strftime('%d/%m')}"
-        else:
-            label = day.strftime("%a %d/%m").capitalize()
-        buttons.append(InlineKeyboardButton(label, callback_data=f"fecha_{day.strftime('%Y-%m-%d')}"))
-
-    keyboard = InlineKeyboardMarkup([buttons[:3], buttons[3:]])
-    await update.message.reply_text("¿Qué día quieres enviarlo?", reply_markup=keyboard)
+    kb = _build_calendar(now.year, now.month)
+    await update.message.reply_text("📅 Selecciona el día:", reply_markup=kb)
 
 
-async def callback_fecha(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
+    data = query.data
 
-    if not query.data.startswith("fecha_"):
+    if data == "cal_ignore":
         return
 
-    fecha_str = query.data.replace("fecha_", "")
-    user_states[user_id]["scheduled_date"] = fecha_str
-    user_states[user_id]["state"] = "waiting_time"
+    # Navegar mes
+    if re.match(r"^cal_\d{4}-\d{2}$", data):
+        _, ym = data.split("cal_")
+        year, month = int(ym[:4]), int(ym[5:])
+        kb = _build_calendar(year, month)
+        await query.edit_message_reply_markup(reply_markup=kb)
+        return
 
-    fecha = datetime.datetime.strptime(fecha_str, "%Y-%m-%d")
-    await query.edit_message_text(
-        f"📅 {fecha.strftime('%d/%m/%Y')}\n\n¿A qué hora? (formato HH:MM, hora de España)"
-    )
+    # Día seleccionado → mostrar horas
+    if data.startswith("cal_day_"):
+        date_str = data.replace("cal_day_", "")
+        d = datetime.date.fromisoformat(date_str)
+        kb = _build_hours(date_str)
+        await query.edit_message_text(
+            f"📅 {d.strftime('%d/%m/%Y')} — Selecciona la hora:",
+            reply_markup=kb,
+        )
+        return
+
+    # Hora seleccionada → mostrar minutos
+    if data.startswith("cal_hour_"):
+        _, date_str, hour = data.replace("cal_hour_", "").rsplit("_", 1) if data.count("_") > 2 else (None, *data.replace("cal_hour_", "").split("_", 1))
+        # cal_hour_YYYY-MM-DD_HH
+        parts = data[len("cal_hour_"):].rsplit("_", 1)
+        date_str, hour = parts[0], parts[1]
+        d = datetime.date.fromisoformat(date_str)
+        kb = _build_minutes(date_str, hour)
+        await query.edit_message_text(
+            f"📅 {d.strftime('%d/%m/%Y')} {hour}:__ — Selecciona los minutos:",
+            reply_markup=kb,
+        )
+        return
+
+    # Minutos seleccionados → programar
+    if data.startswith("cal_min_"):
+        # cal_min_YYYY-MM-DD_HH_MM
+        parts = data[len("cal_min_"):].rsplit("_", 2)
+        date_str, hour, minute = parts[0], parts[1], parts[2]
+        state = user_states.get(user_id, {})
+        if not state:
+            await query.edit_message_text("❌ No hay ningún mensaje pendiente.")
+            return
+
+        target = datetime.datetime.strptime(f"{date_str} {hour}:{minute}", "%Y-%m-%d %H:%M")
+        now = datetime.datetime.now()
+        delay = (target - now).total_seconds()
+        if delay <= 0:
+            await query.edit_message_text("❌ Esa hora ya ha pasado. Usa /programar de nuevo.")
+            return
+
+        context.application.job_queue.run_once(
+            _send_scheduled_message,
+            delay,
+            data={
+                "chat_id": query.message.chat_id,
+                "message_text": state["message_text"],
+                "photos": state.get("photos", []),
+            },
+            name=f"scheduled_{user_id}_{target.strftime('%d%m_%H%M')}",
+        )
+        user_states.pop(user_id, None)
+        destino = "al grupo" if CHANNEL_ID else "⚠️ CHANNEL_ID no configurado"
+        await query.edit_message_text(
+            f"✅ Programado para el {target.strftime('%d/%m/%Y')} a las {hour}:{minute}\n"
+            f"📤 Destino: {destino}\n\n"
+            f"Usa /pendientes para ver los mensajes programados."
+        )
 
 
 async def _send_scheduled_message(context) -> None:
@@ -745,49 +869,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Perfecto. Ahora envíame las fotos. Cuando termines escribe /listo.")
         return
 
-    # Si esperamos hora para programar
-    if user_states.get(user_id, {}).get("state") == "waiting_time":
-        try:
-            m = re.search(r"(\d{1,2}):(\d{2})", user_message)
-            if not m:
-                await update.message.reply_text("No entendí la hora. Usa el formato HH:MM (ej: 18:30)")
-                return
-            hour, minute = int(m.group(1)), int(m.group(2))
-            state = user_states[user_id]
-            fecha_str = state.get("scheduled_date")
-            if fecha_str:
-                target = datetime.datetime.strptime(fecha_str, "%Y-%m-%d").replace(hour=hour, minute=minute, second=0)
-            else:
-                now = datetime.datetime.now()
-                target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                if target <= now:
-                    target += datetime.timedelta(days=1)
-            now = datetime.datetime.now()
-            delay = (target - now).total_seconds()
-            if delay <= 0:
-                await update.message.reply_text("Esa hora ya ha pasado. Elige una hora futura.")
-                return
-            context.application.job_queue.run_once(
-                _send_scheduled_message,
-                delay,
-                data={
-                    "chat_id": update.effective_chat.id,
-                    "message_text": state["message_text"],
-                    "photos": state.get("photos", []),
-                },
-                name=f"scheduled_{user_id}_{target.strftime('%d%m_%H%M')}",
-            )
-            user_states.pop(user_id, None)
-            destino = f"al grupo" if CHANNEL_ID else "⚠️ CHANNEL_ID no configurado — se enviará aquí"
-            await update.message.reply_text(
-                f"✅ Programado para el {target.strftime('%d/%m')} a las {hour:02d}:{minute:02d}\n"
-                f"📤 Destino: {destino}\n\n"
-                f"Usa /pendientes para ver los mensajes programados."
-            )
-        except Exception as e:
-            await update.message.reply_text(f"Error: {e}")
-        return
-
     # Si está editando el mensaje
     if user_states.get(user_id, {}).get("state") == "editing":
         current_text = user_states[user_id]["message_text"]
@@ -833,7 +914,7 @@ def main():
     app.add_handler(CommandHandler("programar", cmd_programar))
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
-    app.add_handler(CallbackQueryHandler(callback_fecha, pattern="^fecha_"))
+    app.add_handler(CallbackQueryHandler(callback_calendario, pattern="^cal_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
