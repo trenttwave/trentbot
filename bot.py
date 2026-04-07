@@ -9,9 +9,10 @@ import hashlib
 import logging
 import requests
 from PIL import Image
-from telegram import Update, InputMediaPhoto
+from telegram import Update, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
     filters,
@@ -628,7 +629,7 @@ async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lines = ["📅 Mensajes programados:"]
     for j in scheduled:
         when = datetime.datetime.now() + datetime.timedelta(seconds=max(0, (j.next_t - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
-        lines.append(f"• {when.strftime('%H:%M')}")
+        lines.append(f"• {when.strftime('%d/%m a las %H:%M')}")
     await update.message.reply_text("\n".join(lines))
 
 
@@ -638,8 +639,39 @@ async def cmd_programar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if state.get("state") not in ("editing", "waiting_photos"):
         await update.message.reply_text("No hay ningún mensaje listo para programar.")
         return
+
+    now = datetime.datetime.now()
+    buttons = []
+    for i in range(5):
+        day = now + datetime.timedelta(days=i)
+        if i == 0:
+            label = f"Hoy {day.strftime('%d/%m')}"
+        elif i == 1:
+            label = f"Mañana {day.strftime('%d/%m')}"
+        else:
+            label = day.strftime("%a %d/%m").capitalize()
+        buttons.append(InlineKeyboardButton(label, callback_data=f"fecha_{day.strftime('%Y-%m-%d')}"))
+
+    keyboard = InlineKeyboardMarkup([buttons[:3], buttons[3:]])
+    await update.message.reply_text("¿Qué día quieres enviarlo?", reply_markup=keyboard)
+
+
+async def callback_fecha(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    if not query.data.startswith("fecha_"):
+        return
+
+    fecha_str = query.data.replace("fecha_", "")
+    user_states[user_id]["scheduled_date"] = fecha_str
     user_states[user_id]["state"] = "waiting_time"
-    await update.message.reply_text("¿A qué hora quieres enviarlo al grupo? (formato HH:MM, hora de España)")
+
+    fecha = datetime.datetime.strptime(fecha_str, "%Y-%m-%d")
+    await query.edit_message_text(
+        f"📅 {fecha.strftime('%d/%m/%Y')}\n\n¿A qué hora? (formato HH:MM, hora de España)"
+    )
 
 
 async def _send_scheduled_message(context) -> None:
@@ -721,12 +753,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("No entendí la hora. Usa el formato HH:MM (ej: 18:30)")
                 return
             hour, minute = int(m.group(1)), int(m.group(2))
-            now = datetime.datetime.now()
-            target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            if target <= now:
-                target += datetime.timedelta(days=1)
-            delay = (target - now).total_seconds()
             state = user_states[user_id]
+            fecha_str = state.get("scheduled_date")
+            if fecha_str:
+                target = datetime.datetime.strptime(fecha_str, "%Y-%m-%d").replace(hour=hour, minute=minute, second=0)
+            else:
+                now = datetime.datetime.now()
+                target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                if target <= now:
+                    target += datetime.timedelta(days=1)
+            now = datetime.datetime.now()
+            delay = (target - now).total_seconds()
+            if delay <= 0:
+                await update.message.reply_text("Esa hora ya ha pasado. Elige una hora futura.")
+                return
             context.application.job_queue.run_once(
                 _send_scheduled_message,
                 delay,
@@ -735,12 +775,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "message_text": state["message_text"],
                     "photos": state.get("photos", []),
                 },
-                name=f"scheduled_{user_id}_{hour:02d}{minute:02d}",
+                name=f"scheduled_{user_id}_{target.strftime('%d%m_%H%M')}",
             )
             user_states.pop(user_id, None)
-            destino = f"al grupo ({CHANNEL_ID})" if CHANNEL_ID else "⚠️ CHANNEL_ID no configurado — se enviará aquí"
+            destino = f"al grupo" if CHANNEL_ID else "⚠️ CHANNEL_ID no configurado — se enviará aquí"
             await update.message.reply_text(
-                f"✅ Programado para las {hour:02d}:{minute:02d}\n"
+                f"✅ Programado para el {target.strftime('%d/%m')} a las {hour:02d}:{minute:02d}\n"
                 f"📤 Destino: {destino}\n\n"
                 f"Usa /pendientes para ver los mensajes programados."
             )
@@ -793,6 +833,7 @@ def main():
     app.add_handler(CommandHandler("programar", cmd_programar))
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
+    app.add_handler(CallbackQueryHandler(callback_fecha, pattern="^fecha_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
