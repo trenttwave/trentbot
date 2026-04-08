@@ -782,6 +782,7 @@ def _build_minutes(date_str: str, hour: str) -> InlineKeyboardMarkup:
             row = []
     if row:
         rows.append(row)
+    rows.append([InlineKeyboardButton("← Cambiar hora", callback_data=f"cal_day_{date_str}")])
     return InlineKeyboardMarkup(rows)
 
 
