@@ -576,10 +576,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         product_info = gemini_vision(
             image_bytes,
             (
-                "Analiza esta captura de pantalla de la app Hacoo. Devuelve exactamente tres líneas:\n"
+                "Analiza esta captura de pantalla de la app Hacoo. Devuelve exactamente dos líneas:\n"
                 "ID: [solo el número de ID del producto]\n"
-                "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]\n"
-                "Colores: [busca PRIMERO el texto exacto 'Total X están disponibles' o 'X available' — ese número es el correcto; SOLO si no aparece ese texto, cuenta TODAS las miniaturas de imágenes en la sección 'Style' sumando todas las filas (no cuentes tallas de ropa ni números de talla); devuelve únicamente el número]"
+                "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]"
             ),
         ).strip()
 
@@ -591,14 +590,28 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 product_id = line.replace("ID:", "").strip()
             elif line.startswith("Precio:"):
                 price_raw = line.replace("Precio:", "").strip()
-            elif line.startswith("Colores:"):
-                colores = line.replace("Colores:", "").strip()
 
         if not product_id.isdigit():
             await status_msg.edit_text(
                 "No encontre el ID del producto. Asegurate de que la captura muestre el ID numerico."
             )
             return
+
+        # Llamada separada solo para contar colores
+        try:
+            colores_raw = gemini_vision(
+                image_bytes,
+                (
+                    "Mira esta captura de la app Hacoo y fíjate en la sección llamada 'Style'.\n"
+                    "Si ves el texto 'Total X están disponibles', devuelve ese número X.\n"
+                    "Si no, cuenta una por una todas las imágenes en miniatura que aparecen "
+                    "en esa sección (suma todas las filas). No cuentes texto, no cuentes tallas.\n"
+                    "Devuelve SOLO el número, sin texto."
+                ),
+            ).strip()
+            colores = re.search(r"\d+", colores_raw).group() if re.search(r"\d+", colores_raw) else ""
+        except Exception:
+            colores = ""
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
