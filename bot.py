@@ -597,7 +597,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Identificar colores exactos desde la zona Style
+        # Identificar colores exactos y contar desde la zona Style
         try:
             img_pil = Image.open(io.BytesIO(image_bytes))
             w, h = img_pil.size
@@ -615,7 +615,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "Devuelve SOLO la lista de colores, sin texto adicional."
                 ),
             ).strip()
-            colores = colores_raw
+            # Contar los elementos de la lista
+            items = [c.strip() for c in colores_raw.split(",") if c.strip()]
+            colores = str(len(items)) if items else ""
         except Exception:
             colores = ""
 
@@ -894,7 +896,7 @@ def _build_message(state: dict) -> str:
         price_str = f"{int(float(price_clean))}€"
     except Exception:
         price_str = price
-    colores_line = f"{colores} 🎨" if colores else "Más colores 🎨"
+    colores_line = f"{colores} colores 🎨" if colores.isdigit() else "Más colores 🎨"
     return f"{title} —> {price_str}💎\n{colores_line}\n\n{link}"
 
 
