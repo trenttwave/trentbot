@@ -48,34 +48,42 @@ media_group_buffer: dict = {}  # {media_group_id: {"photos": [], "caption": "", 
 
 
 def gemini_text(prompt: str) -> str:
-    resp = requests.post(
-        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-        json={"contents": [{"parts": [{"text": prompt}]}]},
-        timeout=30,
-    )
-    logger.info(f"Gemini text status: {resp.status_code} - {resp.text[:300]}")
-    resp.raise_for_status()
-    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    for attempt in range(3):
+        resp = requests.post(
+            f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+            json={"contents": [{"parts": [{"text": prompt}]}]},
+            timeout=30,
+        )
+        logger.info(f"Gemini text status: {resp.status_code} - {resp.text[:300]}")
+        if resp.status_code in (429, 500, 503) and attempt < 2:
+            time.sleep(3 * (attempt + 1))
+            continue
+        resp.raise_for_status()
+        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
 def gemini_vision(image_bytes: bytes, prompt: str, use_flash: bool = False) -> str:
     image_b64 = base64.b64encode(image_bytes).decode()
     url = GEMINI_FLASH_URL if use_flash else GEMINI_URL
-    resp = requests.post(
-        f"{url}?key={GEMINI_API_KEY}",
-        json={
-            "contents": [{
-                "parts": [
-                    {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
-                    {"text": prompt},
-                ]
-            }]
-        },
-        timeout=30,
-    )
-    logger.info(f"Gemini vision status: {resp.status_code} - {resp.text[:300]}")
-    resp.raise_for_status()
-    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    for attempt in range(3):
+        resp = requests.post(
+            f"{url}?key={GEMINI_API_KEY}",
+            json={
+                "contents": [{
+                    "parts": [
+                        {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
+                        {"text": prompt},
+                    ]
+                }]
+            },
+            timeout=30,
+        )
+        logger.info(f"Gemini vision status: {resp.status_code} - {resp.text[:300]}")
+        if resp.status_code in (429, 500, 503) and attempt < 2:
+            time.sleep(3 * (attempt + 1))
+            continue
+        resp.raise_for_status()
+        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
 # ---------------------------------------------------------------------------
