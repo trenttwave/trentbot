@@ -597,11 +597,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Identificar colores exactos y contar desde la zona Style
+        # Contar colores desde la zona Style (crop amplio para cubrir todos los productos)
         try:
             img_pil = Image.open(io.BytesIO(image_bytes))
             w, h = img_pil.size
-            style_crop = img_pil.crop((0, int(h * 0.68), w, h))
+            style_crop = img_pil.crop((0, int(h * 0.55), w, h))
             buf = io.BytesIO()
             style_crop.save(buf, format="JPEG", quality=90)
             style_bytes = buf.getvalue()
@@ -609,13 +609,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             colores_raw = gemini_vision(
                 style_bytes,
                 (
-                    "Esta imagen muestra las variantes de color/estilo de un producto de Hacoo.\n"
-                    "Lista los colores de cada miniatura que ves, en español, separados por coma.\n"
-                    "Ejemplo: Negro, Blanco, Azul claro, Azul oscuro\n"
-                    "Devuelve SOLO la lista de colores, sin texto adicional."
+                    "Esta imagen muestra la parte inferior de un producto de Hacoo.\n"
+                    "Busca la sección llamada 'Style' que contiene miniaturas de imágenes.\n"
+                    "Lista cada miniatura de imagen que veas en esa sección, separadas por coma.\n"
+                    "Ejemplo: miniatura1, miniatura2, miniatura3\n"
+                    "Devuelve SOLO la lista separada por comas, sin texto adicional."
                 ),
             ).strip()
-            # Contar los elementos de la lista
+            logger.info(f"Colores raw response: {colores_raw[:200]}")
             items = [c.strip() for c in colores_raw.split(",") if c.strip()]
             colores = str(len(items)) if items else ""
         except Exception:
