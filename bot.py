@@ -597,16 +597,22 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Llamada separada solo para contar colores
+        # Llamada separada solo para contar colores — recortar la zona inferior (Style)
         try:
+            img = Image.open(io.BytesIO(image_bytes))
+            w, h = img.size
+            style_crop = img.crop((0, int(h * 0.62), w, h))
+            buf = io.BytesIO()
+            style_crop.save(buf, format="JPEG", quality=90)
+            style_bytes = buf.getvalue()
+
             colores_raw = gemini_vision(
-                image_bytes,
+                style_bytes,
                 (
-                    "Mira esta captura de la app Hacoo y fíjate en la sección llamada 'Style'.\n"
-                    "Si ves el texto 'Total X están disponibles', devuelve ese número X.\n"
-                    "Si no, cuenta una por una todas las imágenes en miniatura que aparecen "
-                    "en esa sección (suma todas las filas). No cuentes texto, no cuentes tallas.\n"
-                    "Devuelve SOLO el número, sin texto."
+                    "Esta imagen muestra solo la sección Style de Hacoo con miniaturas de colores.\n"
+                    "Si ves el texto 'Total X están disponibles', devuelve ese número.\n"
+                    "Si no, cuenta cada miniatura cuadrada de imagen que ves, incluyendo todas las filas.\n"
+                    "Devuelve SOLO el número."
                 ),
             ).strip()
             colores = re.search(r"\d+", colores_raw).group() if re.search(r"\d+", colores_raw) else ""
