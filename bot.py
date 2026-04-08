@@ -597,11 +597,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Llamada separada solo para contar colores — recortar la zona inferior (Style)
+        # Contar colores con crop de la zona Style + razonamiento paso a paso
         try:
-            img = Image.open(io.BytesIO(image_bytes))
-            w, h = img.size
-            style_crop = img.crop((0, int(h * 0.62), w, h))
+            img_pil = Image.open(io.BytesIO(image_bytes))
+            w, h = img_pil.size
+            style_crop = img_pil.crop((0, int(h * 0.68), w, h))
             buf = io.BytesIO()
             style_crop.save(buf, format="JPEG", quality=90)
             style_bytes = buf.getvalue()
@@ -609,13 +609,16 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             colores_raw = gemini_vision(
                 style_bytes,
                 (
-                    "Esta imagen muestra solo la sección Style de Hacoo con miniaturas de colores.\n"
-                    "Si ves el texto 'Total X están disponibles', devuelve ese número.\n"
-                    "Si no, cuenta cada miniatura cuadrada de imagen que ves, incluyendo todas las filas.\n"
-                    "Devuelve SOLO el número."
+                    "Analiza esta imagen que muestra la sección de variantes de color/estilo de Hacoo.\n"
+                    "Paso 1: ¿Aparece el texto 'Total X están disponibles'? Si sí, ese es el número.\n"
+                    "Paso 2: Si no, enumera cada miniatura fila por fila: "
+                    "Fila 1: miniatura 1, miniatura 2... Fila 2: miniatura 1...\n"
+                    "Paso 3: Suma el total.\n"
+                    "Responde SOLO con el número final."
                 ),
             ).strip()
-            colores = re.search(r"\d+", colores_raw).group() if re.search(r"\d+", colores_raw) else ""
+            n = re.search(r"\d+", colores_raw)
+            colores = n.group() if n else ""
         except Exception:
             colores = ""
 
