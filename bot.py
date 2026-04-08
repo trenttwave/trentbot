@@ -597,7 +597,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Contar colores con crop de la zona Style + razonamiento paso a paso
+        # Identificar colores exactos desde la zona Style
         try:
             img_pil = Image.open(io.BytesIO(image_bytes))
             w, h = img_pil.size
@@ -609,16 +609,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             colores_raw = gemini_vision(
                 style_bytes,
                 (
-                    "Analiza esta imagen que muestra la sección de variantes de color/estilo de Hacoo.\n"
-                    "Paso 1: ¿Aparece el texto 'Total X están disponibles'? Si sí, ese es el número.\n"
-                    "Paso 2: Si no, enumera cada miniatura fila por fila: "
-                    "Fila 1: miniatura 1, miniatura 2... Fila 2: miniatura 1...\n"
-                    "Paso 3: Suma el total.\n"
-                    "Responde SOLO con el número final."
+                    "Esta imagen muestra las variantes de color/estilo de un producto de Hacoo.\n"
+                    "Lista los colores de cada miniatura que ves, en español, separados por coma.\n"
+                    "Ejemplo: Negro, Blanco, Azul claro, Azul oscuro\n"
+                    "Devuelve SOLO la lista de colores, sin texto adicional."
                 ),
             ).strip()
-            n = re.search(r"\d+", colores_raw)
-            colores = n.group() if n else ""
+            colores = colores_raw
         except Exception:
             colores = ""
 
@@ -897,7 +894,7 @@ def _build_message(state: dict) -> str:
         price_str = f"{int(float(price_clean))}€"
     except Exception:
         price_str = price
-    colores_line = f"{colores} colores 🎨" if colores.isdigit() else "Más colores 🎨"
+    colores_line = f"{colores} 🎨" if colores else "Más colores 🎨"
     return f"{title} —> {price_str}💎\n{colores_line}\n\n{link}"
 
 
