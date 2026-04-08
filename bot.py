@@ -609,16 +609,19 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             colores_raw = gemini_vision(
                 style_bytes,
                 (
-                    "Esta imagen muestra la parte inferior de un producto de Hacoo.\n"
-                    "Busca la sección llamada 'Style' que contiene miniaturas de imágenes.\n"
-                    "Lista cada miniatura de imagen que veas en esa sección, separadas por coma.\n"
-                    "Ejemplo: miniatura1, miniatura2, miniatura3\n"
-                    "Devuelve SOLO la lista separada por comas, sin texto adicional."
+                    "Mira esta imagen de un producto de Hacoo.\n"
+                    "PRIMERO: ¿Ves el texto 'Total X están disponibles'? Si sí, devuelve solo ese número.\n"
+                    "SEGUNDO: Si no hay ese texto, busca la sección 'Style' y lista cada miniatura de imagen separada por coma.\n"
+                    "Devuelve SOLO el número o la lista, sin texto adicional."
                 ),
             ).strip()
             logger.info(f"Colores raw response: {colores_raw[:200]}")
-            items = [c.strip() for c in colores_raw.split(",") if c.strip()]
-            colores = str(len(items)) if items else ""
+            # Si es un número directo, usarlo
+            if re.fullmatch(r"\d+", colores_raw):
+                colores = colores_raw
+            else:
+                items = [c.strip() for c in colores_raw.split(",") if c.strip()]
+                colores = str(len(items)) if items else ""
         except Exception:
             colores = ""
 
