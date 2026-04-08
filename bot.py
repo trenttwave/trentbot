@@ -575,7 +575,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Analiza esta captura de pantalla de la app Hacoo. Devuelve exactamente tres líneas:\n"
                 "ID: [solo el número de ID del producto]\n"
                 "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]\n"
-                "Colores: [busca el texto 'Total X están disponibles' o 'X available' en la pantalla y devuelve ese número X; si no aparece ese texto, cuenta las miniaturas visibles en la sección Style; solo el número]"
+                "Colores: [busca PRIMERO el texto exacto 'Total X están disponibles' o 'X available' en la pantalla — ese número es el correcto; SOLO si ese texto no aparece, cuenta las miniaturas de colores distintos en la sección Style ignorando las de talla o tamaño; devuelve únicamente el número]"
             ),
         ).strip()
 
