@@ -38,6 +38,7 @@ HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 GOOGLE_VISION_API_KEY = os.environ.get("GOOGLE_VISION_API_KEY", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 GEMINI_FLASH_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
 
@@ -47,43 +48,38 @@ user_states: dict = {}
 media_group_buffer: dict = {}  # {media_group_id: {"photos": [], "caption": "", "user_id": int, "chat_id": int}}
 
 
-def gemini_text(prompt: str) -> str:
-    for attempt in range(3):
+def _gemini_post(url: str, body: dict) -> str:
+    for attempt in range(4):
+        current_url = GEMINI_FALLBACK_URL if attempt == 3 else url
         resp = requests.post(
-            f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-            json={"contents": [{"parts": [{"text": prompt}]}]},
+            f"{current_url}?key={GEMINI_API_KEY}",
+            json=body,
             timeout=30,
         )
-        logger.info(f"Gemini text status: {resp.status_code} - {resp.text[:300]}")
-        if resp.status_code in (429, 500, 503) and attempt < 2:
-            time.sleep(3 * (attempt + 1))
-            continue
+        logger.info(f"Gemini status ({current_url.split('/models/')[1].split(':')[0]}): {resp.status_code}")
+        if resp.status_code in (429, 500, 503):
+            if attempt < 3:
+                time.sleep(3 * (attempt + 1))
+                continue
         resp.raise_for_status()
         return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+
+def gemini_text(prompt: str) -> str:
+    return _gemini_post(GEMINI_URL, {"contents": [{"parts": [{"text": prompt}]}]})
 
 
 def gemini_vision(image_bytes: bytes, prompt: str, use_flash: bool = False) -> str:
     image_b64 = base64.b64encode(image_bytes).decode()
     url = GEMINI_FLASH_URL if use_flash else GEMINI_URL
-    for attempt in range(3):
-        resp = requests.post(
-            f"{url}?key={GEMINI_API_KEY}",
-            json={
-                "contents": [{
-                    "parts": [
-                        {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
-                        {"text": prompt},
-                    ]
-                }]
-            },
-            timeout=30,
-        )
-        logger.info(f"Gemini vision status: {resp.status_code} - {resp.text[:300]}")
-        if resp.status_code in (429, 500, 503) and attempt < 2:
-            time.sleep(3 * (attempt + 1))
-            continue
-        resp.raise_for_status()
-        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    return _gemini_post(url, {
+        "contents": [{
+            "parts": [
+                {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
+                {"text": prompt},
+            ]
+        }]
+    })
 
 
 # ---------------------------------------------------------------------------
