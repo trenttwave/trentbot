@@ -648,9 +648,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         product_info = gemini_vision(
             image_bytes,
             (
-                "Analiza esta captura de pantalla de la app Hacoo. Devuelve exactamente dos líneas:\n"
+                "Analiza esta captura de la app Hacoo. Devuelve exactamente tres líneas:\n"
                 "ID: [solo el número de ID del producto]\n"
-                "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]"
+                "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]\n"
+                "Colores: [si ves el texto 'Total X están disponibles' devuelve ese número; "
+                "si no, cuenta todas las miniaturas de la sección Style y devuelve solo el número]"
             ),
         ).strip()
 
@@ -662,41 +664,16 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 product_id = line.replace("ID:", "").strip()
             elif line.startswith("Precio:"):
                 price_raw = line.replace("Precio:", "").strip()
+            elif line.startswith("Colores:"):
+                val = line.replace("Colores:", "").strip()
+                if re.search(r"\d+", val):
+                    colores = re.search(r"\d+", val).group()
 
         if not product_id.isdigit():
             await status_msg.edit_text(
                 "No encontre el ID del producto. Asegurate de que la captura muestre el ID numerico."
             )
             return
-
-        # Contar colores: crop zona Style + Gemini lista miniaturas + contar
-        try:
-            img_pil = Image.open(io.BytesIO(image_bytes))
-            w, h = img_pil.size
-            style_crop = img_pil.crop((0, int(h * 0.55), w, h))
-            buf = io.BytesIO()
-            style_crop.save(buf, format="JPEG", quality=90)
-            style_bytes = buf.getvalue()
-
-            colores_raw = gemini_vision(
-                style_bytes,
-                (
-                    "Mira esta imagen de Hacoo.\n"
-                    "Si ves el texto 'Total X están disponibles', devuelve solo ese número.\n"
-                    "Si no, busca la sección Style y lista cada miniatura separada por coma "
-                    "(ejemplo: miniatura1, miniatura2, miniatura3). "
-                    "Incluye TODAS las miniaturas de TODAS las filas.\n"
-                    "Devuelve solo el número o la lista."
-                ),
-            ).strip()
-            logger.info(f"Colores raw: {colores_raw[:150]}")
-            if re.fullmatch(r"\d+", colores_raw):
-                colores = colores_raw
-            else:
-                items = [c.strip() for c in colores_raw.split(",") if c.strip()]
-                colores = str(len(items)) if items else ""
-        except Exception:
-            colores = ""
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
