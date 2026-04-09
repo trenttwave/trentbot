@@ -752,7 +752,6 @@ def _build_hours(date_str: str) -> InlineKeyboardMarkup:
     row = []
     for h in range(24):
         d = datetime.date.fromisoformat(date_str)
-        # Ocultar solo horas estrictamente pasadas (la hora actual sigue disponible)
         if d == now.date() and h < now.hour:
             row.append(InlineKeyboardButton(" ", callback_data="cal_ignore"))
         else:
@@ -762,6 +761,8 @@ def _build_hours(date_str: str) -> InlineKeyboardMarkup:
             row = []
     if row:
         rows.append(row)
+    d = datetime.date.fromisoformat(date_str)
+    rows.append([InlineKeyboardButton("← Cambiar día", callback_data=f"cal_{d.year}-{d.month:02d}")])
     return InlineKeyboardMarkup(rows)
 
 
