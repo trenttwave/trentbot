@@ -597,21 +597,32 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Contar colores desde la imagen completa
+        # Contar colores: crop zona Style + Gemini lista miniaturas + contar
         try:
+            img_pil = Image.open(io.BytesIO(image_bytes))
+            w, h = img_pil.size
+            style_crop = img_pil.crop((0, int(h * 0.55), w, h))
+            buf = io.BytesIO()
+            style_crop.save(buf, format="JPEG", quality=90)
+            style_bytes = buf.getvalue()
+
             colores_raw = gemini_vision(
-                image_bytes,
+                style_bytes,
                 (
-                    "Mira esta captura de pantalla de la app Hacoo.\n"
-                    "Si ves el texto 'Total X están disponibles', devuelve ese número X.\n"
-                    "Si no, cuenta cuántas miniaturas cuadradas hay en la sección 'Style' "
-                    "(suma todas las filas).\n"
-                    "Devuelve ÚNICAMENTE el número, sin texto."
+                    "Mira esta imagen de Hacoo.\n"
+                    "Si ves el texto 'Total X están disponibles', devuelve solo ese número.\n"
+                    "Si no, busca la sección Style y lista cada miniatura separada por coma "
+                    "(ejemplo: miniatura1, miniatura2, miniatura3). "
+                    "Incluye TODAS las miniaturas de TODAS las filas.\n"
+                    "Devuelve solo el número o la lista."
                 ),
             ).strip()
-            logger.info(f"Colores raw: {colores_raw[:100]}")
-            n = re.search(r"\d+", colores_raw)
-            colores = n.group() if n else ""
+            logger.info(f"Colores raw: {colores_raw[:150]}")
+            if re.fullmatch(r"\d+", colores_raw):
+                colores = colores_raw
+            else:
+                items = [c.strip() for c in colores_raw.split(",") if c.strip()]
+                colores = str(len(items)) if items else ""
         except Exception:
             colores = ""
 
