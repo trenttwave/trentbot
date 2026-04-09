@@ -90,30 +90,49 @@ def crop_black_overlay(image_bytes: bytes) -> bytes:
     """Elimina bandas negras (arriba/abajo) de una foto de producto."""
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     w, h = img.size
-    BLACK_THRESHOLD = 40
-    BLACK_ROW_RATIO = 0.80
+    BLACK_THRESHOLD = 60   # más alto para tolerar compresión JPEG
+    BLACK_ROW_RATIO = 0.70  # 70% de la fila tiene que ser oscura
 
     def is_black_row(y: int) -> bool:
         step = max(1, w // 60)
         row_pixels = [img.getpixel((x, y)) for x in range(0, w, step)]
-        black_count = sum(1 for px in row_pixels if px[0] < BLACK_THRESHOLD and px[1] < BLACK_THRESHOLD and px[2] < BLACK_THRESHOLD)
+        black_count = sum(
+            1 for px in row_pixels
+            if px[0] < BLACK_THRESHOLD and px[1] < BLACK_THRESHOLD and px[2] < BLACK_THRESHOLD
+        )
         return black_count / len(row_pixels) >= BLACK_ROW_RATIO
 
-    # Banda negra inferior
-    crop_bottom = h
-    for y in range(h - 1, h // 2, -1):
-        if is_black_row(y):
-            crop_bottom = y
-        else:
-            break
+    # Contar cuántas filas negras hay desde arriba y desde abajo
+    # Se permiten hasta 5 filas no-negras dentro de la banda (ej: línea blanca del móvil)
+    def find_band_end_from_top(max_scan: int) -> int:
+        last_black = 0
+        non_black_streak = 0
+        for y in range(0, max_scan):
+            if is_black_row(y):
+                last_black = y + 1
+                non_black_streak = 0
+            else:
+                non_black_streak += 1
+                if non_black_streak > 5:
+                    break
+        return last_black
 
-    # Banda negra superior
-    crop_top = 0
-    for y in range(0, h // 2):
-        if is_black_row(y):
-            crop_top = y + 1
-        else:
-            break
+    def find_band_end_from_bottom(max_scan: int) -> int:
+        last_black = h
+        non_black_streak = 0
+        for y in range(h - 1, h - max_scan, -1):
+            if is_black_row(y):
+                last_black = y
+                non_black_streak = 0
+            else:
+                non_black_streak += 1
+                if non_black_streak > 5:
+                    break
+        return last_black
+
+    max_band = h // 3  # buscar bandas en el tercio superior e inferior
+    crop_top = find_band_end_from_top(max_band)
+    crop_bottom = find_band_end_from_bottom(max_band)
 
     if crop_top == 0 and crop_bottom == h:
         return image_bytes  # Sin cambios
