@@ -83,8 +83,61 @@ def gemini_vision(image_bytes: bytes, prompt: str, use_flash: bool = False) -> s
 
 
 # ---------------------------------------------------------------------------
-# Product image helper
+# Product image helpers
 # ---------------------------------------------------------------------------
+
+def crop_black_overlay(image_bytes: bytes) -> bytes:
+    """Elimina bandas negras (arriba/abajo) de una foto de producto."""
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    w, h = img.size
+    BLACK_THRESHOLD = 40
+    BLACK_ROW_RATIO = 0.80
+
+    def is_black_row(y: int) -> bool:
+        step = max(1, w // 60)
+        row_pixels = [img.getpixel((x, y)) for x in range(0, w, step)]
+        black_count = sum(1 for px in row_pixels if px[0] < BLACK_THRESHOLD and px[1] < BLACK_THRESHOLD and px[2] < BLACK_THRESHOLD)
+        return black_count / len(row_pixels) >= BLACK_ROW_RATIO
+
+    # Banda negra inferior
+    crop_bottom = h
+    for y in range(h - 1, h // 2, -1):
+        if is_black_row(y):
+            crop_bottom = y
+        else:
+            break
+
+    # Banda negra superior
+    crop_top = 0
+    for y in range(0, h // 2):
+        if is_black_row(y):
+            crop_top = y + 1
+        else:
+            break
+
+    if crop_top == 0 and crop_bottom == h:
+        return image_bytes  # Sin cambios
+
+    logger.info(f"Banda negra detectada: recortando y={crop_top}..{crop_bottom} (h={h})")
+    cropped = img.crop((0, crop_top, w, crop_bottom))
+    buf = io.BytesIO()
+    cropped.save(buf, format="JPEG", quality=92)
+    return buf.getvalue()
+
+
+async def _download_and_crop(file_ids: list, bot) -> list:
+    """Descarga fotos por file_id, les quita la banda negra y devuelve bytes."""
+    result = []
+    for fid in file_ids:
+        try:
+            file = await bot.get_file(fid)
+            raw = bytes(await file.download_as_bytearray())
+            result.append(crop_black_overlay(raw))
+        except Exception as e:
+            logger.warning(f"No se pudo procesar foto {fid}: {e}")
+            result.append(None)  # fallback: usar file_id original
+    return result
+
 
 def crop_product_image(image_bytes: bytes) -> bytes:
     """Recorta la mitad superior de la captura donde está la foto del producto."""
@@ -883,8 +936,12 @@ async def _send_scheduled_message(context) -> None:
     photos = data["photos"]
     try:
         if photos:
-            media = [InputMediaPhoto(media=pid) for pid in photos]
-            media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
+            processed = await _download_and_crop(photos, context.bot)
+            media = []
+            for i, (fid, img_bytes) in enumerate(zip(photos, processed)):
+                caption = message_text if i == 0 else None
+                src = img_bytes if img_bytes is not None else fid
+                media.append(InputMediaPhoto(media=src, caption=caption) if caption else InputMediaPhoto(media=src))
             await context.bot.send_media_group(chat_id=CHANNEL_ID or chat_id, media=media)
         else:
             await context.bot.send_message(chat_id=CHANNEL_ID or chat_id, text=message_text)
@@ -912,8 +969,12 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
     photos = state.get("photos", [])
     message_text = _build_message(state)
     if photos:
-        media = [InputMediaPhoto(media=pid) for pid in photos]
-        media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
+        processed = await _download_and_crop(photos, bot)
+        media = []
+        for i, (fid, img_bytes) in enumerate(zip(photos, processed)):
+            caption = message_text if i == 0 else None
+            src = img_bytes if img_bytes is not None else fid
+            media.append(InputMediaPhoto(media=src, caption=caption) if caption else InputMediaPhoto(media=src))
         await bot.send_media_group(chat_id=chat_id, media=media)
     else:
         await bot.send_message(chat_id=chat_id, text=message_text)
