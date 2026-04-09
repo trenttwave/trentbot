@@ -597,31 +597,21 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # Contar colores desde la zona Style (crop amplio para cubrir todos los productos)
+        # Contar colores desde la imagen completa
         try:
-            img_pil = Image.open(io.BytesIO(image_bytes))
-            w, h = img_pil.size
-            style_crop = img_pil.crop((0, int(h * 0.55), w, h))
-            buf = io.BytesIO()
-            style_crop.save(buf, format="JPEG", quality=90)
-            style_bytes = buf.getvalue()
-
             colores_raw = gemini_vision(
-                style_bytes,
+                image_bytes,
                 (
-                    "Mira esta imagen de un producto de Hacoo.\n"
-                    "PRIMERO: ¿Ves el texto 'Total X están disponibles'? Si sí, devuelve solo ese número.\n"
-                    "SEGUNDO: Si no hay ese texto, busca la sección 'Style' y lista cada miniatura de imagen separada por coma.\n"
-                    "Devuelve SOLO el número o la lista, sin texto adicional."
+                    "Mira esta captura de pantalla de la app Hacoo.\n"
+                    "Si ves el texto 'Total X están disponibles', devuelve ese número X.\n"
+                    "Si no, cuenta cuántas miniaturas cuadradas hay en la sección 'Style' "
+                    "(suma todas las filas).\n"
+                    "Devuelve ÚNICAMENTE el número, sin texto."
                 ),
             ).strip()
-            logger.info(f"Colores raw response: {colores_raw[:200]}")
-            # Si es un número directo, usarlo
-            if re.fullmatch(r"\d+", colores_raw):
-                colores = colores_raw
-            else:
-                items = [c.strip() for c in colores_raw.split(",") if c.strip()]
-                colores = str(len(items)) if items else ""
+            logger.info(f"Colores raw: {colores_raw[:100]}")
+            n = re.search(r"\d+", colores_raw)
+            colores = n.group() if n else ""
         except Exception:
             colores = ""
 
