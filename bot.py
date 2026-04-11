@@ -53,16 +53,43 @@ async def _hacoo_login(page) -> None:
     from playwright.async_api import TimeoutError as PWTimeout
     await page.wait_for_load_state("networkidle")
     await page.wait_for_timeout(2000)
+
+    # Rellenar email
     for sel in ['input[type="email"]', 'input[placeholder*="email" i]', 'input[type="text"]']:
         try:
             el = await page.wait_for_selector(sel, timeout=4000)
             if el:
                 await el.fill(HACOO_EMAIL)
+                logger.info(f"[PW] Email rellenado con: {sel}")
                 break
         except PWTimeout:
             continue
-    pw = await page.wait_for_selector('input[type="password"]', timeout=5000)
-    await pw.fill(HACOO_PASSWORD)
+
+    # Pulsar Enter o botón Continue/Next para pasar al paso de contraseña
+    for sel in ['button:has-text("Continue")', 'button:has-text("Next")', 'button:has-text("Sign In")', 'button[type="submit"]']:
+        try:
+            btn = page.locator(sel).first
+            if await btn.is_visible():
+                await btn.click()
+                logger.info(f"[PW] Botón tras email: {sel}")
+                break
+        except Exception:
+            continue
+    else:
+        await page.keyboard.press("Enter")
+
+    await page.wait_for_timeout(2000)
+
+    # Ahora rellenar contraseña
+    try:
+        pw = await page.wait_for_selector('input[type="password"]', timeout=8000)
+        await pw.fill(HACOO_PASSWORD)
+        logger.info("[PW] Contraseña rellenada")
+    except PWTimeout:
+        # Si no aparece campo de contraseña, intentar directamente
+        logger.warning("[PW] No apareció campo de contraseña, intentando continuar")
+
+    # Submit
     for sel in ['button:has-text("Sign In")', 'button:has-text("Login")', 'button[type="submit"]']:
         try:
             btn = page.locator(sel).first
@@ -71,6 +98,9 @@ async def _hacoo_login(page) -> None:
                 break
         except Exception:
             continue
+    else:
+        await page.keyboard.press("Enter")
+
     await page.wait_for_function("!window.location.href.toLowerCase().includes('login')", timeout=20000)
     logger.info("[PW] Login OK")
 
