@@ -49,20 +49,30 @@ media_group_buffer: dict = {}  # {media_group_id: {"photos": [], "caption": "", 
 
 
 def _gemini_post(url: str, body: dict) -> str:
+    # Tiempos de espera: en 429 esperamos más para que el rate limit se restablezca
+    waits = [10, 30, 60]
+    last_status = None
     for attempt in range(4):
-        current_url = GEMINI_FALLBACK_URL if attempt == 3 else url
+        current_url = GEMINI_FALLBACK_URL if attempt >= 2 else url
         resp = requests.post(
             f"{current_url}?key={GEMINI_API_KEY}",
             json=body,
             timeout=30,
         )
-        logger.info(f"Gemini status ({current_url.split('/models/')[1].split(':')[0]}): {resp.status_code}")
+        model_name = current_url.split('/models/')[1].split(':')[0]
+        logger.info(f"Gemini status ({model_name}): {resp.status_code}")
+        last_status = resp.status_code
         if resp.status_code in (429, 500, 503):
             if attempt < 3:
-                time.sleep(3 * (attempt + 1))
+                wait = waits[attempt]
+                logger.info(f"Gemini {resp.status_code}, esperando {wait}s antes de reintentar...")
+                time.sleep(wait)
                 continue
+            # Último intento: lanzar error limpio sin exponer la API key
+            raise Exception(f"429 Client Error: Too Many Requests (Gemini rate limit)")
         resp.raise_for_status()
         return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    raise Exception(f"Gemini no disponible tras 4 intentos (último status: {last_status})")
 
 
 def gemini_text(prompt: str) -> str:
@@ -684,7 +694,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Error processing photo: {e}")
-        await status_msg.edit_text(f"Error: {e}")
+        # Mensaje de error limpio sin exponer URLs ni API keys
+        msg = str(e)
+        if "429" in msg or "Too Many Requests" in msg or "rate limit" in msg.lower():
+            await status_msg.edit_text("Gemini está saturado ahora mismo (límite de peticiones). Espera un momento y vuelve a intentarlo.")
+        else:
+            await status_msg.edit_text(f"Error procesando la imagen. Inténtalo de nuevo.")
 
 
 async def _process_media_group(context) -> None:
