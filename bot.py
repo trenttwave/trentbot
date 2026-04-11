@@ -440,25 +440,34 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                     logger.error(f"[PW]   input[{i}]: {attrs}")
                 raise ValueError("Could not find URL input on promotion/link page")
 
-            # Cerrar cualquier modal/popup que bloquee el click (ej: notificaciones de Hacoo)
+            # Cerrar cualquier modal abierto (notificaciones, modal "Promote Link", etc.)
+            for close_sel in [
+                'button:has-text("×")',
+                'button:has-text("✕")',
+                'button:has-text("Close")',
+                '[aria-label*="close" i]',
+                '#headlessui-portal-root button',
+                '[data-v-909a112c] button',
+            ]:
+                try:
+                    btn = page.locator(close_sel).first
+                    if await btn.is_visible():
+                        logger.info(f"[PW] Cerrando modal: {close_sel}")
+                        await btn.click(force=True)
+                        await page.wait_for_timeout(400)
+                except Exception:
+                    continue
+            await page.keyboard.press("Escape")
+            await page.wait_for_timeout(300)
+
+            # Clicar Clear para limpiar URL anterior
             try:
-                modal = page.locator("#headlessui-portal-root")
-                if await modal.count() > 0 and await modal.is_visible():
-                    logger.info("[PW] Modal detectado, cerrando con Escape...")
-                    await page.keyboard.press("Escape")
-                    await page.wait_for_timeout(500)
-                    # Si Escape no lo cierra, buscar botón de cerrar
-                    for close_sel in ['button[aria-label*="close" i]', 'button[aria-label*="cerrar" i]', '[data-v-909a112c] button', '.modal button']:
-                        try:
-                            btn = page.locator(close_sel).first
-                            if await btn.is_visible():
-                                await btn.click()
-                                await page.wait_for_timeout(300)
-                                break
-                        except Exception:
-                            continue
-            except Exception as e:
-                logger.warning(f"[PW] No se pudo cerrar modal: {e}")
+                btn = page.locator('button:has-text("Clear")').first
+                if await btn.is_visible():
+                    await btn.click(force=True)
+                    await page.wait_for_timeout(300)
+            except Exception:
+                pass
 
             await input_el.click(click_count=3)
             await input_el.fill(product_url)
