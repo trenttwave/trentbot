@@ -962,8 +962,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
             new_text = gemini_text(
                 f"Tengo este mensaje de Telegram:\n\n{current_text}\n\n"
-                f"Aplica este cambio: {user_message}\n\n"
-                f"Devuelve SOLO el mensaje modificado, sin explicaciones."
+                f"Instrucción: {user_message}\n\n"
+                f"REGLAS ESTRICTAS:\n"
+                f"- NO cambies el título ni el precio ni el link\n"
+                f"- Solo añade, mueve o modifica lo que se indica explícitamente\n"
+                f"- Conserva exactamente el mismo formato y emojis del resto\n"
+                f"- Devuelve SOLO el mensaje modificado, sin explicaciones"
             ).strip()
             user_states[user_id]["message_text"] = new_text
             if photos:
