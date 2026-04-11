@@ -419,7 +419,7 @@ async def _generate_via_playwright(product_id: str) -> str | None:
 
             await input_el.click(click_count=3)
             await input_el.fill(product_url)
-            await page.wait_for_timeout(500)
+            await page.wait_for_timeout(1000)
 
             # Click Create Link button
             clicked = False
@@ -444,13 +444,32 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             if not clicked:
                 raise ValueError("Could not find Create Link button")
 
-            # Wait for intercepted promoLink API response (up to 25s)
+            # Wait for intercepted promoLink API response (up to 35s)
             try:
-                result_link = await asyncio.wait_for(asyncio.shield(link_future), timeout=25)
+                result_link = await asyncio.wait_for(asyncio.shield(link_future), timeout=35)
                 logger.info(f"Playwright short link: {result_link}")
                 return result_link
             except asyncio.TimeoutError:
-                logger.error("Timed out waiting for promoLink API response")
+                logger.error("Timed out waiting for promoLink API response, trying DOM scrape")
+                # Fallback: buscar el enlace generado directamente en el DOM
+                try:
+                    short_link = await page.evaluate("""
+                        () => {
+                            const inputs = document.querySelectorAll('input, textarea');
+                            for (const el of inputs) {
+                                const v = el.value || '';
+                                if (v.startsWith('http') && (v.includes('onlyaff') || v.includes('c.') || v.length < 80)) {
+                                    return v;
+                                }
+                            }
+                            return null;
+                        }
+                    """)
+                    if short_link:
+                        logger.info(f"Short link from DOM: {short_link}")
+                        return short_link
+                except Exception as e:
+                    logger.warning(f"DOM scrape failed: {e}")
                 return None
 
         except PWTimeout as e:
