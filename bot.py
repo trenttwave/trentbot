@@ -377,10 +377,13 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             except Exception:
                 pass
 
-            # Find URL input — el campo es un textarea en esta página
+            # Find URL input — primero por placeholder (evita coger el campo resultado)
             input_el = None
             for sel in [
-                'textarea',
+                'textarea[placeholder]',
+                'textarea[placeholder*="link" i]',
+                'textarea[placeholder*="url" i]',
+                'textarea[placeholder*="http" i]',
                 'input[placeholder*="link" i]',
                 'input[placeholder*="url" i]',
                 'input[placeholder*="http" i]',
@@ -390,6 +393,7 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 '.el-input__inner',
                 'input[type="text"]',
                 'input[type="url"]',
+                'textarea',
                 'input:not([type])',
             ]:
                 try:
@@ -398,6 +402,11 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                     for i in range(count):
                         el = els.nth(i)
                         if await el.is_visible():
+                            # Descartar si ya contiene un enlace corto (es el campo resultado)
+                            val = await el.input_value()
+                            if val.startswith("http") and "hacoo" not in val:
+                                logger.info(f"Skipping result field [{i}]: {val[:60]}")
+                                continue
                             logger.info(f"Found URL input [{i}] with selector: {sel}")
                             input_el = el
                             break
@@ -479,22 +488,6 @@ def _parse_f_tracking(cookie: str) -> str | None:
     return '.'.join(parts) if parts else None
 
 
-def _shorten_url(long_url: str) -> str:
-    """Acorta una URL usando TinyURL (gratuito, sin API key)."""
-    try:
-        resp = requests.get(
-            f"https://tinyurl.com/api-create.php?url={long_url}",
-            timeout=10,
-        )
-        if resp.status_code == 200 and resp.text.strip().startswith("http"):
-            short = resp.text.strip()
-            logger.info(f"TinyURL: {long_url} -> {short}")
-            return short
-    except Exception as e:
-        logger.warning(f"TinyURL failed: {e}")
-    return long_url
-
-
 # ---------------------------------------------------------------------------
 # Main link generation
 # ---------------------------------------------------------------------------
@@ -514,9 +507,9 @@ async def generate_affiliate_link(product_id: str) -> str:
     if HACOO_COOKIE:
         f_tracking = _parse_f_tracking(HACOO_COOKIE)
         if f_tracking:
-            long_link = f"{product_url}?f={f_tracking}"
-            logger.info(f"Shortening f-tracking URL via TinyURL")
-            return _shorten_url(long_link)
+            direct_link = f"{product_url}?f={f_tracking}"
+            logger.info(f"Affiliate link via f-tracking: {direct_link}")
+            return direct_link
 
     logger.warning("No affiliate method worked, returning plain URL")
     return product_url
