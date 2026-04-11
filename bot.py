@@ -375,6 +375,14 @@ async def generate_affiliate_link(product_id: str) -> str:
 # Telegram handlers
 # ---------------------------------------------------------------------------
 
+async def cmd_ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        gemini_text("di solo 'ok'")
+        await update.message.reply_text("Gemini OK")
+    except Exception as e:
+        await update.message.reply_text(f"Gemini ERROR: {e}")
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Hola! Soy TrentBot.\n\n"
@@ -840,6 +848,7 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
     # job_queue está habilitado por defecto en python-telegram-bot v21
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("ping", cmd_ping))
     app.add_handler(CommandHandler("getid", cmd_getid))
     app.add_handler(CommandHandler("testgrupo", cmd_testgrupo))
     app.add_handler(CommandHandler("listo", cmd_listo))
