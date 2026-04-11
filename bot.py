@@ -35,7 +35,7 @@ HACOO_COOKIE = os.environ.get("HACOO_COOKIE", "").strip()
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
-GOOGLE_VISION_API_KEY = os.environ.get("GOOGLE_VISION_API_KEY", "").strip()
+
 
 # gemini-2.0-flash-lite: 30 RPM en tier gratuito (el doble que gemini-2.0-flash)
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent"
@@ -83,113 +83,6 @@ def gemini_vision(image_bytes: bytes, prompt: str, use_flash: bool = False) -> s
 # Product image helpers
 # ---------------------------------------------------------------------------
 
-def crop_product_image(image_bytes: bytes) -> bytes:
-    """Recorta la mitad superior de la captura donde está la foto del producto."""
-    img = Image.open(io.BytesIO(image_bytes))
-    w, h = img.size
-    logger.info(f"Cropping image {w}x{h} to top 48%")
-    cropped = img.crop((0, int(h * 0.12), w, int(h * 0.57)))
-    buf = io.BytesIO()
-    cropped.save(buf, format="JPEG", quality=90)
-    return buf.getvalue()
-
-
-def detect_brand(image_bytes: bytes) -> str:
-    """Detecta la marca usando Google Vision Web Detection (igual que Google Lens)."""
-    if GOOGLE_VISION_API_KEY:
-        try:
-            image_b64 = base64.b64encode(image_bytes).decode()
-            resp = requests.post(
-                f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_API_KEY}",
-                json={"requests": [{"image": {"content": image_b64}, "features": [{"type": "WEB_DETECTION", "maxResults": 3}]}]},
-                timeout=15,
-            )
-            resp.raise_for_status()
-            web = resp.json()["responses"][0].get("webDetection", {})
-            # bestGuessLabels es lo que Google Lens muestra como resultado principal
-            for label in web.get("bestGuessLabels", []):
-                if label.get("label"):
-                    logger.info(f"Vision bestGuess: {label['label']}")
-                    return label["label"]
-            for entity in web.get("webEntities", []):
-                if entity.get("score", 0) > 0.5 and entity.get("description"):
-                    logger.info(f"Vision entity: {entity['description']}")
-                    return entity["description"]
-        except Exception as e:
-            logger.warning(f"Google Vision failed: {e}")
-
-    # Fallback: Gemini lee texto/logo directamente de la imagen
-    try:
-        result = gemini_vision(
-            image_bytes,
-            "Mira esta imagen de un producto. ¿Qué marca es? Busca logos o texto impreso. Responde SOLO el nombre de la marca, o 'Sin marca' si no la ves.",
-            use_flash=True,
-        )
-        return result.strip()
-    except Exception as e:
-        logger.warning(f"Gemini brand detection failed: {e}")
-        return "Sin marca"
-    """Busca la imagen en Google Lens y devuelve el mejor resultado."""
-    try:
-        import time
-        session = requests.Session()
-        session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept-Language": "es-ES,es;q=0.9",
-        })
-        ts = int(time.time() * 1000)
-        resp = session.post(
-            f"https://lens.google.com/v3/upload?hl=es&re=df&st={ts}&ep=gsbubb",
-            files={"encoded_image": ("product.jpg", image_bytes, "image/jpeg")},
-            timeout=20,
-            allow_redirects=True,
-        )
-        logger.info(f"Google Lens status: {resp.status_code}, url: {resp.url}")
-        text = resp.text
-
-        # Buscar "best guess" en el JSON embebido
-        patterns = [
-            r'"text"\s*:\s*"([^"]{3,60})"[^}]*"type"\s*:\s*"(?:HEADER|TITLE)"',
-            r'bestGuess["\s:]+([A-Za-z][^"\\]{2,50})"',
-            r'"visualMatches".*?"title"\s*:\s*"([^"]{3,60})"',
-            r'data-item-title="([^"]{3,60})"',
-        ]
-        for pattern in patterns:
-            m = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-            if m:
-                result = m.group(1).strip()
-                logger.info(f"Google Lens result: {result}")
-                return result
-    except Exception as e:
-        logger.warning(f"Google Lens failed: {e}")
-    return None
-
-
-async def _get_product_image(product_id: str) -> bytes | None:
-    """Descarga la imagen principal del producto de Hacoo usando Playwright."""
-    from playwright.async_api import async_playwright
-    try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
-            page = await browser.new_page()
-            await page.goto(
-                f"https://www.hacoo.com/en-ES/detail/{product_id}",
-                wait_until="domcontentloaded",
-                timeout=15000,
-            )
-            await page.wait_for_timeout(3000)
-            img_url = await page.evaluate(
-                "() => { const m = document.querySelector('meta[property=\"og:image\"]'); return m ? m.content : null; }"
-            )
-            await browser.close()
-            if img_url:
-                img_resp = requests.get(img_url, timeout=10)
-                img_resp.raise_for_status()
-                logger.info(f"Downloaded product image for {product_id}: {img_url}")
-                return img_resp.content
-    except Exception as e:
-        logger.warning(f"Could not fetch product image for {product_id}: {e}")
-    return None
 
 
 # ---------------------------------------------------------------------------
