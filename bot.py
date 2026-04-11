@@ -355,8 +355,8 @@ async def _generate_via_playwright(product_id: str) -> str | None:
         try:
             promo_url = "https://affiliate.hacoo.app/es-ES/promotion/link"
             logger.info(f"[PW] Navegando a promo_url, cookies={os.path.exists(_SESSION_COOKIES_FILE)}")
-            await page.goto(promo_url, timeout=30000, wait_until="networkidle")
-            await page.wait_for_timeout(3000)
+            await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
+            await page.wait_for_timeout(1500)
             logger.info(f"[PW] URL tras goto: {page.url}")
 
             if "login" in page.url.lower() or "join" in page.url.lower():
@@ -366,8 +366,8 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 await page.goto("https://affiliate.hacoo.app/es-ES/login", timeout=30000, wait_until="domcontentloaded")
                 await page.wait_for_timeout(1500)
                 await _hacoo_login(page)
-                await page.goto(promo_url, timeout=30000, wait_until="networkidle")
-                await page.wait_for_timeout(3000)
+                await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
+                await page.wait_for_timeout(1500)
                 logger.info(f"[PW] URL tras login+goto: {page.url}")
 
             # Guardar cookies para la próxima petición
@@ -454,25 +454,25 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                     if await btn.is_visible():
                         logger.info(f"[PW] Cerrando modal: {close_sel}")
                         await btn.click(force=True)
-                        await page.wait_for_timeout(400)
+                        await page.wait_for_timeout(200)
                 except Exception:
                     continue
             await page.keyboard.press("Escape")
-            await page.wait_for_timeout(300)
+            await page.wait_for_timeout(150)
 
             # Clicar Clear para limpiar URL anterior
             try:
                 btn = page.locator('button:has-text("Clear")').first
                 if await btn.is_visible():
                     await btn.click(force=True)
-                    await page.wait_for_timeout(300)
+                    await page.wait_for_timeout(150)
             except Exception:
                 pass
 
             await input_el.click(click_count=3)
             await input_el.fill(product_url)
             logger.info(f"[PW] Campo rellenado con: {product_url}")
-            await page.wait_for_timeout(500)
+            await page.wait_for_timeout(300)
 
             # Click Create Link button
             clicked = False
