@@ -311,22 +311,31 @@ async def _generate_via_playwright(product_id: str) -> str | None:
 
         page = await context.new_page()
 
-        # Interceptar la respuesta API con el link corto
+        # Interceptar la respuesta API con el link corto.
+        # Capturamos cualquier respuesta de affiliate.hacoo.app que tenga un link corto.
         async def on_response(response):
-            if "promoLink" in response.url and not captured_link:
-                try:
-                    body = await response.json()
-                    data = body.get("data") or {}
-                    link = data.get("promoLink") or data.get("short_url") or data.get("link")
-                    if not link:
-                        link = body.get("promoLink") or body.get("link")
-                    if link:
-                        captured_link.append(link)
-                        logger.info(f"[PW] Link capturado: {link}")
-                    else:
-                        logger.warning(f"[PW] promoLink sin link: {str(body)[:200]}")
-                except Exception as e:
-                    logger.warning(f"[PW] Error parseando respuesta: {e}")
+            if captured_link:
+                return
+            if "affiliate.hacoo.app" not in response.url:
+                return
+            if response.status != 200:
+                return
+            try:
+                body = await response.json()
+                data = body.get("data") or {}
+                link = (
+                    data.get("promoLink") or data.get("shortLink") or
+                    data.get("short_url") or data.get("link") or
+                    body.get("promoLink") or body.get("shortLink") or
+                    body.get("short_url") or body.get("link")
+                )
+                if link and isinstance(link, str) and link.startswith("http"):
+                    captured_link.append(link)
+                    logger.info(f"[PW] Link capturado de {response.url}: {link}")
+                elif "promoLink" in response.url or "link" in response.url.lower():
+                    logger.warning(f"[PW] Respuesta de {response.url} sin link: {str(body)[:300]}")
+            except Exception:
+                pass
 
         page.on("response", on_response)
 
@@ -371,37 +380,16 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             # Esperar a que el formulario esté listo
             await page.wait_for_selector('textarea, input[type="text"], input[placeholder]', timeout=10000)
 
-            # Rellenar el campo URL usando JavaScript (compatible con Vue.js, evita problemas de overlay)
-            filled = await page.evaluate("""
-                (url) => {
-                    // Buscar el textarea o input de URL (no el de resultado)
-                    const candidates = [
-                        ...document.querySelectorAll('textarea'),
-                        ...document.querySelectorAll('input[placeholder]'),
-                        ...document.querySelectorAll('input[type="text"]'),
-                    ];
-                    const el = candidates.find(e => {
-                        const ph = (e.placeholder || '').toLowerCase();
-                        const val = (e.value || '');
-                        // Saltar campos que ya contienen un link externo (resultado anterior)
-                        if (val.startsWith('http') && !val.includes('hacoo')) return false;
-                        return true;
-                    }) || candidates[0];
-                    if (!el) return false;
-                    // Usar el setter nativo para que Vue detecte el cambio
-                    const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-                    const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
-                    setter.call(el, url);
-                    el.dispatchEvent(new Event('input', { bubbles: true }));
-                    el.dispatchEvent(new Event('change', { bubbles: true }));
-                    el.focus();
-                    return true;
-                }
-            """, product_url)
+            # Encontrar el textarea del formulario
+            input_el = page.locator('textarea').first
+            if not await input_el.is_visible():
+                input_el = page.locator('input[placeholder]').first
+            if not await input_el.is_visible():
+                input_el = page.locator('input[type="text"]').first
 
-            if not filled:
-                raise ValueError("No se encontró el campo URL en el formulario")
-
+            # Rellenar con fill() nativo de Playwright (fuerza la escritura sin necesitar click)
+            # force=True bypasa cualquier overlay o check de accesibilidad
+            await input_el.fill(product_url, force=True)
             logger.info(f"[PW] Campo rellenado con: {product_url}")
             await page.wait_for_timeout(500)
 
