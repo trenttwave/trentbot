@@ -37,9 +37,9 @@ HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 GOOGLE_VISION_API_KEY = os.environ.get("GOOGLE_VISION_API_KEY", "").strip()
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-GEMINI_FLASH_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+# gemini-2.0-flash: 15 RPM en tier gratuito (más generoso que 2.5-flash que solo tiene 10 RPM)
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_FLASH_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
 
 # Estado de conversación por usuario
@@ -49,30 +49,23 @@ media_group_buffer: dict = {}  # {media_group_id: {"photos": [], "caption": "", 
 
 
 def _gemini_post(url: str, body: dict) -> str:
-    # Tiempos de espera: en 429 esperamos más para que el rate limit se restablezca
-    waits = [10, 30, 60]
-    last_status = None
-    for attempt in range(4):
-        current_url = GEMINI_FALLBACK_URL if attempt >= 2 else url
+    # 2 intentos: si el primero da 429, espera 30s y reintenta una vez más
+    for attempt in range(2):
         resp = requests.post(
-            f"{current_url}?key={GEMINI_API_KEY}",
+            f"{url}?key={GEMINI_API_KEY}",
             json=body,
             timeout=30,
         )
-        model_name = current_url.split('/models/')[1].split(':')[0]
+        model_name = url.split('/models/')[1].split(':')[0]
         logger.info(f"Gemini status ({model_name}): {resp.status_code}")
-        last_status = resp.status_code
         if resp.status_code in (429, 500, 503):
-            if attempt < 3:
-                wait = waits[attempt]
-                logger.info(f"Gemini {resp.status_code}, esperando {wait}s antes de reintentar...")
-                time.sleep(wait)
+            if attempt == 0:
+                logger.info(f"Gemini {resp.status_code}, esperando 30s...")
+                time.sleep(30)
                 continue
-            # Último intento: lanzar error limpio sin exponer la API key
-            raise Exception(f"429 Client Error: Too Many Requests (Gemini rate limit)")
+            raise Exception("Gemini saturado (límite de peticiones). Espera un momento y vuelve a intentarlo.")
         resp.raise_for_status()
         return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    raise Exception(f"Gemini no disponible tras 4 intentos (último status: {last_status})")
 
 
 def gemini_text(prompt: str) -> str:
