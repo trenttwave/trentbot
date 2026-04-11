@@ -1,23 +1,52 @@
 import os
 import re
 import json
+import base64
 import logging
 import asyncio
+import requests
 
-from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+from telegram import Update, InputMediaPhoto
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN      = os.environ.get("BOT_TOKEN", "").strip()
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+CHANNEL_ID     = os.environ.get("CHANNEL_ID", "").strip()
 HACOO_EMAIL    = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
-SESSION_FILE   = "/tmp/hacoo_session.json"
+
+GEMINI_URL   = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+SESSION_FILE = "/tmp/hacoo_session.json"
+
+user_states: dict = {}
 
 
 # ---------------------------------------------------------------------------
-# Playwright — genera el link corto de afiliado
+# Gemini
+# ---------------------------------------------------------------------------
+
+def gemini_vision(image_bytes: bytes, prompt: str) -> str:
+    b64 = base64.b64encode(image_bytes).decode()
+    body = {"contents": [{"parts": [
+        {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
+        {"text": prompt},
+    ]}]}
+    resp = requests.post(f"{GEMINI_URL}?key={GEMINI_API_KEY}", json=body, timeout=30)
+    if resp.status_code == 429:
+        try:
+            msg = resp.json()["error"]["message"]
+        except Exception:
+            msg = resp.text[:300]
+        raise Exception(f"Gemini 429: {msg}")
+    resp.raise_for_status()
+    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+
+# ---------------------------------------------------------------------------
+# Playwright — link de afiliado
 # ---------------------------------------------------------------------------
 
 async def _hacoo_login(page) -> None:
@@ -43,7 +72,7 @@ async def _hacoo_login(page) -> None:
         except Exception:
             continue
     await page.wait_for_function("!window.location.href.toLowerCase().includes('login')", timeout=20000)
-    logger.info(f"[PW] Login OK")
+    logger.info("[PW] Login OK")
 
 
 async def generate_affiliate_link(product_id: str) -> str:
@@ -99,7 +128,6 @@ async def generate_affiliate_link(product_id: str) -> str:
             with open(SESSION_FILE, "w") as f:
                 json.dump(await context.cookies(), f)
 
-            # Cerrar modales
             for sel in ['button:has-text("×")', 'button:has-text("Close")', '#headlessui-portal-root button']:
                 try:
                     btn = page.locator(sel).first
@@ -110,7 +138,6 @@ async def generate_affiliate_link(product_id: str) -> str:
                     continue
             await page.keyboard.press("Escape")
 
-            # Clear
             try:
                 btn = page.locator('button:has-text("Clear")').first
                 if await btn.is_visible():
@@ -165,39 +192,138 @@ async def generate_affiliate_link(product_id: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Handler
+# Handlers
 # ---------------------------------------------------------------------------
+
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Hola! Envíame una captura de un producto de Hacoo.")
+
+
+async def cmd_ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        gemini_vision(
+            base64.b64decode(
+                "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8U"
+                "HRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgN"
+                "DRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIy"
+                "MjL/wAARCAABAAEDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAA"
+                "AAAAAAAAAAAAAP/EABQBAQAAAAAAAAAAAAAAAAAAAAD/xAAUEQEAAAAAAAAAAAAAAAAAAAAA"
+                "/9oADAMBAAIRAxEAPwCwABmX/9k="
+            ),
+            "di solo 'ok'"
+        )
+        await update.message.reply_text("Gemini OK")
+    except Exception as e:
+        await update.message.reply_text(f"Gemini ERROR: {e}")
+
+
+async def cmd_cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_states.pop(update.effective_user.id, None)
+    await update.message.reply_text("Cancelado.")
+
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        return
+    user_id = update.effective_user.id
+    state = user_states.get(user_id, {})
+
+    # Fotos del producto para publicar
+    if state.get("state") == "waiting_photos":
+        state["photos"].append(update.message.photo[-1].file_id)
+        await _compose_and_send(update, context)
+        return
+
+    # Captura de Hacoo — extraer ID con Gemini
+    status = await update.message.reply_text("Analizando...")
+    try:
+        file = await context.bot.get_file(update.message.photo[-1].file_id)
+        image_bytes = bytes(await file.download_as_bytearray())
+
+        info = gemini_vision(image_bytes,
+            "Analiza esta captura de la app Hacoo. Devuelve exactamente tres líneas:\n"
+            "ID: [solo el número de ID del producto]\n"
+            "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]\n"
+            "Colores: [número total de colores/estilos disponibles]"
+        ).strip()
+
+        product_id = price = colores = ""
+        for line in info.splitlines():
+            if line.startswith("ID:"):
+                product_id = line[3:].strip()
+            elif line.startswith("Precio:"):
+                price = line[7:].strip()
+            elif line.startswith("Colores:"):
+                m = re.search(r"\d+", line[8:])
+                if m:
+                    colores = m.group()
+
+        if not product_id.isdigit():
+            await status.edit_text("No encontré el ID. Asegúrate de que la captura muestre el número de producto.")
+            return
+
+        await status.edit_text(f"ID: {product_id} — Generando link...")
+        link = await generate_affiliate_link(product_id)
+
+        user_states[user_id] = {"state": "waiting_title", "link": link, "price": price, "colores": colores, "photos": []}
+        await status.edit_text(f"{link}\n\nAhora envíame el título del producto.")
+
+    except Exception as e:
+        logger.error(f"Error en handle_photo: {e}")
+        await status.edit_text(f"Error: {e}")
+
+
+async def _compose_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    state = user_states.get(user_id, {})
+    if not state.get("title") or not state.get("photos"):
+        return
+
+    link    = state["link"]
+    price   = state["price"]
+    title   = state["title"]
+    colores = state["colores"]
+    photos  = state["photos"]
+
+    colores_text = f"\n🎨 {colores} colores disponibles" if colores else ""
+    text = f"{title}\n\n💰 {price}{colores_text}\n\n🔗 {link}"
+
+    media = [InputMediaPhoto(media=fid) for fid in photos]
+    media[0] = InputMediaPhoto(media=photos[0], caption=text)
+
+    await context.bot.send_media_group(chat_id=CHANNEL_ID, media=media)
+    user_states.pop(user_id, None)
+    await update.message.reply_text("Publicado.")
+
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         return
+    user_id = update.effective_user.id
     text = update.message.text.strip()
+    state = user_states.get(user_id, {})
 
-    # Extraer product ID del texto (número o URL de hacoo)
-    product_id = ""
-    m = re.search(r'/detail/(\d+)', text)
-    if m:
-        product_id = m.group(1)
-    elif re.fullmatch(r'\d+', text):
-        product_id = text
-
-    if not product_id:
-        await update.message.reply_text("Envíame el ID del producto o el link de Hacoo.")
+    if state.get("state") == "waiting_title":
+        user_states[user_id]["title"] = text
+        user_states[user_id]["state"] = "waiting_photos"
+        await update.message.reply_text("Perfecto. Ahora envíame las fotos del producto.")
         return
 
-    status = await update.message.reply_text("Generando link...")
-    try:
-        link = await generate_affiliate_link(product_id)
-        await status.edit_text(link)
-    except Exception as e:
-        logger.error(f"Error: {e}")
-        await status.edit_text(f"Error: {e}")
+    await update.message.reply_text("Envíame una captura de un producto de Hacoo.")
 
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start",    cmd_start))
+    app.add_handler(CommandHandler("ping",     cmd_ping))
+    app.add_handler(CommandHandler("cancelar", cmd_cancelar))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    logger.info("Bot arrancando...")
+    logger.info("TrentBot arrancando...")
     app.run_polling(drop_pending_updates=True)
 
 
