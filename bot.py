@@ -297,7 +297,7 @@ async def _generate_via_playwright(product_id: str) -> str | None:
         )
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            locale="es-ES",
+            locale="en-US",
         )
 
         # Cargar cookies de sesión si existen
@@ -405,12 +405,16 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             logger.info(f"[PW] Campo rellenado con: {product_url}")
             await page.wait_for_timeout(500)
 
-            # Clicar el botón "Create Link"
+            # Clicar el botón "Create Link" (en inglés y español)
             clicked = False
             for btn_sel in [
                 'button:has-text("Create Link")',
+                'button:has-text("Crear enlace")',
+                'button:has-text("Crear Link")',
                 'button:has-text("Generate")',
+                'button:has-text("Generar")',
                 'button:has-text("Create")',
+                'button:has-text("Crear")',
                 'button:has-text("Get Link")',
                 'button[type="submit"]',
                 '.el-button--primary',
