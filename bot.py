@@ -835,8 +835,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(reply)
     except Exception as e:
         logger.error(f"Error calling Gemini API: {e}")
-        await update.message.reply_text("No puedo responder ahora mismo. Envíame una captura de un producto de Hacoo para empezar.")
-        await update.message.reply_text("Error al procesar tu mensaje. Intentalo de nuevo.")
+        await update.message.reply_text(f"Error: {e}")
 
 
 def main():
