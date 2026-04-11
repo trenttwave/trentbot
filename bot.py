@@ -57,7 +57,11 @@ def _gemini_post(url: str, body: dict) -> str:
     model_name = url.split('/models/')[1].split(':')[0]
     logger.info(f"Gemini status ({model_name}): {resp.status_code}")
     if resp.status_code == 429:
-        raise Exception("Gemini saturado (límite de peticiones). Espera un momento y vuelve a intentarlo.")
+        try:
+            detail = resp.json().get("error", {}).get("message", resp.text[:200])
+        except Exception:
+            detail = resp.text[:200]
+        raise Exception(f"Gemini 429: {detail}")
     resp.raise_for_status()
     return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
