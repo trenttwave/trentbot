@@ -178,27 +178,6 @@ def detect_brand(image_bytes: bytes) -> str:
     return None
 
 
-def _get_product_image(product_id: str) -> bytes | None:
-    """Descarga la imagen principal del producto de Hacoo vía og:image."""
-    for domain in ["www.hacoo.pl", "www.hacoo.com"]:
-        try:
-            url = f"https://{domain}/en-ES/detail/{product_id}"
-            resp = requests.get(url, timeout=10, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            })
-            m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', resp.text)
-            if not m:
-                m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', resp.text)
-            if m:
-                img_url = m.group(1)
-                img_resp = requests.get(img_url, timeout=10)
-                img_resp.raise_for_status()
-                logger.info(f"Product image for {product_id}: {img_url}")
-                return img_resp.content
-        except Exception as e:
-            logger.warning(f"Could not fetch product image from {domain}: {e}")
-    return None
-
 
 # ---------------------------------------------------------------------------
 # Playwright-based affiliate link generation
@@ -586,30 +565,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         affiliate_link = await generate_affiliate_link(product_id)
 
-        # Intentar obtener marca desde imagen de alta resolución
-        brand = ""
-        try:
-            await status_msg.edit_text(f"ID encontrado: {product_id}\nIdentificando marca...")
-            product_image = _get_product_image(product_id)
-            analysis_image = product_image if product_image else image_bytes
-            brand_raw = gemini_vision(
-                analysis_image,
-                (
-                    "Analiza esta imagen de un producto. Extrae exactamente:\n"
-                    "1. El nombre del producto\n"
-                    "2. La marca — busca logos, texto bordado, estampado o impreso en el producto. "
-                    "Esta es una foto de catálogo del fabricante, la marca suele estar visible.\n\n"
-                    "Responde EXACTAMENTE en este formato (dos líneas):\n"
-                    "Nombre: [nombre del producto]\n"
-                    "Marca: [marca]"
-                ),
-            ).strip()
-            for line in brand_raw.splitlines():
-                if line.startswith("Marca:"):
-                    brand = line.replace("Marca:", "").strip()
-        except Exception as e:
-            logger.warning(f"Brand detection failed: {e}")
-
         user_states[user_id] = {
             "state": "waiting_title",
             "link": affiliate_link,
@@ -618,9 +573,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "photos": [],
         }
 
-        brand_line = f"Marca: {brand}\n" if brand else ""
         await status_msg.edit_text(
-            f"{affiliate_link}\n\n{brand_line}Ahora envíame el título del producto."
+            f"{affiliate_link}\n\nAhora envíame el título del producto."
         )
 
     except Exception as e:
