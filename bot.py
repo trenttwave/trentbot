@@ -49,23 +49,17 @@ media_group_buffer: dict = {}  # {media_group_id: {"photos": [], "caption": "", 
 
 
 def _gemini_post(url: str, body: dict) -> str:
-    # 2 intentos: si el primero da 429, espera 30s y reintenta una vez más
-    for attempt in range(2):
-        resp = requests.post(
-            f"{url}?key={GEMINI_API_KEY}",
-            json=body,
-            timeout=30,
-        )
-        model_name = url.split('/models/')[1].split(':')[0]
-        logger.info(f"Gemini status ({model_name}): {resp.status_code}")
-        if resp.status_code in (429, 500, 503):
-            if attempt == 0:
-                logger.info(f"Gemini {resp.status_code}, esperando 30s...")
-                time.sleep(30)
-                continue
-            raise Exception("Gemini saturado (límite de peticiones). Espera un momento y vuelve a intentarlo.")
-        resp.raise_for_status()
-        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    resp = requests.post(
+        f"{url}?key={GEMINI_API_KEY}",
+        json=body,
+        timeout=30,
+    )
+    model_name = url.split('/models/')[1].split(':')[0]
+    logger.info(f"Gemini status ({model_name}): {resp.status_code}")
+    if resp.status_code == 429:
+        raise Exception("Gemini saturado (límite de peticiones). Espera un momento y vuelve a intentarlo.")
+    resp.raise_for_status()
+    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
 def gemini_text(prompt: str) -> str:
