@@ -670,10 +670,38 @@ async def _process_media_group(context) -> None:
 
 
 async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "ℹ️ Los mensajes programados se gestionan directamente desde Telegram.\n"
-        "Ábrelos desde el canal para verlos o cancelarlos."
-    )
+    jobs = context.application.job_queue.jobs()
+    scheduled = [j for j in jobs if j.name and j.name.startswith("scheduled_")]
+    if not scheduled:
+        await update.message.reply_text("No hay mensajes programados.")
+        return
+    for i, j in enumerate(scheduled, 1):
+        delay = (j.next_t - datetime.datetime.now(datetime.timezone.utc)).total_seconds()
+        when = datetime.datetime.now(SPAIN_TZ) + datetime.timedelta(seconds=max(0, delay))
+        data = j.data or {}
+        message_text = data.get("message_text", "")
+        photos = data.get("photos", [])
+        header = f"📅 {i}. {when.strftime('%d/%m a las %H:%M')}\n\n{message_text}"
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🗑 Cancelar", callback_data=f"cancel_job_{j.name}")]])
+        if photos:
+            media = [InputMediaPhoto(media=pid) for pid in photos]
+            media[0] = InputMediaPhoto(media=photos[0], caption=header)
+            await update.message.reply_media_group(media=media)
+            await update.message.reply_text("↑ Este mensaje", reply_markup=kb)
+        else:
+            await update.message.reply_text(header, reply_markup=kb)
+
+
+async def callback_cancel_job(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    job_name = query.data.replace("cancel_job_", "")
+    for j in context.application.job_queue.jobs():
+        if j.name == job_name:
+            j.schedule_removal()
+            await query.edit_message_text("✅ Mensaje cancelado.")
+            return
+    await query.edit_message_text("❌ No se encontró el mensaje (ya enviado o cancelado).")
 
 
 MESES_ES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -832,39 +860,25 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         message_text = state.get("message_text", "")
         photos = state.get("photos", [])
-        schedule_ts = int(target.timestamp())
-        try:
-            if photos:
-                media_list = [{"type": "photo", "media": fid} for fid in photos]
-                media_list[0]["caption"] = message_text
-                resp = requests.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMediaGroup",
-                    data={
-                        "chat_id": CHANNEL_ID,
-                        "media": json.dumps(media_list),
-                        "schedule_date": schedule_ts,
-                    },
-                    timeout=15,
-                )
-                resp.raise_for_status()
-            else:
-                resp = requests.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={
-                        "chat_id": CHANNEL_ID,
-                        "text": message_text,
-                        "schedule_date": schedule_ts,
-                    },
-                    timeout=15,
-                )
-                resp.raise_for_status()
-            user_states.pop(user_id, None)
-            await query.edit_message_text(
-                f"✅ Programado para el {target.strftime('%d/%m/%Y')} a las {hour}:{minute}\n"
-                f"📅 El mensaje aparece como programado en el canal."
-            )
-        except Exception as e:
-            await query.edit_message_text(f"❌ Error al programar: {e}")
+        delay = (target - now).total_seconds()
+
+        context.application.job_queue.run_once(
+            _send_scheduled_message,
+            delay,
+            data={
+                "chat_id": query.message.chat_id,
+                "message_text": message_text,
+                "photos": photos,
+            },
+            name=f"scheduled_{user_id}_{target.strftime('%d%m_%H%M')}",
+        )
+        user_states.pop(user_id, None)
+        destino = "al canal" if CHANNEL_ID else "⚠️ CHANNEL_ID no configurado"
+        await query.edit_message_text(
+            f"✅ Programado para el {target.strftime('%d/%m/%Y')} a las {hour}:{minute}\n"
+            f"📤 Destino: {destino}\n\n"
+            f"Usa /pendientes para ver los mensajes programados."
+        )
 
 
 
@@ -881,6 +895,23 @@ def _build_message(state: dict) -> str:
         price_str = price
     colores_line = f"{colores} colores 🎨" if colores.isdigit() else "Más colores 🎨"
     return f"{title} —> {price_str}💎\n{colores_line}\n\n{link}"
+
+
+async def _send_scheduled_message(context) -> None:
+    data = context.job.data
+    chat_id = data["chat_id"]
+    message_text = data["message_text"]
+    photos = data["photos"]
+    try:
+        if photos:
+            media = [InputMediaPhoto(media=pid) for pid in photos]
+            media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
+            await context.bot.send_media_group(chat_id=CHANNEL_ID or chat_id, media=media)
+        else:
+            await context.bot.send_message(chat_id=CHANNEL_ID or chat_id, text=message_text)
+        await context.bot.send_message(chat_id=chat_id, text="✅ Mensaje enviado al canal.")
+    except Exception as e:
+        await context.bot.send_message(chat_id=chat_id, text=f"❌ Error al enviar: {e}")
 
 
 async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
@@ -970,6 +1001,7 @@ def main():
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
     app.add_handler(CallbackQueryHandler(callback_calendario, pattern="^cal_"))
+    app.add_handler(CallbackQueryHandler(callback_cancel_job, pattern="^cancel_job_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
