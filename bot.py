@@ -354,11 +354,13 @@ async def _generate_via_playwright(product_id: str) -> str | None:
 
         try:
             promo_url = "https://affiliate.hacoo.app/es-ES/promotion/link"
+            logger.info(f"[PW] Navegando a promo_url, cookies={os.path.exists(_SESSION_COOKIES_FILE)}")
             await page.goto(promo_url, timeout=30000, wait_until="networkidle")
             await page.wait_for_timeout(3000)
+            logger.info(f"[PW] URL tras goto: {page.url}")
 
             if "login" in page.url.lower() or "join" in page.url.lower():
-                # Sesión expirada — hacer login limpio
+                logger.info("[PW] Sesión expirada, haciendo login...")
                 if os.path.exists(_SESSION_COOKIES_FILE):
                     os.remove(_SESSION_COOKIES_FILE)
                 await page.goto("https://affiliate.hacoo.app/es-ES/login", timeout=30000, wait_until="domcontentloaded")
@@ -366,11 +368,22 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 await _hacoo_login(page)
                 await page.goto(promo_url, timeout=30000, wait_until="networkidle")
                 await page.wait_for_timeout(3000)
+                logger.info(f"[PW] URL tras login+goto: {page.url}")
 
             # Guardar cookies para la próxima petición
             cookies = await context.cookies()
             with open(_SESSION_COOKIES_FILE, "w") as f:
                 json.dump(cookies, f)
+            logger.info(f"[PW] Cookies guardadas ({len(cookies)})")
+
+            # Log del HTML para ver el estado de la página
+            page_html_len = await page.evaluate("document.body ? document.body.innerHTML.length : 0")
+            logger.info(f"[PW] HTML length: {page_html_len}")
+            all_inputs = await page.query_selector_all('input, textarea')
+            logger.info(f"[PW] Inputs/textareas encontrados: {len(all_inputs)}")
+            for i, el in enumerate(all_inputs[:6]):
+                attrs = await el.evaluate('el => ({tag: el.tagName, type: el.type, placeholder: el.placeholder, value: el.value.substring(0,60), visible: el.offsetParent !== null})')
+                logger.info(f"[PW]   [{i}]: {attrs}")
 
             # Esperar a que Vue monte el formulario (puede ser textarea)
             try:
@@ -403,12 +416,11 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                     for i in range(count):
                         el = els.nth(i)
                         if await el.is_visible():
-                            # Descartar si ya contiene un enlace corto (es el campo resultado)
                             val = await el.input_value()
                             if val.startswith("http") and "hacoo" not in val:
-                                logger.info(f"Skipping result field [{i}]: {val[:60]}")
+                                logger.info(f"[PW] Skipping result field [{i}]: {val[:60]}")
                                 continue
-                            logger.info(f"Found URL input [{i}] with selector: {sel}")
+                            logger.info(f"[PW] Found URL input [{i}] selector={sel} val='{val[:40]}'")
                             input_el = el
                             break
                     if input_el:
@@ -418,18 +430,19 @@ async def _generate_via_playwright(product_id: str) -> str | None:
 
             if not input_el:
                 inputs = await page.query_selector_all('input')
-                logger.error(f"No input found. {len(inputs)} inputs on page. URL: {page.url}")
+                logger.error(f"[PW] No input found. {len(inputs)} inputs. URL: {page.url}")
                 body_len = await page.evaluate("document.body ? document.body.innerHTML.length : 0")
                 snippet = await page.evaluate("document.body ? document.body.innerHTML.substring(0, 2000) : 'no body'")
-                logger.error(f"Promotion page HTML length: {body_len}")
-                logger.error(f"Promotion page snippet: {snippet}")
+                logger.error(f"[PW] HTML length: {body_len}")
+                logger.error(f"[PW] snippet: {snippet}")
                 for i, inp in enumerate(inputs[:8]):
                     attrs = await inp.evaluate('el => ({type: el.type, placeholder: el.placeholder, class: el.className, visible: el.offsetParent !== null})')
-                    logger.error(f"  input[{i}]: {attrs}")
+                    logger.error(f"[PW]   input[{i}]: {attrs}")
                 raise ValueError("Could not find URL input on promotion/link page")
 
             await input_el.click(click_count=3)
             await input_el.fill(product_url)
+            logger.info(f"[PW] Campo rellenado con: {product_url}")
             await page.wait_for_timeout(500)
 
             # Click Create Link button
