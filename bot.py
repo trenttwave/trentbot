@@ -62,7 +62,13 @@ def _gemini_post(url: str, body: dict) -> str:
                 time.sleep(3 * (attempt + 1))
                 continue
         resp.raise_for_status()
-        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        data = resp.json()
+        candidates = data.get("candidates")
+        if not candidates:
+            feedback = data.get("promptFeedback", {})
+            reason = feedback.get("blockReason", "sin candidatos")
+            raise Exception(f"Gemini no devolvió respuesta ({reason}). Espera un momento e inténtalo de nuevo.")
+        return candidates[0]["content"]["parts"][0]["text"]
 
 
 def gemini_text(prompt: str) -> str:
