@@ -478,6 +478,22 @@ def _parse_f_tracking(cookie: str) -> str | None:
     return '.'.join(parts) if parts else None
 
 
+def _shorten_url(long_url: str) -> str:
+    """Acorta una URL usando TinyURL (gratuito, sin API key)."""
+    try:
+        resp = requests.get(
+            f"https://tinyurl.com/api-create.php?url={long_url}",
+            timeout=10,
+        )
+        if resp.status_code == 200 and resp.text.strip().startswith("http"):
+            short = resp.text.strip()
+            logger.info(f"TinyURL: {long_url} -> {short}")
+            return short
+    except Exception as e:
+        logger.warning(f"TinyURL failed: {e}")
+    return long_url
+
+
 # ---------------------------------------------------------------------------
 # Main link generation
 # ---------------------------------------------------------------------------
@@ -497,9 +513,9 @@ async def generate_affiliate_link(product_id: str) -> str:
     if HACOO_COOKIE:
         f_tracking = _parse_f_tracking(HACOO_COOKIE)
         if f_tracking:
-            direct_link = f"{product_url}?f={f_tracking}"
-            logger.info(f"Affiliate link via f-tracking: {direct_link}")
-            return direct_link
+            long_link = f"{product_url}?f={f_tracking}"
+            logger.info(f"Shortening f-tracking URL via TinyURL")
+            return _shorten_url(long_link)
 
     logger.warning("No affiliate method worked, returning plain URL")
     return product_url
