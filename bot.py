@@ -37,9 +37,9 @@ HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 GOOGLE_VISION_API_KEY = os.environ.get("GOOGLE_VISION_API_KEY", "").strip()
 
-# gemini-2.0-flash: 15 RPM en tier gratuito (más generoso que 2.5-flash que solo tiene 10 RPM)
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-GEMINI_FLASH_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+# gemini-2.0-flash-lite: 30 RPM en tier gratuito (el doble que gemini-2.0-flash)
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent"
+GEMINI_FLASH_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
 
 # Estado de conversación por usuario
