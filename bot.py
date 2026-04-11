@@ -973,6 +973,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"- NO cambies el título ni el precio ni el link\n"
                 f"- Solo añade, mueve o modifica lo que se indica explícitamente\n"
                 f"- Conserva exactamente el mismo formato y emojis del resto\n"
+                f"- Siempre debe haber una línea en blanco justo antes del link de afiliado\n"
                 f"- Devuelve SOLO el mensaje modificado, sin explicaciones"
             ).strip()
             user_states[user_id]["message_text"] = new_text
