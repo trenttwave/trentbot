@@ -420,10 +420,34 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             if not clicked:
                 raise ValueError("No se encontró el botón de crear link")
 
-            # Esperar el link capturado (hasta 25s)
-            for _ in range(50):
+            # Esperar el link: API response interception + lectura directa del modal
+            for i in range(40):  # hasta 20s
                 if captured_link:
                     break
+
+                # Método 2: leer el link directamente del modal "Promote Link" en el DOM
+                try:
+                    modal_link = await page.evaluate("""() => {
+                        // El modal tiene un input/textarea con el link corto
+                        const root = document.querySelector('#headlessui-portal-root')
+                                  || document.querySelector('[role="dialog"]')
+                                  || document.body;
+                        const els = root.querySelectorAll('input, textarea, p, span, div');
+                        for (const el of els) {
+                            const v = (el.value || el.textContent || '').trim();
+                            if (v.startsWith('https://c.onlyaff') || v.startsWith('http://c.onlyaff')) {
+                                return v;
+                            }
+                        }
+                        return null;
+                    }""")
+                    if modal_link:
+                        captured_link.append(modal_link)
+                        logger.info(f"[PW] Link leído del modal DOM: {modal_link}")
+                        break
+                except Exception:
+                    pass
+
                 await asyncio.sleep(0.5)
 
             if captured_link:
