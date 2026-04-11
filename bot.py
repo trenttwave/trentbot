@@ -787,6 +787,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     logger.info(f"Message from {user.first_name} (@{user.username}): {user_message}")
 
+    # Saludos simples — sin llamar a Gemini
+    if user_message.strip().lower() in ("hola", "hello", "hi", "hey", "buenas", "buenos días", "buenas tardes", "buenas noches"):
+        await update.message.reply_text("Hola! Envíame una captura de un producto de Hacoo para empezar.")
+        return
+
     # Si esperamos título, guardarlo
     if user_states.get(user_id, {}).get("state") == "waiting_title":
         user_states[user_id]["title"] = user_message
