@@ -832,21 +832,32 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         message_text = state.get("message_text", "")
         photos = state.get("photos", [])
+        schedule_ts = int(target.timestamp())
         try:
             if photos:
-                media = [InputMediaPhoto(media=pid) for pid in photos]
-                media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
-                await context.bot.send_media_group(
-                    chat_id=CHANNEL_ID,
-                    media=media,
-                    schedule_date=target,
+                media_list = [{"type": "photo", "media": fid} for fid in photos]
+                media_list[0]["caption"] = message_text
+                resp = requests.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMediaGroup",
+                    data={
+                        "chat_id": CHANNEL_ID,
+                        "media": json.dumps(media_list),
+                        "schedule_date": schedule_ts,
+                    },
+                    timeout=15,
                 )
+                resp.raise_for_status()
             else:
-                await context.bot.send_message(
-                    chat_id=CHANNEL_ID,
-                    text=message_text,
-                    schedule_date=target,
+                resp = requests.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    json={
+                        "chat_id": CHANNEL_ID,
+                        "text": message_text,
+                        "schedule_date": schedule_ts,
+                    },
+                    timeout=15,
                 )
+                resp.raise_for_status()
             user_states.pop(user_id, None)
             await query.edit_message_text(
                 f"✅ Programado para el {target.strftime('%d/%m/%Y')} a las {hour}:{minute}\n"
