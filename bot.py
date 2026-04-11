@@ -168,32 +168,6 @@ def detect_brand(image_bytes: bytes) -> str:
     return None
 
 
-async def _get_product_image(product_id: str) -> bytes | None:
-    """Descarga la imagen principal del producto de Hacoo usando Playwright."""
-    from playwright.async_api import async_playwright
-    try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
-            page = await browser.new_page()
-            await page.goto(
-                f"https://www.hacoo.com/en-ES/detail/{product_id}",
-                wait_until="domcontentloaded",
-                timeout=15000,
-            )
-            await page.wait_for_timeout(3000)
-            img_url = await page.evaluate(
-                "() => { const m = document.querySelector('meta[property=\"og:image\"]'); return m ? m.content : null; }"
-            )
-            await browser.close()
-            if img_url:
-                img_resp = requests.get(img_url, timeout=10)
-                img_resp.raise_for_status()
-                logger.info(f"Downloaded product image for {product_id}: {img_url}")
-                return img_resp.content
-    except Exception as e:
-        logger.warning(f"Could not fetch product image for {product_id}: {e}")
-    return None
-
 
 # ---------------------------------------------------------------------------
 # Playwright-based affiliate link generation
@@ -696,43 +670,10 @@ async def _process_media_group(context) -> None:
 
 
 async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    jobs = context.application.job_queue.jobs()
-    scheduled = [j for j in jobs if j.name and j.name.startswith("scheduled_")]
-    if not scheduled:
-        await update.message.reply_text("No hay mensajes programados.")
-        return
-
-    for i, j in enumerate(scheduled, 1):
-        when = datetime.datetime.now(SPAIN_TZ) + datetime.timedelta(seconds=max(0, (j.next_t - datetime.datetime.now(datetime.timezone.utc)).total_seconds()))
-        data = j.data or {}
-        message_text = data.get("message_text", "")
-        photos = data.get("photos", [])
-        header = f"📅 {i}. {when.strftime('%d/%m a las %H:%M')}\n\n{message_text}"
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("🗑 Cancelar este mensaje", callback_data=f"cancel_job_{j.name}")]])
-        if photos:
-            media = [InputMediaPhoto(media=pid) for pid in photos]
-            media[0] = InputMediaPhoto(media=photos[0], caption=header)
-            await update.message.reply_media_group(media=media)
-            await update.message.reply_text("↑ Este mensaje", reply_markup=kb)
-        else:
-            await update.message.reply_text(header, reply_markup=kb)
-
-
-async def callback_cancel_job(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    job_name = query.data.replace("cancel_job_", "")
-    jobs = context.application.job_queue.jobs()
-    found = False
-    for j in jobs:
-        if j.name == job_name:
-            j.schedule_removal()
-            found = True
-            break
-    if found:
-        await query.edit_message_text("✅ Mensaje cancelado.")
-    else:
-        await query.edit_message_text("❌ No se encontró el mensaje (ya fue enviado o cancelado).")
+    await update.message.reply_text(
+        "ℹ️ Los mensajes programados se gestionan directamente desde Telegram.\n"
+        "Ábrelos desde el canal para verlos o cancelarlos."
+    )
 
 
 MESES_ES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -881,45 +822,40 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         target = datetime.datetime.strptime(f"{date_str} {hour}:{minute}", "%Y-%m-%d %H:%M").replace(tzinfo=SPAIN_TZ)
         now = datetime.datetime.now(SPAIN_TZ)
-        delay = (target - now).total_seconds()
-        if delay <= 0:
+        if (target - now).total_seconds() <= 0:
             await query.edit_message_text("❌ Esa hora ya ha pasado. Usa /programar de nuevo.")
             return
 
-        context.application.job_queue.run_once(
-            _send_scheduled_message,
-            delay,
-            data={
-                "chat_id": query.message.chat_id,
-                "message_text": state["message_text"],
-                "photos": state.get("photos", []),
-            },
-            name=f"scheduled_{user_id}_{target.strftime('%d%m_%H%M')}",
-        )
-        user_states.pop(user_id, None)
-        destino = "al grupo" if CHANNEL_ID else "⚠️ CHANNEL_ID no configurado"
-        await query.edit_message_text(
-            f"✅ Programado para el {target.strftime('%d/%m/%Y')} a las {hour}:{minute}\n"
-            f"📤 Destino: {destino}\n\n"
-            f"Usa /pendientes para ver los mensajes programados."
-        )
+        if not CHANNEL_ID:
+            await query.edit_message_text("❌ CHANNEL_ID no configurado.")
+            return
+
+        message_text = state.get("message_text", "")
+        photos = state.get("photos", [])
+        try:
+            if photos:
+                media = [InputMediaPhoto(media=pid) for pid in photos]
+                media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
+                await context.bot.send_media_group(
+                    chat_id=CHANNEL_ID,
+                    media=media,
+                    schedule_date=target,
+                )
+            else:
+                await context.bot.send_message(
+                    chat_id=CHANNEL_ID,
+                    text=message_text,
+                    schedule_date=target,
+                )
+            user_states.pop(user_id, None)
+            await query.edit_message_text(
+                f"✅ Programado para el {target.strftime('%d/%m/%Y')} a las {hour}:{minute}\n"
+                f"📅 El mensaje aparece como programado en el canal."
+            )
+        except Exception as e:
+            await query.edit_message_text(f"❌ Error al programar: {e}")
 
 
-async def _send_scheduled_message(context) -> None:
-    data = context.job.data
-    chat_id = data["chat_id"]
-    message_text = data["message_text"]
-    photos = data["photos"]
-    try:
-        if photos:
-            media = [InputMediaPhoto(media=pid) for pid in photos]
-            media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
-            await context.bot.send_media_group(chat_id=CHANNEL_ID or chat_id, media=media)
-        else:
-            await context.bot.send_message(chat_id=CHANNEL_ID or chat_id, text=message_text)
-        await context.bot.send_message(chat_id=chat_id, text="✅ Mensaje enviado al grupo.")
-    except Exception as e:
-        await context.bot.send_message(chat_id=chat_id, text=f"❌ Error al enviar: {e}")
 
 
 def _build_message(state: dict) -> str:
@@ -1023,7 +959,6 @@ def main():
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
     app.add_handler(CallbackQueryHandler(callback_calendario, pattern="^cal_"))
-    app.add_handler(CallbackQueryHandler(callback_cancel_job, pattern="^cancel_job_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
