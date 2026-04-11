@@ -324,13 +324,9 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             locale="en-US",
         )
 
+        # Siempre login limpio — sin cookies cacheadas para evitar estado sucio
         if os.path.exists(_SESSION_COOKIES_FILE):
-            try:
-                with open(_SESSION_COOKIES_FILE) as f:
-                    await context.add_cookies(json.load(f))
-                logger.info("Restored cached Hacoo session cookies")
-            except Exception as e:
-                logger.warning(f"Could not restore cookies: {e}")
+            os.remove(_SESSION_COOKIES_FILE)
 
         page = await context.new_page()
 
@@ -357,18 +353,11 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             await page.wait_for_timeout(3000)
 
             if "login" in page.url.lower() or "join" in page.url.lower():
-                # Borrar sesión caducada
-                if os.path.exists(_SESSION_COOKIES_FILE):
-                    os.remove(_SESSION_COOKIES_FILE)
                 await page.goto("https://affiliate.hacoo.app/es-ES/login", timeout=30000, wait_until="domcontentloaded")
                 await page.wait_for_timeout(1500)
                 await _hacoo_login(page)
                 await page.goto(promo_url, timeout=30000, wait_until="networkidle")
                 await page.wait_for_timeout(3000)
-
-            cookies = await context.cookies()
-            with open(_SESSION_COOKIES_FILE, "w") as f:
-                json.dump(cookies, f)
 
             # Esperar a que Vue monte el formulario (puede ser textarea)
             try:
