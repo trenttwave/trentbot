@@ -1,85 +1,30 @@
 import os
 import re
 import json
-import base64
 import logging
 import asyncio
-import requests
-from telegram import Update, InputMediaPhoto
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ContextTypes,
-)
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+from telegram import Update
+from telegram.ext import Application, MessageHandler, filters, ContextTypes
+
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BOT_TOKEN    = os.environ.get("BOT_TOKEN", "").strip()
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-CHANNEL_ID   = os.environ.get("CHANNEL_ID", "").strip()
-HACOO_EMAIL  = os.environ.get("HACOO_EMAIL", "").strip()
+BOT_TOKEN      = os.environ.get("BOT_TOKEN", "").strip()
+HACOO_EMAIL    = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
-
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-SESSION_FILE = "/tmp/hacoo_session.json"
-
-# Estado por usuario: {user_id: {state, link, price, colores, title, photos}}
-user_states: dict = {}
+SESSION_FILE   = "/tmp/hacoo_session.json"
 
 
 # ---------------------------------------------------------------------------
-# Gemini
-# ---------------------------------------------------------------------------
-
-def gemini_vision(image_bytes: bytes, prompt: str) -> str:
-    b64 = base64.b64encode(image_bytes).decode()
-    body = {"contents": [{"parts": [
-        {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
-        {"text": prompt},
-    ]}]}
-    resp = requests.post(f"{GEMINI_URL}?key={GEMINI_API_KEY}", json=body, timeout=30)
-    logger.info(f"Gemini vision status: {resp.status_code}")
-    if resp.status_code == 429:
-        try:
-            msg = resp.json()["error"]["message"]
-        except Exception:
-            msg = resp.text[:200]
-        raise Exception(f"Gemini 429: {msg}")
-    resp.raise_for_status()
-    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-
-def gemini_text(prompt: str) -> str:
-    body = {"contents": [{"parts": [{"text": prompt}]}]}
-    resp = requests.post(f"{GEMINI_URL}?key={GEMINI_API_KEY}", json=body, timeout=30)
-    logger.info(f"Gemini text status: {resp.status_code}")
-    if resp.status_code == 429:
-        try:
-            msg = resp.json()["error"]["message"]
-        except Exception:
-            msg = resp.text[:200]
-        raise Exception(f"Gemini 429: {msg}")
-    resp.raise_for_status()
-    return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-
-
-# ---------------------------------------------------------------------------
-# Playwright — affiliate link
+# Playwright — genera el link corto de afiliado
 # ---------------------------------------------------------------------------
 
 async def _hacoo_login(page) -> None:
     from playwright.async_api import TimeoutError as PWTimeout
-    logger.info(f"[PW] Login. URL: {page.url}")
     await page.wait_for_load_state("networkidle")
     await page.wait_for_timeout(2000)
-
-    for sel in ['input[type="email"]', 'input[name*="email" i]', 'input[placeholder*="email" i]', 'input[type="text"]']:
+    for sel in ['input[type="email"]', 'input[placeholder*="email" i]', 'input[type="text"]']:
         try:
             el = await page.wait_for_selector(sel, timeout=4000)
             if el:
@@ -87,10 +32,8 @@ async def _hacoo_login(page) -> None:
                 break
         except PWTimeout:
             continue
-
     pw = await page.wait_for_selector('input[type="password"]', timeout=5000)
     await pw.fill(HACOO_PASSWORD)
-
     for sel in ['button:has-text("Sign In")', 'button:has-text("Login")', 'button[type="submit"]']:
         try:
             btn = page.locator(sel).first
@@ -99,27 +42,8 @@ async def _hacoo_login(page) -> None:
                 break
         except Exception:
             continue
-
-    await page.wait_for_function(
-        "!window.location.href.toLowerCase().includes('login')",
-        timeout=20000,
-    )
-    logger.info(f"[PW] Login OK. URL: {page.url}")
-
-
-async def _dismiss_modals(page) -> None:
-    for sel in ['button:has-text("×")', 'button:has-text("✕")', 'button:has-text("Close")',
-                '[aria-label*="close" i]', '#headlessui-portal-root button']:
-        try:
-            btn = page.locator(sel).first
-            if await btn.is_visible():
-                logger.info(f"[PW] Cerrando modal: {sel}")
-                await btn.click(force=True)
-                await page.wait_for_timeout(400)
-        except Exception:
-            continue
-    await page.keyboard.press("Escape")
-    await page.wait_for_timeout(300)
+    await page.wait_for_function("!window.location.href.toLowerCase().includes('login')", timeout=20000)
+    logger.info(f"[PW] Login OK")
 
 
 async def generate_affiliate_link(product_id: str) -> str:
@@ -130,20 +54,15 @@ async def generate_affiliate_link(product_id: str) -> str:
     captured: list[str] = []
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-        )
+        browser = await p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             locale="en-US",
         )
-
         if os.path.exists(SESSION_FILE):
             try:
                 with open(SESSION_FILE) as f:
                     await context.add_cookies(json.load(f))
-                logger.info("[PW] Cookies cargadas")
             except Exception:
                 pass
 
@@ -155,10 +74,9 @@ async def generate_affiliate_link(product_id: str) -> str:
             try:
                 body = await response.json()
                 data = body.get("data") or {}
-                link = (data.get("promoLink") or data.get("shortLink") or
-                        data.get("short_url") or data.get("link") or
+                link = (data.get("promoLink") or data.get("shortLink") or data.get("link") or
                         body.get("promoLink") or body.get("link"))
-                if link and isinstance(link, str) and link.startswith("http"):
+                if link and link.startswith("http"):
                     captured.append(link)
                     logger.info(f"[PW] Link API: {link}")
             except Exception:
@@ -169,10 +87,8 @@ async def generate_affiliate_link(product_id: str) -> str:
         try:
             await page.goto(promo_url, timeout=30000, wait_until="networkidle")
             await page.wait_for_timeout(2000)
-            logger.info(f"[PW] URL: {page.url}")
 
             if "login" in page.url.lower() or "join" in page.url.lower():
-                logger.info("[PW] Sesión expirada, login...")
                 if os.path.exists(SESSION_FILE):
                     os.remove(SESSION_FILE)
                 await page.goto("https://affiliate.hacoo.app/es-ES/login", timeout=30000, wait_until="domcontentloaded")
@@ -183,9 +99,18 @@ async def generate_affiliate_link(product_id: str) -> str:
             with open(SESSION_FILE, "w") as f:
                 json.dump(await context.cookies(), f)
 
-            await _dismiss_modals(page)
+            # Cerrar modales
+            for sel in ['button:has-text("×")', 'button:has-text("Close")', '#headlessui-portal-root button']:
+                try:
+                    btn = page.locator(sel).first
+                    if await btn.is_visible():
+                        await btn.click(force=True)
+                        await page.wait_for_timeout(400)
+                except Exception:
+                    continue
+            await page.keyboard.press("Escape")
 
-            # Clicar Clear si existe
+            # Clear
             try:
                 btn = page.locator('button:has-text("Clear")').first
                 if await btn.is_visible():
@@ -194,14 +119,11 @@ async def generate_affiliate_link(product_id: str) -> str:
             except Exception:
                 pass
 
-            await page.wait_for_selector('textarea, input[type="text"]', timeout=10000)
-            input_el = page.locator('textarea').first
-            await input_el.fill(product_url, force=True)
-            logger.info(f"[PW] Campo rellenado: {product_url}")
+            await page.wait_for_selector('textarea', timeout=10000)
+            await page.locator('textarea').first.fill(product_url, force=True)
             await page.wait_for_timeout(500)
 
-            # Clicar Create Link
-            for sel in ['button:has-text("Create Link")', 'button:has-text("Create")', 'button[type="submit"]', '.el-button--primary']:
+            for sel in ['button:has-text("Create Link")', 'button:has-text("Create")', 'button[type="submit"]']:
                 try:
                     btn = page.locator(sel).first
                     if await btn.is_visible():
@@ -211,7 +133,6 @@ async def generate_affiliate_link(product_id: str) -> str:
                 except Exception:
                     continue
 
-            # Esperar link (API o modal DOM)
             for _ in range(40):
                 if captured:
                     break
@@ -226,7 +147,6 @@ async def generate_affiliate_link(product_id: str) -> str:
                     }""")
                     if modal_link:
                         captured.append(modal_link)
-                        logger.info(f"[PW] Link modal: {modal_link}")
                         break
                 except Exception:
                     pass
@@ -237,7 +157,6 @@ async def generate_affiliate_link(product_id: str) -> str:
             raise ValueError("No se obtuvo el link corto")
 
         except Exception as e:
-            logger.error(f"[PW] Error: {e}")
             if os.path.exists(SESSION_FILE):
                 os.remove(SESSION_FILE)
             raise
@@ -246,145 +165,40 @@ async def generate_affiliate_link(product_id: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Handlers
+# Handler
 # ---------------------------------------------------------------------------
-
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hola! Envíame una captura de un producto de Hacoo.")
-
-
-async def cmd_ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        gemini_text("di solo 'ok'")
-        await update.message.reply_text("Gemini OK")
-    except Exception as e:
-        await update.message.reply_text(f"Gemini ERROR: {e}")
-
-
-async def cmd_cancelar(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_states.pop(update.effective_user.id, None)
-    await update.message.reply_text("Cancelado.")
-
-
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type != "private":
-        return
-    user_id = update.effective_user.id
-    state = user_states.get(user_id, {})
-
-    # Si estamos esperando fotos del producto
-    if state.get("state") == "waiting_photos":
-        state["photos"].append(update.message.photo[-1].file_id)
-        await _compose_and_send(update, context)
-        return
-
-    # Nueva captura de Hacoo
-    status = await update.message.reply_text("Analizando...")
-    try:
-        file = await context.bot.get_file(update.message.photo[-1].file_id)
-        image_bytes = bytes(await file.download_as_bytearray())
-
-        info = gemini_vision(image_bytes,
-            "Analiza esta captura de la app Hacoo. Devuelve exactamente tres líneas:\n"
-            "ID: [solo el número de ID del producto]\n"
-            "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]\n"
-            "Colores: [número total de colores/estilos disponibles]"
-        ).strip()
-
-        product_id = price = colores = ""
-        for line in info.splitlines():
-            if line.startswith("ID:"):      product_id = line[3:].strip()
-            elif line.startswith("Precio:"): price = line[7:].strip()
-            elif line.startswith("Colores:"):
-                m = re.search(r"\d+", line[8:])
-                if m: colores = m.group()
-
-        if not product_id.isdigit():
-            await status.edit_text("No encontré el ID. Asegúrate de que la captura muestre el número de producto.")
-            return
-
-        await status.edit_text(f"ID: {product_id} — Generando link...")
-        link = await generate_affiliate_link(product_id)
-
-        user_states[user_id] = {"state": "waiting_title", "link": link, "price": price, "colores": colores, "photos": []}
-        await status.edit_text(f"{link}\n\nAhora envíame el título del producto.")
-
-    except Exception as e:
-        logger.error(f"Error en handle_photo: {e}")
-        await status.edit_text(f"Error: {e}")
-
-
-async def _compose_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    state = user_states.get(user_id, {})
-    if not state or not state.get("title") or not state.get("photos"):
-        return
-
-    link    = state["link"]
-    price   = state["price"]
-    title   = state["title"]
-    colores = state["colores"]
-    photos  = state["photos"]
-
-    colores_text = f"\n🎨 {colores} colores disponibles" if colores else ""
-    text = f"{title}\n\n💰 {price}{colores_text}\n\n🔗 {link}"
-
-    media = [InputMediaPhoto(media=fid) for fid in photos]
-    media[0] = InputMediaPhoto(media=photos[0], caption=text)
-
-    await context.bot.send_media_group(chat_id=CHANNEL_ID, media=media)
-    user_states.pop(user_id, None)
-    await update.message.reply_text("Publicado.")
-
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         return
-    user_id = update.effective_user.id
     text = update.message.text.strip()
-    state = user_states.get(user_id, {})
 
-    # Saludos
-    if text.lower() in ("hola", "hello", "hi", "hey", "buenas"):
-        await update.message.reply_text("Hola! Envíame una captura de un producto de Hacoo.")
+    # Extraer product ID del texto (número o URL de hacoo)
+    product_id = ""
+    m = re.search(r'/detail/(\d+)', text)
+    if m:
+        product_id = m.group(1)
+    elif re.fullmatch(r'\d+', text):
+        product_id = text
+
+    if not product_id:
+        await update.message.reply_text("Envíame el ID del producto o el link de Hacoo.")
         return
 
-    # Esperando título
-    if state.get("state") == "waiting_title":
-        user_states[user_id]["title"] = text
-        user_states[user_id]["state"] = "waiting_photos"
-        await update.message.reply_text("Perfecto. Ahora envíame las fotos del producto.")
-        return
-
-    # Chat libre con Gemini
+    status = await update.message.reply_text("Generando link...")
     try:
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-        reply = gemini_text(text)
-        await update.message.reply_text(reply)
+        link = await generate_affiliate_link(product_id)
+        await status.edit_text(link)
     except Exception as e:
-        logger.error(f"Gemini text error: {e}")
-        await update.message.reply_text(f"Error: {e}")
+        logger.error(f"Error: {e}")
+        await status.edit_text(f"Error: {e}")
 
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main():
-    if not BOT_TOKEN:
-        raise ValueError("BOT_TOKEN no configurado")
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY no configurado")
-
     app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start",   cmd_start))
-    app.add_handler(CommandHandler("ping",    cmd_ping))
-    app.add_handler(CommandHandler("cancelar", cmd_cancelar))
-    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    logger.info("TrentBot arrancando...")
-    app.run_polling(allowed_updates=["message"], drop_pending_updates=True)
+    logger.info("Bot arrancando...")
+    app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
