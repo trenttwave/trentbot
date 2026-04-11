@@ -484,26 +484,11 @@ def _parse_f_tracking(cookie: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 async def generate_affiliate_link(product_id: str) -> str:
-    product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
-
-    if HACOO_EMAIL and HACOO_PASSWORD:
-        try:
-            link = await _generate_via_playwright(product_id)
-            if link:
-                logger.info(f"Affiliate link via Playwright: {link}")
-                return link
-        except Exception as e:
-            logger.warning(f"Playwright failed: {e}")
-
-    if HACOO_COOKIE:
-        f_tracking = _parse_f_tracking(HACOO_COOKIE)
-        if f_tracking:
-            direct_link = f"{product_url}?f={f_tracking}"
-            logger.info(f"Affiliate link via f-tracking: {direct_link}")
-            return direct_link
-
-    logger.warning("No affiliate method worked, returning plain URL")
-    return product_url
+    link = await _generate_via_playwright(product_id)
+    if link:
+        logger.info(f"Affiliate link: {link}")
+        return link
+    raise ValueError("No se pudo obtener el link corto de afiliado")
 
 
 # ---------------------------------------------------------------------------
