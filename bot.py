@@ -706,6 +706,47 @@ async def _process_media_group(context) -> None:
     await _compose_and_send(chat_id, user_id, context.bot)
 
 
+async def cmd_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    jobs = _load_scheduled_jobs()
+    if not jobs:
+        await update.message.reply_text("No hay mensajes programados guardados.")
+        return
+    payload = json.dumps(jobs, ensure_ascii=False)
+    await update.message.reply_text(f"📋BACKUP\n{payload}")
+
+
+async def cmd_restore(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text or ""
+    if not text.startswith("📋BACKUP\n"):
+        await update.message.reply_text("Formato incorrecto. Reenvía el mensaje de /backup.")
+        return
+    try:
+        jobs = json.loads(text[len("📋BACKUP\n"):])
+        now = datetime.datetime.now(SPAIN_TZ)
+        restored = 0
+        skipped = 0
+        for job in jobs:
+            target = datetime.datetime.fromtimestamp(job["target_ts"], tz=SPAIN_TZ)
+            if target > now:
+                delay = (target - now).total_seconds()
+                context.application.job_queue.run_once(
+                    _send_scheduled_message,
+                    delay,
+                    data=job,
+                    name=job["name"],
+                )
+                _save_scheduled_job(job["name"], job["target_ts"], job["chat_id"], job["message_text"], job["photos"])
+                restored += 1
+            else:
+                skipped += 1
+        msg = f"✅ {restored} mensaje(s) reprogramado(s)."
+        if skipped:
+            msg += f"\n⚠️ {skipped} ya habían pasado su hora y se ignoraron."
+        await update.message.reply_text(msg)
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error al restaurar: {e}")
+
+
 async def cmd_pendientes(update: Update, context: ContextTypes.DEFAULT_TYPE):
     jobs = context.application.job_queue.jobs()
     scheduled = [j for j in jobs if j.name and j.name.startswith("scheduled_")]
@@ -1067,6 +1108,9 @@ def main():
     app.add_handler(CommandHandler("listo", cmd_listo))
     app.add_handler(CommandHandler("programar", cmd_programar))
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
+    app.add_handler(CommandHandler("backup", cmd_backup))
+    app.add_handler(CommandHandler("restore", cmd_restore))
+    app.add_handler(MessageHandler(filters.Regex(r"^📋BACKUP\n"), cmd_restore))
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
     app.add_handler(CallbackQueryHandler(callback_calendario, pattern="^cal_"))
     app.add_handler(CallbackQueryHandler(callback_cancel_job, pattern="^cancel_job_"))
