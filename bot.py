@@ -41,11 +41,42 @@ GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5
 GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 GEMINI_FLASH_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
+_JOBS_FILE = "/tmp/scheduled_jobs.json"
 
 # Estado de conversación por usuario
-# {user_id: {"link": str, "price": str, "title": str, "photos": [file_id], "state": str}}
 user_states: dict = {}
-media_group_buffer: dict = {}  # {media_group_id: {"photos": [], "caption": "", "user_id": int, "chat_id": int}}
+media_group_buffer: dict = {}
+
+
+def _save_scheduled_job(job_name: str, target_ts: float, chat_id: int, message_text: str, photos: list):
+    try:
+        jobs = _load_scheduled_jobs()
+        jobs = [j for j in jobs if j.get("name") != job_name]  # evitar duplicados
+        jobs.append({"name": job_name, "target_ts": target_ts, "chat_id": chat_id, "message_text": message_text, "photos": photos})
+        with open(_JOBS_FILE, "w") as f:
+            json.dump(jobs, f)
+    except Exception as e:
+        logger.warning(f"Could not save job: {e}")
+
+
+def _remove_scheduled_job(job_name: str):
+    try:
+        jobs = _load_scheduled_jobs()
+        jobs = [j for j in jobs if j.get("name") != job_name]
+        with open(_JOBS_FILE, "w") as f:
+            json.dump(jobs, f)
+    except Exception as e:
+        logger.warning(f"Could not remove job: {e}")
+
+
+def _load_scheduled_jobs() -> list:
+    try:
+        if os.path.exists(_JOBS_FILE):
+            with open(_JOBS_FILE) as f:
+                return json.load(f)
+    except Exception as e:
+        logger.warning(f"Could not load jobs: {e}")
+    return []
 
 
 def _gemini_post(url: str, body: dict) -> str:
@@ -867,6 +898,7 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
         message_text = state.get("message_text", "")
         photos = state.get("photos", [])
         delay = (target - now).total_seconds()
+        job_name = f"scheduled_{user_id}_{target.strftime('%d%m_%H%M')}"
 
         context.application.job_queue.run_once(
             _send_scheduled_message,
@@ -875,9 +907,11 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
                 "chat_id": query.message.chat_id,
                 "message_text": message_text,
                 "photos": photos,
+                "job_name": job_name,
             },
-            name=f"scheduled_{user_id}_{target.strftime('%d%m_%H%M')}",
+            name=job_name,
         )
+        _save_scheduled_job(job_name, target.timestamp(), query.message.chat_id, message_text, photos)
         user_states.pop(user_id, None)
         destino = "al canal" if CHANNEL_ID else "⚠️ CHANNEL_ID no configurado"
         await query.edit_message_text(
@@ -908,6 +942,7 @@ async def _send_scheduled_message(context) -> None:
     chat_id = data["chat_id"]
     message_text = data["message_text"]
     photos = data["photos"]
+    _remove_scheduled_job(context.job.name)
     try:
         if photos:
             media = [InputMediaPhoto(media=pid) for pid in photos]
@@ -996,13 +1031,35 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Error al procesar tu mensaje. Intentalo de nuevo.")
 
 
+async def _restore_scheduled_jobs(app):
+    """Al arrancar, restaura los trabajos programados guardados en disco."""
+    jobs = _load_scheduled_jobs()
+    now = datetime.datetime.now(SPAIN_TZ)
+    restored = 0
+    for job in jobs:
+        target = datetime.datetime.fromtimestamp(job["target_ts"], tz=SPAIN_TZ)
+        if target > now:
+            delay = (target - now).total_seconds()
+            app.job_queue.run_once(
+                _send_scheduled_message,
+                delay,
+                data=job,
+                name=job["name"],
+            )
+            restored += 1
+        else:
+            _remove_scheduled_job(job["name"])
+    if restored:
+        logger.info(f"Restaurados {restored} trabajos programados")
+
+
 def main():
     if not BOT_TOKEN:
         raise ValueError("BOT_TOKEN is not set")
     if not GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY is not set")
 
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = Application.builder().token(BOT_TOKEN).post_init(_restore_scheduled_jobs).build()
     # job_queue está habilitado por defecto en python-telegram-bot v21
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("getid", cmd_getid))
