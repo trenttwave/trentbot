@@ -1063,13 +1063,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Error al editar: {e}")
         return
 
-    try:
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-        reply = gemini_text(user_message)
-        await update.message.reply_text(reply)
-    except Exception as e:
-        logger.error(f"Error calling Gemini API: {e}")
-        await update.message.reply_text("Error al procesar tu mensaje. Intentalo de nuevo.")
+    await update.message.reply_text("Envíame una captura de Hacoo para generar un post.")
 
 
 async def _restore_scheduled_jobs(app):
