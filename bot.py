@@ -868,7 +868,7 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
         message_text = state.get("message_text", "")
         photos = state.get("photos", [])
         delay = (target - now).total_seconds()
-        job_name = f"scheduled_{user_id}_{target.strftime('%d%m_%H%M')}"
+        job_name = f"scheduled_{user_id}_{target.strftime('%d%m_%H%M')}_{int(now.timestamp())}"
 
         context.application.job_queue.run_once(
             _send_scheduled_message,
