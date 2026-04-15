@@ -35,7 +35,6 @@ HACOO_COOKIE = os.environ.get("HACOO_COOKIE", "").strip()
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
-GOOGLE_VISION_API_KEY = os.environ.get("GOOGLE_VISION_API_KEY", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
@@ -134,74 +133,24 @@ def crop_product_image(image_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
-def detect_brand(image_bytes: bytes) -> str:
-    """Detecta la marca usando Google Vision Web Detection (igual que Google Lens)."""
-    if GOOGLE_VISION_API_KEY:
-        try:
-            image_b64 = base64.b64encode(image_bytes).decode()
-            resp = requests.post(
-                f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_API_KEY}",
-                json={"requests": [{"image": {"content": image_b64}, "features": [{"type": "WEB_DETECTION", "maxResults": 3}]}]},
-                timeout=15,
-            )
-            resp.raise_for_status()
-            web = resp.json()["responses"][0].get("webDetection", {})
-            # bestGuessLabels es lo que Google Lens muestra como resultado principal
-            for label in web.get("bestGuessLabels", []):
-                if label.get("label"):
-                    logger.info(f"Vision bestGuess: {label['label']}")
-                    return label["label"]
-            for entity in web.get("webEntities", []):
-                if entity.get("score", 0) > 0.5 and entity.get("description"):
-                    logger.info(f"Vision entity: {entity['description']}")
-                    return entity["description"]
-        except Exception as e:
-            logger.warning(f"Google Vision failed: {e}")
-
-    # Fallback: Gemini lee texto/logo directamente de la imagen
+def _get_product_image(product_id: str) -> bytes | None:
+    """Descarga la imagen principal del producto de Hacoo usando og:image."""
     try:
-        result = gemini_vision(
-            image_bytes,
-            "Mira esta imagen de un producto. ¿Qué marca es? Busca logos o texto impreso. Responde SOLO el nombre de la marca, o 'Sin marca' si no la ves.",
-            use_flash=True,
-        )
-        return result.strip()
-    except Exception as e:
-        logger.warning(f"Gemini brand detection failed: {e}")
-        return "Sin marca"
-    """Busca la imagen en Google Lens y devuelve el mejor resultado."""
-    try:
-        import time
-        session = requests.Session()
-        session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept-Language": "es-ES,es;q=0.9",
+        url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
+        resp = requests.get(url, timeout=10, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         })
-        ts = int(time.time() * 1000)
-        resp = session.post(
-            f"https://lens.google.com/v3/upload?hl=es&re=df&st={ts}&ep=gsbubb",
-            files={"encoded_image": ("product.jpg", image_bytes, "image/jpeg")},
-            timeout=20,
-            allow_redirects=True,
-        )
-        logger.info(f"Google Lens status: {resp.status_code}, url: {resp.url}")
-        text = resp.text
-
-        # Buscar "best guess" en el JSON embebido
-        patterns = [
-            r'"text"\s*:\s*"([^"]{3,60})"[^}]*"type"\s*:\s*"(?:HEADER|TITLE)"',
-            r'bestGuess["\s:]+([A-Za-z][^"\\]{2,50})"',
-            r'"visualMatches".*?"title"\s*:\s*"([^"]{3,60})"',
-            r'data-item-title="([^"]{3,60})"',
-        ]
-        for pattern in patterns:
-            m = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-            if m:
-                result = m.group(1).strip()
-                logger.info(f"Google Lens result: {result}")
-                return result
+        m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', resp.text)
+        if not m:
+            m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', resp.text)
+        if m:
+            img_url = m.group(1)
+            img_resp = requests.get(img_url, timeout=10)
+            img_resp.raise_for_status()
+            logger.info(f"Product image fetched: {img_url}")
+            return img_resp.content
     except Exception as e:
-        logger.warning(f"Google Lens failed: {e}")
+        logger.warning(f"Could not fetch product image: {e}")
     return None
 
 
@@ -666,21 +615,62 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
+        await status_msg.edit_text(f"ID encontrado: {product_id}\nIdentificando marca...")
+
+        # Obtener imagen del producto a alta resolución para identificar marca y nombre
+        auto_title = ""
+        product_image = _get_product_image(product_id)
+        if product_image:
+            try:
+                name_info = gemini_vision(
+                    product_image,
+                    (
+                        "Analiza esta imagen de un producto. Extrae exactamente:\n"
+                        "1. El nombre del producto\n"
+                        "2. La marca — busca logos, texto bordado, estampado o impreso en el producto. "
+                        "Esta es una foto de catálogo del fabricante, la marca suele estar visible.\n\n"
+                        "Responde EXACTAMENTE en este formato (dos líneas):\n"
+                        "Nombre: [nombre del producto]\n"
+                        "Marca: [marca]"
+                    ),
+                ).strip()
+                detected_nombre = ""
+                detected_marca = ""
+                for line in name_info.splitlines():
+                    if line.startswith("Nombre:"):
+                        detected_nombre = line.replace("Nombre:", "").strip()
+                    elif line.startswith("Marca:"):
+                        detected_marca = line.replace("Marca:", "").strip()
+                if detected_marca and detected_nombre:
+                    auto_title = f"{detected_marca} {detected_nombre}"
+                elif detected_nombre:
+                    auto_title = detected_nombre
+            except Exception as e:
+                logger.warning(f"Brand detection failed: {e}")
+
+        await status_msg.edit_text(f"Generando link de afiliado...")
 
         affiliate_link = await generate_affiliate_link(product_id)
 
         user_states[user_id] = {
-            "state": "waiting_title",
+            "state": "waiting_photos" if auto_title else "waiting_title",
             "link": affiliate_link,
             "price": price_raw,
             "colores": colores,
             "photos": [],
         }
+        if auto_title:
+            user_states[user_id]["title"] = auto_title
 
-        await status_msg.edit_text(
-            f"{affiliate_link}\n\nAhora envíame el título del producto."
-        )
+        if auto_title:
+            await status_msg.edit_text(
+                f"Detectado: *{auto_title}*\n{affiliate_link}\n\nAhora envíame las fotos del producto.",
+                parse_mode="Markdown",
+            )
+        else:
+            await status_msg.edit_text(
+                f"{affiliate_link}\n\nAhora envíame el título del producto."
+            )
 
     except Exception as e:
         logger.error(f"Error processing photo: {e}")
