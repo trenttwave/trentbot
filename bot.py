@@ -133,26 +133,6 @@ def crop_product_image(image_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
-def _get_product_image(product_id: str) -> bytes | None:
-    """Descarga la imagen principal del producto de Hacoo usando og:image."""
-    try:
-        url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
-        resp = requests.get(url, timeout=10, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        })
-        m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', resp.text)
-        if not m:
-            m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', resp.text)
-        if m:
-            img_url = m.group(1)
-            img_resp = requests.get(img_url, timeout=10)
-            img_resp.raise_for_status()
-            logger.info(f"Product image fetched: {img_url}")
-            return img_resp.content
-    except Exception as e:
-        logger.warning(f"Could not fetch product image: {e}")
-    return None
-
 
 
 # ---------------------------------------------------------------------------
@@ -615,62 +595,21 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        await status_msg.edit_text(f"ID encontrado: {product_id}\nIdentificando marca...")
-
-        # Obtener imagen del producto a alta resolución para identificar marca y nombre
-        auto_title = ""
-        product_image = _get_product_image(product_id)
-        if product_image:
-            try:
-                name_info = gemini_vision(
-                    product_image,
-                    (
-                        "Analiza esta imagen de un producto. Extrae exactamente:\n"
-                        "1. El nombre del producto\n"
-                        "2. La marca — busca logos, texto bordado, estampado o impreso en el producto. "
-                        "Esta es una foto de catálogo del fabricante, la marca suele estar visible.\n\n"
-                        "Responde EXACTAMENTE en este formato (dos líneas):\n"
-                        "Nombre: [nombre del producto]\n"
-                        "Marca: [marca]"
-                    ),
-                ).strip()
-                detected_nombre = ""
-                detected_marca = ""
-                for line in name_info.splitlines():
-                    if line.startswith("Nombre:"):
-                        detected_nombre = line.replace("Nombre:", "").strip()
-                    elif line.startswith("Marca:"):
-                        detected_marca = line.replace("Marca:", "").strip()
-                if detected_marca and detected_nombre:
-                    auto_title = f"{detected_marca} {detected_nombre}"
-                elif detected_nombre:
-                    auto_title = detected_nombre
-            except Exception as e:
-                logger.warning(f"Brand detection failed: {e}")
-
-        await status_msg.edit_text(f"Generando link de afiliado...")
+        await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
         affiliate_link = await generate_affiliate_link(product_id)
 
         user_states[user_id] = {
-            "state": "waiting_photos" if auto_title else "waiting_title",
+            "state": "waiting_title",
             "link": affiliate_link,
             "price": price_raw,
             "colores": colores,
             "photos": [],
         }
-        if auto_title:
-            user_states[user_id]["title"] = auto_title
 
-        if auto_title:
-            await status_msg.edit_text(
-                f"Detectado: *{auto_title}*\n{affiliate_link}\n\nAhora envíame las fotos del producto.",
-                parse_mode="Markdown",
-            )
-        else:
-            await status_msg.edit_text(
-                f"{affiliate_link}\n\nAhora envíame el título del producto."
-            )
+        await status_msg.edit_text(
+            f"{affiliate_link}\n\nAhora envíame el título del producto."
+        )
 
     except Exception as e:
         logger.error(f"Error processing photo: {e}")
