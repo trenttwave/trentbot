@@ -706,6 +706,7 @@ async def callback_cancel_job(update: Update, context: ContextTypes.DEFAULT_TYPE
     for j in context.application.job_queue.jobs():
         if j.name == job_name:
             j.schedule_removal()
+            _remove_scheduled_job(job_name)
             await query.edit_message_text("✅ Mensaje cancelado.")
             return
     await query.edit_message_text("❌ No se encontró el mensaje (ya enviado o cancelado).")
