@@ -904,7 +904,7 @@ def _build_message(state: dict) -> str:
         price_str = f"{int(float(price_clean))}€"
     except Exception:
         price_str = price
-    colores_line = f"{colores} colores 🎨" if colores.isdigit() else "Más colores 🎨"
+    colores_line = f"{colores} color 🎨" if colores == "1" else (f"{colores} colores 🎨" if colores.isdigit() else "Más colores 🎨")
     return f"{title} —> {price_str}💎\n{colores_line}\n\n{link}"
 
 
@@ -989,6 +989,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_media_group(chat_id=update.effective_chat.id, media=media)
             else:
                 await update.message.reply_text(new_text)
+            await update.message.reply_text("¿Quieres modificar algo más? Dímelo, usa /programar para enviarlo al canal a una hora, o /cancelar para terminar.")
         except Exception as e:
             await update.message.reply_text(f"Error al editar: {e}")
         return
