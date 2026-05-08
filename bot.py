@@ -1,4 +1,3 @@
-import io
 import os
 import re
 import json
@@ -9,10 +8,8 @@ from zoneinfo import ZoneInfo
 
 SPAIN_TZ = ZoneInfo("Europe/Madrid")
 import base64
-import hashlib
 import logging
 import requests
-from PIL import Image
 from telegram import Update, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -38,7 +35,6 @@ HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-GEMINI_FLASH_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
 _JOBS_FILE = "/tmp/scheduled_jobs.json"
 
@@ -105,10 +101,9 @@ def gemini_text(prompt: str) -> str:
     return _gemini_post(GEMINI_URL, {"contents": [{"parts": [{"text": prompt}]}]})
 
 
-def gemini_vision(image_bytes: bytes, prompt: str, use_flash: bool = False) -> str:
+def gemini_vision(image_bytes: bytes, prompt: str) -> str:
     image_b64 = base64.b64encode(image_bytes).decode()
-    url = GEMINI_FLASH_URL if use_flash else GEMINI_URL
-    return _gemini_post(url, {
+    return _gemini_post(GEMINI_URL, {
         "contents": [{
             "parts": [
                 {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
@@ -116,23 +111,6 @@ def gemini_vision(image_bytes: bytes, prompt: str, use_flash: bool = False) -> s
             ]
         }]
     })
-
-
-# ---------------------------------------------------------------------------
-# Product image helpers
-# ---------------------------------------------------------------------------
-
-def crop_product_image(image_bytes: bytes) -> bytes:
-    """Recorta la mitad superior de la captura donde está la foto del producto."""
-    img = Image.open(io.BytesIO(image_bytes))
-    w, h = img.size
-    logger.info(f"Cropping image {w}x{h} to top 48%")
-    cropped = img.crop((0, int(h * 0.12), w, int(h * 0.57)))
-    buf = io.BytesIO()
-    cropped.save(buf, format="JPEG", quality=90)
-    return buf.getvalue()
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -512,17 +490,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_getid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     await update.message.reply_text(f"ID de este chat: `{chat.id}`", parse_mode="Markdown")
-
-
-async def cmd_testgrupo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not CHANNEL_ID:
-        await update.message.reply_text("⚠️ CHANNEL_ID no configurado en Railway.")
-        return
-    try:
-        await context.bot.send_message(chat_id=CHANNEL_ID, text="✅ Test: el bot puede enviar mensajes al grupo.")
-        await update.message.reply_text("✅ Mensaje de prueba enviado al grupo.")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error al enviar al grupo: {e}")
 
 
 
@@ -1029,7 +996,6 @@ def main():
     # job_queue está habilitado por defecto en python-telegram-bot v21
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("getid", cmd_getid))
-    app.add_handler(CommandHandler("testgrupo", cmd_testgrupo))
     app.add_handler(CommandHandler("listo", cmd_listo))
     app.add_handler(CommandHandler("programar", cmd_programar))
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
