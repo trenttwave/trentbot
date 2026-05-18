@@ -225,8 +225,6 @@ async def _generate_via_playwright(product_id: str) -> str | None:
     import asyncio
 
     product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
-    loop = asyncio.get_event_loop()
-    link_future: asyncio.Future = loop.create_future()
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
@@ -253,20 +251,25 @@ async def _generate_via_playwright(product_id: str) -> str | None:
 
         page = await context.new_page()
 
-        # Intercept promoLink API response to extract short link reliably
+        # Estado compartido con el interceptor de respuestas
+        promo_state = {"link": None, "error": False}
+
         async def handle_response(response):
-            if "promoLink" in response.url and not link_future.done():
-                try:
-                    body = await response.json()
-                    data = body.get("data") or {}
-                    link = data.get("promoLink") or data.get("short_url") or data.get("link") or data.get("url")
-                    if link:
-                        logger.info(f"promoLink API intercepted, short link: {link}")
-                        link_future.set_result(link)
-                    else:
-                        logger.warning(f"promoLink response has no link field: {body}")
-                except Exception as e:
-                    logger.warning(f"Response interception error: {e}")
+            if "promoLink" not in response.url:
+                return
+            try:
+                body = await response.json()
+                data = body.get("data") or {}
+                link = data.get("promoLink") or data.get("short_url") or data.get("link") or data.get("url")
+                if link:
+                    logger.info(f"promoLink API intercepted, short link: {link}")
+                    promo_state["link"] = link
+                else:
+                    logger.warning(f"promoLink response has no link field: {body}")
+                    promo_state["error"] = True
+            except Exception as e:
+                logger.warning(f"Response interception error: {e}")
+                promo_state["error"] = True
 
         page.on("response", handle_response)
 
@@ -387,42 +390,63 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             except Exception:
                 pass
 
-            await input_el.click(click_count=3)
-            await input_el.fill(product_url)
-            logger.info(f"[PW] Campo rellenado con: {product_url}")
-            await page.wait_for_timeout(300)
+            # Reintentar hasta 3 veces si Hacoo devuelve error 4007
+            for attempt in range(3):
+                promo_state["link"] = None
+                promo_state["error"] = False
 
-            # Click Create Link button
-            clicked = False
-            for btn_sel in [
-                'button:has-text("Create Link")',
-                'button:has-text("Generate")',
-                'button:has-text("Create")',
-                'button:has-text("Get Link")',
-                'button[type="submit"]',
-                '.el-button--primary',
-            ]:
+                # Limpiar campo y rellenar URL
                 try:
-                    btn = page.locator(btn_sel).first
+                    btn = page.locator('button:has-text("Clear")').first
                     if await btn.is_visible():
-                        await btn.click()
-                        clicked = True
-                        logger.info(f"Clicked button: {btn_sel}")
-                        break
+                        await btn.click(force=True)
+                        await page.wait_for_timeout(150)
                 except Exception:
-                    continue
+                    pass
 
-            if not clicked:
-                raise ValueError("Could not find Create Link button")
+                await input_el.click(click_count=3)
+                await input_el.fill(product_url)
+                logger.info(f"[PW] Intento {attempt+1}: campo rellenado con: {product_url}")
+                await page.wait_for_timeout(300)
 
-            # Wait for intercepted promoLink API response (up to 25s)
-            try:
-                result_link = await asyncio.wait_for(asyncio.shield(link_future), timeout=25)
-                logger.info(f"Playwright short link: {result_link}")
-                return result_link
-            except asyncio.TimeoutError:
-                logger.error("Timed out waiting for promoLink API response")
-                return None
+                # Click Create Link button
+                clicked = False
+                for btn_sel in [
+                    'button:has-text("Create Link")',
+                    'button:has-text("Generate")',
+                    'button:has-text("Create")',
+                    'button:has-text("Get Link")',
+                    'button[type="submit"]',
+                    '.el-button--primary',
+                ]:
+                    try:
+                        btn = page.locator(btn_sel).first
+                        if await btn.is_visible():
+                            await btn.click()
+                            clicked = True
+                            logger.info(f"Clicked button: {btn_sel}")
+                            break
+                    except Exception:
+                        continue
+
+                if not clicked:
+                    raise ValueError("Could not find Create Link button")
+
+                # Esperar respuesta hasta 20s
+                for _ in range(20):
+                    await asyncio.sleep(1)
+                    if promo_state["link"]:
+                        logger.info(f"Playwright short link: {promo_state['link']}")
+                        return promo_state["link"]
+                    if promo_state["error"]:
+                        break
+
+                if attempt < 2:
+                    logger.warning(f"[PW] Intento {attempt+1} fallido, reintentando en 3s...")
+                    await page.wait_for_timeout(3000)
+
+            logger.error("Todos los intentos fallaron para generar el link de afiliado")
+            return None
 
         except PWTimeout as e:
             logger.error(f"Playwright timeout: {e}")
