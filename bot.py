@@ -548,11 +548,45 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 if not clicked:
                     raise ValueError("Could not find Create Link button")
 
-                # Esperar resposta — event-driven (no polling)
+                # Esperar resposta — event-driven (API intercept) + modal DOM en paral·lel
+                async def _try_modal():
+                    try:
+                        await page.wait_for_selector(':has-text("Promote Link")', timeout=18000)
+                        await page.wait_for_timeout(500)
+                        link = await page.evaluate("""() => {
+                            const inputs = document.querySelectorAll('input, textarea');
+                            for (const el of inputs) {
+                                const v = el.value || '';
+                                if (v.startsWith('http') && v.includes('onlyaff')) return v.trim();
+                            }
+                            const text = document.body.innerText || '';
+                            for (const line of text.split('\\n')) {
+                                const t = line.trim();
+                                if (t.startsWith('http') && t.includes('onlyaff')) return t;
+                            }
+                            return null;
+                        }""")
+                        if link and link.startswith("http"):
+                            logger.info(f"[PW] Modal link: {link}")
+                            promo_state["link"] = link
+                            promo_ready.set()
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as e:
+                        logger.debug(f"[PW] Modal wait: {e}")
+
+                modal_task = asyncio.create_task(_try_modal())
                 try:
                     await asyncio.wait_for(promo_ready.wait(), timeout=20.0)
                 except asyncio.TimeoutError:
                     pass
+                finally:
+                    if not modal_task.done():
+                        modal_task.cancel()
+                        try:
+                            await modal_task
+                        except (asyncio.CancelledError, Exception):
+                            pass
 
                 if promo_state["link"]:
                     logger.info(f"Playwright short link: {promo_state['link']}")
