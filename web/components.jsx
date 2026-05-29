@@ -363,7 +363,8 @@ function Catalog({ density, palette }) {
               <h3 className="card__name">{p.name}</h3>
               <div className="card__sub">{p.colors ? `${p.colors} colores 🎨` : p.cat}</div>
               <div className="card__actions">
-                <a href={p.url || 'https://t.me/trentthacoo'} target="_blank" rel="noreferrer" className="card__btn card__btn--primary">
+                <a href={p.url || 'https://t.me/trentthacoo'} target="_blank" rel="noreferrer" className="card__btn card__btn--primary"
+                   onClick={() => window.gtag && window.gtag('event', 'comprar_click', { product_name: p.name, product_brand: p.brand, product_price: p.price })}>
                   Comprar →
                 </a>
                 <button className="card__btn card__btn--ghost" onClick={() => copyLink(p)} title="Copiar link">
