@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="ca">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TRENT Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#F5F4F0;--surface:#fff;--ink:#0A0A12;--mute:#5E5E68;--border:#D6D5D0;--primary:#1E3FBE;--r:10px}
+    body{font-family:'Inter Tight',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+    a{color:inherit;text-decoration:none}
+
+    /* LOGIN */
+    #login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .login-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:40px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.08)}
+    .login-logo{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:.1em;color:var(--primary);margin-bottom:24px}
+    .login-card h2{font-size:22px;font-weight:700;margin-bottom:24px}
+
+    /* FIELDS */
+    .field{margin-bottom:16px}
+    .field label{display:block;font-size:11px;font-weight:600;color:var(--mute);margin-bottom:6px;letter-spacing:.04em;text-transform:uppercase}
+    .field input[type=text],.field input[type=password],.field textarea,.field select{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:var(--r);font:inherit;color:var(--ink);background:var(--bg);outline:none;transition:border-color .15s}
+    .field input:focus,.field textarea:focus,.field select:focus{border-color:var(--primary);background:#fff}
+    .field textarea{resize:vertical;min-height:80px}
+    .hint{font-size:12px;color:var(--mute);margin-top:6px}
+    .fields-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media(max-width:600px){.fields-row,.metrics-grid{grid-template-columns:1fr}}
+
+    /* BUTTONS */
+    .btn-primary{width:100%;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:var(--r);font:inherit;font-weight:600;font-size:14px;cursor:pointer;transition:opacity .15s}
+    .btn-primary:hover{opacity:.9}
+    .error{color:#E63A2E;font-size:13px;margin-top:8px;min-height:20px}
+
+    /* ADMIN LAYOUT */
+    #admin{display:none;min-height:100vh}
+    .admin-bar{position:sticky;top:0;z-index:100;background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .admin-logo{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:600;letter-spacing:.06em}
+    .admin-bar-right{display:flex;align-items:center;gap:10px}
+    .btn-preview{padding:8px 14px;border:1.5px solid var(--border);border-radius:8px;font:inherit;font-size:13px;font-weight:500;transition:border-color .15s}
+    .btn-preview:hover{border-color:var(--ink)}
+    .btn-save{padding:9px 22px;background:var(--primary);color:#fff;border:none;border-radius:8px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .15s}
+    .btn-save:hover{opacity:.9}
+    .btn-save:disabled{opacity:.5;cursor:not-allowed}
+    .admin-body{display:flex;min-height:calc(100vh - 53px)}
+    .admin-nav{width:190px;flex-shrink:0;padding:20px 12px;border-right:1px solid var(--border);display:flex;flex-direction:column;gap:2px;position:sticky;top:53px;height:calc(100vh - 53px);overflow-y:auto}
+    .nav-item{display:block;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:500;color:var(--mute);transition:all .15s}
+    .nav-item:hover,.nav-item.active{background:var(--bg);color:var(--ink)}
+    .admin-content{flex:1;padding:32px 40px 100px;max-width:760px}
+    @media(max-width:900px){.admin-nav{display:none}.admin-content{padding:20px 20px 100px}}
+    .admin-section{margin-bottom:48px;padding-bottom:48px;border-bottom:1px solid var(--border)}
+    .admin-section:last-of-type{border-bottom:none}
+    .admin-section h3{font-size:18px;font-weight:700;margin-bottom:6px}
+    .section-desc{font-size:13px;color:var(--mute);margin-bottom:22px}
+
+    /* COLOR FIELD */
+    .color-row{display:flex;gap:10px;align-items:center}
+    .color-row input[type=color]{width:48px;height:40px;padding:3px;border:1.5px solid var(--border);border-radius:var(--r);cursor:pointer;background:#fff;flex-shrink:0}
+    .color-row input[type=text]{flex:1}
+
+    /* THEME OPTIONS */
+    .theme-options{display:flex;gap:8px}
+    .theme-opt{flex:1;cursor:pointer}
+    .theme-opt input{display:none}
+    .theme-opt-inner{border:2px solid var(--border);border-radius:var(--r);overflow:hidden;transition:border-color .15s}
+    .theme-opt input:checked+.theme-opt-inner{border-color:var(--primary)}
+    .theme-preview{height:36px}
+    .theme-label{padding:5px 6px;font-size:11px;font-weight:600;text-align:center;background:#fff}
+
+    /* SAVE FOOTER */
+    .save-footer{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:flex-end;gap:16px;z-index:90}
+    #save-status{font-size:13px;color:var(--mute)}
+    #save-status.ok{color:#1F8A5B}
+    #save-status.err{color:#E63A2E}
+    .btn-save-main{padding:11px 32px;background:var(--primary);color:#fff;border:none;border-radius:var(--r);font:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
+    .btn-save-main:hover{opacity:.9}
+    .btn-save-main:disabled{opacity:.5;cursor:not-allowed}
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <div class="login-card">
+    <div class="login-logo">TRENT ADMIN</div>
+    <h2>Panel d'edició</h2>
+    <div class="field">
+      <label>Contrasenya</label>
+      <input type="password" id="pwd" placeholder="••••••••" />
+    </div>
+    <button class="btn-primary" onclick="doLogin()">Entrar</button>
+    <p id="login-err" class="error"></p>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div id="admin">
+  <div class="admin-bar">
+    <span class="admin-logo">TRENT ADMIN</span>
+    <div class="admin-bar-right">
+      <a href="index.html" target="_blank" class="btn-preview">Vista prèvia →</a>
+    </div>
+  </div>
+
+  <div class="admin-body">
+    <nav class="admin-nav">
+      <a href="#aparenca" class="nav-item active">🎨 Aparença</a>
+      <a href="#hero" class="nav-item">🏠 Hero</a>
+      <a href="#descompte" class="nav-item">🎁 Descompte</a>
+      <a href="#metriques" class="nav-item">📊 Mètriques</a>
+      <a href="#marquee" class="nav-item">📝 Marquee</a>
+      <a href="#telegram" class="nav-item">✈️ Telegram</a>
+      <a href="#seguretat" class="nav-item">🔐 Seguretat</a>
+    </nav>
+
+    <main class="admin-content">
+
+      <!-- APARENÇA -->
+      <section id="aparenca" class="admin-section">
+        <h3>🎨 Aparença</h3>
+        <p class="section-desc">Colors, fons i tipografia de tota la web.</p>
+
+        <div class="field">
+          <label>Color principal</label>
+          <div class="color-row">
+            <input type="color" id="primaryColor" value="#1E3FBE" />
+            <input type="text" id="primaryColorHex" value="#1E3FBE" placeholder="#1E3FBE" maxlength="7" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Tema de fons</label>
+          <div class="theme-options">
+            <label class="theme-opt">
+              <input type="radio" name="bgMode" value="warm" checked />
+              <div class="theme-opt-inner">
+                <div class="theme-preview" style="background:#ECECEC"></div>
+                <div class="theme-label">Càlid</div>
+              </div>
+            </label>
+            <label class="theme-opt">
+              <input type="radio" name="bgMode" value="cool" />
+              <div class="theme-opt-inner">
+                <div class="theme-preview" style="background:#E8EBF1"></div>
+                <div class="theme-label">Fred</div>
+              </div>
+            </label>
+            <label class="theme-opt">
+              <input type="radio" name="bgMode" value="paper" />
+              <div class="theme-opt-inner">
+                <div class="theme-preview" style="background:#F4EDE1"></div>
+                <div class="theme-label">Paper</div>
+              </div>
+            </label>
+            <label class="theme-opt">
+              <input type="radio" name="bgMode" value="dark" />
+              <div class="theme-opt-inner">
+                <div class="theme-preview" style="background:#0E0E14"></div>
+                <div class="theme-label">Fosc</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Font de títols</label>
+          <select id="displayFont">
+            <option value="Archivo Black">Archivo Black (actual)</option>
+            <option value="Bowlby One">Bowlby One</option>
+            <option value="Anton">Anton</option>
+            <option value="Space Grotesk">Space Grotesk</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- HERO -->
+      <section id="hero" class="admin-section">
+        <h3>🏠 Secció principal</h3>
+        <p class="section-desc">Subtítol que apareix sota el títol gran "VISTE DIFERENTE."</p>
+        <div class="field">
+          <label>Subtítol</label>
+          <textarea id="heroCopy" rows="3">Prendas seleccionadas cada día. Descarga la app, entra al Telegram, encuentra tu estilo, aplica TRENT14 y compra.</textarea>
+        </div>
+      </section>
+
+      <!-- DESCOMPTE -->
+      <section id="descompte" class="admin-section">
+        <h3>🎁 Codi de descompte</h3>
+        <p class="section-desc">El codi que apareix a la barra superior i a la targeta del hero.</p>
+        <div class="fields-row">
+          <div class="field">
+            <label>Codi</label>
+            <input type="text" id="discountCode" value="TRENT14" />
+          </div>
+          <div class="field">
+            <label>Percentatge (ex: 14 per a −14%)</label>
+            <input type="text" id="discountPct" value="14" />
+          </div>
+        </div>
+      </section>
+
+      <!-- MÈTRIQUES -->
+      <section id="metriques" class="admin-section">
+        <h3>📊 Mètriques</h3>
+        <p class="section-desc">Els 3 blocs de números sota el títol principal.</p>
+        <div class="metrics-grid">
+          <div class="field">
+            <label>Mètrica 1 — Número</label>
+            <input type="text" id="metric1Num" value="+340" />
+          </div>
+          <div class="field">
+            <label>Mètrica 1 — Text</label>
+            <input type="text" id="metric1Lbl" value="Prendas activas" />
+          </div>
+          <div class="field">
+            <label>Mètrica 2 — Número</label>
+            <input type="text" id="metric2Num" value="−14%" />
+          </div>
+          <div class="field">
+            <label>Mètrica 2 — Text</label>
+            <input type="text" id="metric2Lbl" value="1ª compra · TRENT14" />
+          </div>
+          <div class="field">
+            <label>Mètrica 3 — Número</label>
+            <input type="text" id="metric3Num" value="7–15" />
+          </div>
+          <div class="field">
+            <label>Mètrica 3 — Text</label>
+            <input type="text" id="metric3Lbl" value="Entrega media" />
+          </div>
+        </div>
+      </section>
+
+      <!-- MARQUEE -->
+      <section id="marquee" class="admin-section">
+        <h3>📝 Banda de textos</h3>
+        <p class="section-desc">Els textos animats que apareixen entre el hero i el catàleg.</p>
+        <div class="field"><label>Text 1</label><input type="text" id="marquee1" value="NUEVOS LINKS CADA DÍA" /></div>
+        <div class="field"><label>Text 2</label><input type="text" id="marquee2" value="ENVÍO 7–15 DÍAS" /></div>
+        <div class="field"><label>Text 3</label><input type="text" id="marquee3" value="SUB 20€ MAYORÍA" /></div>
+        <div class="field"><label>Text 4</label><input type="text" id="marquee4" value="SOPORTE 1 A 1 EN TELEGRAM" /></div>
+        <div class="field"><label>Text 5</label><input type="text" id="marquee5" value="SIN PASARELAS RAROS" /></div>
+        <div class="field"><label>Text 6</label><input type="text" id="marquee6" value="GUÍAS DE TALLAS" /></div>
+      </section>
+
+      <!-- TELEGRAM -->
+      <section id="telegram" class="admin-section">
+        <h3>✈️ Secció Telegram</h3>
+        <p class="section-desc">El link i el text de membres a la secció de Telegram.</p>
+        <div class="field">
+          <label>Link del canal</label>
+          <input type="text" id="telegramLink" value="https://t.me/trentthacoo" />
+        </div>
+        <div class="field">
+          <label>Text de membres</label>
+          <input type="text" id="telegramMembers" value="12.4k miembros · activos hoy" />
+        </div>
+      </section>
+
+      <!-- SEGURETAT -->
+      <section id="seguretat" class="admin-section">
+        <h3>🔐 Seguretat</h3>
+        <p class="section-desc">Canvia la contrasenya d'accés a aquest panell.</p>
+        <div class="fields-row">
+          <div class="field">
+            <label>Nova contrasenya</label>
+            <input type="password" id="newPassword" placeholder="Deixa en blanc per no canviar" />
+          </div>
+          <div class="field">
+            <label>Confirma la nova contrasenya</label>
+            <input type="password" id="confirmPassword" placeholder="Repeteix" />
+          </div>
+        </div>
+        <p class="hint">Contrasenya per defecte: <strong>trent2026</strong></p>
+      </section>
+
+    </main>
+  </div>
+
+  <div class="save-footer">
+    <span id="save-status"></span>
+    <button class="btn-save-main" id="save-btn" onclick="saveConfig()">💾 Guardar canvis</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  const db = firebase.initializeApp({
+    apiKey: "AIzaSyC--RyJYmcWT9A36h52Vn7HNW9XY2h64hs",
+    projectId: "trentbot-be272",
+  }).firestore();
+
+  const DEFAULT_PWD = 'trent2026';
+
+  // Auto-login if session active
+  if (sessionStorage.getItem('trent_admin') === '1') showAdmin();
+
+  document.getElementById('pwd').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+  async function doLogin() {
+    const pwd = document.getElementById('pwd').value;
+    const err = document.getElementById('login-err');
+    err.textContent = '';
+    if (!pwd) { err.textContent = 'Introdueix la contrasenya'; return; }
+    err.textContent = 'Verificant...';
+    try {
+      const doc = await db.collection('config').doc('admin').get();
+      const stored = (doc.exists && doc.data().password) ? doc.data().password : DEFAULT_PWD;
+      if (pwd === stored) {
+        sessionStorage.setItem('trent_admin', '1');
+        showAdmin();
+      } else {
+        err.textContent = '❌ Contrasenya incorrecta';
+      }
+    } catch(e) {
+      if (pwd === DEFAULT_PWD) { sessionStorage.setItem('trent_admin', '1'); showAdmin(); }
+      else err.textContent = '❌ Error de connexió';
+    }
+  }
+
+  function showAdmin() {
+    document.getElementById('login').style.display = 'none';
+    document.getElementById('admin').style.display = 'block';
+    loadConfig();
+  }
+
+  async function loadConfig() {
+    try {
+      const doc = await db.collection('config').doc('site').get();
+      if (!doc.exists) return;
+      const d = doc.data();
+      const ids = ['heroCopy','discountCode','discountPct',
+        'metric1Num','metric1Lbl','metric2Num','metric2Lbl','metric3Num','metric3Lbl',
+        'marquee1','marquee2','marquee3','marquee4','marquee5','marquee6',
+        'telegramLink','telegramMembers','displayFont'];
+      ids.forEach(id => { const el = document.getElementById(id); if (el && d[id] != null) el.value = d[id]; });
+      if (d.primaryColor) {
+        document.getElementById('primaryColor').value = d.primaryColor;
+        document.getElementById('primaryColorHex').value = d.primaryColor;
+      }
+      if (d.bgMode) {
+        const r = document.querySelector(`input[name="bgMode"][value="${d.bgMode}"]`);
+        if (r) r.checked = true;
+      }
+    } catch(e) { console.error('loadConfig error', e); }
+  }
+
+  async function saveConfig() {
+    const btn = document.getElementById('save-btn');
+    const status = document.getElementById('save-status');
+    btn.disabled = true;
+    status.textContent = 'Guardant...';
+    status.className = '';
+
+    // Handle password change
+    const newPwd = document.getElementById('newPassword').value;
+    const confirmPwd = document.getElementById('confirmPassword').value;
+    if (newPwd) {
+      if (newPwd !== confirmPwd) {
+        status.textContent = '❌ Les contrasenyes no coincideixen';
+        status.className = 'err';
+        btn.disabled = false;
+        return;
+      }
+      try { await db.collection('config').doc('admin').set({ password: newPwd }); } catch(e) {}
+      document.getElementById('newPassword').value = '';
+      document.getElementById('confirmPassword').value = '';
+    }
+
+    const bgMode = document.querySelector('input[name="bgMode"]:checked')?.value || 'warm';
+    const config = {
+      primaryColor: document.getElementById('primaryColor').value,
+      bgMode,
+      displayFont: document.getElementById('displayFont').value,
+      heroCopy: document.getElementById('heroCopy').value,
+      discountCode: document.getElementById('discountCode').value,
+      discountPct: document.getElementById('discountPct').value,
+      metric1Num: document.getElementById('metric1Num').value,
+      metric1Lbl: document.getElementById('metric1Lbl').value,
+      metric2Num: document.getElementById('metric2Num').value,
+      metric2Lbl: document.getElementById('metric2Lbl').value,
+      metric3Num: document.getElementById('metric3Num').value,
+      metric3Lbl: document.getElementById('metric3Lbl').value,
+      marquee1: document.getElementById('marquee1').value,
+      marquee2: document.getElementById('marquee2').value,
+      marquee3: document.getElementById('marquee3').value,
+      marquee4: document.getElementById('marquee4').value,
+      marquee5: document.getElementById('marquee5').value,
+      marquee6: document.getElementById('marquee6').value,
+      telegramLink: document.getElementById('telegramLink').value,
+      telegramMembers: document.getElementById('telegramMembers').value,
+    };
+
+    try {
+      await db.collection('config').doc('site').set(config);
+      status.textContent = '✅ Canvis guardats!';
+      status.className = 'ok';
+      setTimeout(() => { status.textContent = ''; }, 3000);
+    } catch(e) {
+      status.textContent = '❌ Error: ' + e.message;
+      status.className = 'err';
+    }
+    btn.disabled = false;
+  }
+
+  // Sync color picker <-> text input
+  document.getElementById('primaryColor').addEventListener('input', function() {
+    document.getElementById('primaryColorHex').value = this.value;
+  });
+  document.getElementById('primaryColorHex').addEventListener('input', function() {
+    if (/^#[0-9A-Fa-f]{6}$/.test(this.value))
+      document.getElementById('primaryColor').value = this.value;
+  });
+
+  // Highlight active nav on scroll
+  const sections = document.querySelectorAll('.admin-section');
+  const navItems = document.querySelectorAll('.nav-item');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 80) current = s.id; });
+    navItems.forEach(n => {
+      n.classList.toggle('active', n.getAttribute('href') === '#' + current);
+    });
+  }, { passive: true });
+</script>
+</body>
+</html>

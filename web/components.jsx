@@ -78,7 +78,7 @@ function Marquee({ items = [], speed = 30 }) {
 /* ============================================================
    NAVBAR
    ============================================================ */
-function Navbar({ onScrollTo }) {
+function Navbar({ onScrollTo, telegramLink = 'https://t.me/trentthacoo' }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20);
@@ -98,7 +98,7 @@ function Navbar({ onScrollTo }) {
         <li><a href="#guides" onClick={(e) => { e.preventDefault(); onScrollTo('guides'); }}>Guías</a></li>
         <li><a href="#faq" onClick={(e) => { e.preventDefault(); onScrollTo('faq'); }}>FAQ</a></li>
       </ul>
-      <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer" className="btn btn--primary nav__cta">
+      <a href={telegramLink} target="_blank" rel="noreferrer" className="btn btn--primary nav__cta">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
         Entrar al canal
       </a>
@@ -109,14 +109,21 @@ function Navbar({ onScrollTo }) {
 /* ============================================================
    HERO
    ============================================================ */
-function Hero({ heroCopy, onScrollTo, palette }) {
+function Hero({ heroCopy, onScrollTo, palette, config = {} }) {
+  const {
+    discountCode = 'TRENT14', discountPct = '14',
+    metric1Num = '+340', metric1Lbl = 'Prendas activas',
+    metric2Num = '−14%', metric2Lbl = '1ª compra · TRENT14',
+    metric3Num = '7–15', metric3Lbl = 'Entrega media',
+    telegramLink = 'https://t.me/trentthacoo',
+  } = config;
   return (
     <header id="top" className="hero">
       <div className="hero__grid">
         <div className="hero__left">
           <div className="hero__eyebrow">
             <span className="dot dot--live"></span>
-            Drops nuevos cada día · Código bienvenida −14%
+            Drops nuevos cada día · Código bienvenida −{discountPct}%
           </div>
           <h1 className="hero__title">
             <span className="hero__title-line">VISTE</span>
@@ -126,7 +133,7 @@ function Hero({ heroCopy, onScrollTo, palette }) {
           </h1>
           <p className="hero__sub">{heroCopy}</p>
           <div className="hero__ctas">
-            <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer" className="btn btn--primary btn--lg">
+            <a href={telegramLink} target="_blank" rel="noreferrer" className="btn btn--primary btn--lg">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
               Ver catálogo en Telegram
             </a>
@@ -137,16 +144,16 @@ function Hero({ heroCopy, onScrollTo, palette }) {
           </div>
           <div className="hero__metrics">
             <div className="metric">
-              <div className="metric__num">+340</div>
-              <div className="metric__lbl">Prendas activas</div>
+              <div className="metric__num">{metric1Num}</div>
+              <div className="metric__lbl">{metric1Lbl}</div>
             </div>
             <div className="metric metric--accent">
-              <div className="metric__num">−14%</div>
-              <div className="metric__lbl">1ª compra · TRENT14</div>
+              <div className="metric__num">{metric2Num}</div>
+              <div className="metric__lbl">{metric2Lbl}</div>
             </div>
             <div className="metric">
-              <div className="metric__num">7–15<span style={{ fontSize: '0.5em' }}>d</span></div>
-              <div className="metric__lbl">Entrega media</div>
+              <div className="metric__num">{metric3Num}<span style={{ fontSize: '0.5em' }}>d</span></div>
+              <div className="metric__lbl">{metric3Lbl}</div>
             </div>
           </div>
         </div>
@@ -171,8 +178,8 @@ function Hero({ heroCopy, onScrollTo, palette }) {
             <div className="hero__code-row">
               <span className="hero__code-gift">🎁</span>
               <div className="hero__code-stack">
-                <div className="hero__code-val">TRENT14</div>
-                <div className="hero__code-sub">−14% en tu 1ª compra</div>
+                <div className="hero__code-val">{discountCode}</div>
+                <div className="hero__code-sub">−{discountPct}% en tu 1ª compra</div>
               </div>
             </div>
           </div>
@@ -400,7 +407,7 @@ function Catalog({ density, palette }) {
 /* ============================================================
    TELEGRAM block
    ============================================================ */
-function TelegramBlock() {
+function TelegramBlock({ telegramLink = 'https://t.me/trentthacoo', members = '12.4k miembros · activos hoy' }) {
   const benefits = [
     { ic: '📌', t: 'Links organizados por categoría', s: 'Sneakers, hoodies, cargos… cada uno con su carpeta. Sin scroll infinito.' },
     { ic: '⚡', t: 'Drops en directo', s: 'Cuando encuentro algo bueno, te llega al móvil. Lo pillas antes que nadie.' },
@@ -419,11 +426,11 @@ function TelegramBlock() {
           <p className="section__lead section__lead--light">
             Es el canal donde publicó cada día los enlaces directos a las prendas. De la inspiración a tu carrito en 1 toque.
           </p>
-          <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer" className="btn btn--invert btn--lg">
+          <a href={telegramLink} target="_blank" rel="noreferrer" className="btn btn--invert btn--lg">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
-            t.me/trentthacoo
+            {telegramLink.replace('https://', '')}
           </a>
-          <div className="telegram__handle">12.4k miembros · activos hoy</div>
+          <div className="telegram__handle">{members}</div>
         </div>
         <div className="telegram__right">
           {benefits.map((b, i) => (
