@@ -654,49 +654,21 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         affiliate_link = await generate_affiliate_link(product_id)
 
-        # Fetch product image and detect brand/name with Gemini
+        # Fetch og:image URL to store in Firestore later
         image_url = _fetch_og_image_url(product_id)
-        marca = ""
-        product_name = ""
-        if image_url:
-            try:
-                await status_msg.edit_text(f"ID: {product_id} ✓\nDetectando marca del producto...")
-                img_bytes = requests.get(image_url, timeout=10).content
-                brand_info = gemini_vision(
-                    img_bytes,
-                    "Analiza esta imagen de producto. Devuelve exactamente dos líneas:\n"
-                    "Marca: [nombre de la marca o vacío si no se ve]\n"
-                    "Nombre: [nombre del producto sin la marca]"
-                ).strip()
-                for line in brand_info.splitlines():
-                    if line.startswith("Marca:"):
-                        marca = line.replace("Marca:", "").strip()
-                    elif line.startswith("Nombre:"):
-                        product_name = line.replace("Nombre:", "").strip()
-            except Exception as e:
-                logger.warning(f"Brand detection failed: {e}")
-
-        auto_title = f"{marca} {product_name}".strip() if (marca or product_name) else ""
 
         user_states[user_id] = {
-            "state": "waiting_photos" if auto_title else "waiting_title",
+            "state": "waiting_title",
             "link": affiliate_link,
             "price": price_raw,
             "colores": colores,
-            "marca": marca,
             "image_url": image_url or "",
             "photos": [],
         }
-        if auto_title:
-            user_states[user_id]["title"] = auto_title
-            await status_msg.edit_text(
-                f"Título detectado: *{auto_title}*\n\nAhora envíame las fotos del producto.",
-                parse_mode="Markdown",
-            )
-        else:
-            await status_msg.edit_text(
-                f"{affiliate_link}\n\nAhora envíame el título del producto."
-            )
+
+        await status_msg.edit_text(
+            f"{affiliate_link}\n\nAhora envíame el título del producto."
+        )
 
     except Exception as e:
         logger.error(f"Error processing photo: {e}")
