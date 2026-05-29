@@ -2,6 +2,7 @@ import os
 import re
 import json
 import time
+import asyncio
 import datetime
 import calendar
 from zoneinfo import ZoneInfo
@@ -43,6 +44,75 @@ _JOBS_FILE = "/tmp/scheduled_jobs.json"
 # Estado de conversación por usuario
 user_states: dict = {}
 media_group_buffer: dict = {}
+
+# ---------------------------------------------------------------------------
+# Playwright — browser persistent entre peticions
+# ---------------------------------------------------------------------------
+_pw_lock: asyncio.Lock | None = None
+_pw_runtime: dict = {}  # keys: playwright, browser, context
+
+
+def _get_pw_lock() -> asyncio.Lock:
+    global _pw_lock
+    if _pw_lock is None:
+        _pw_lock = asyncio.Lock()
+    return _pw_lock
+
+
+async def _ensure_pw_runtime():
+    """Retorna (browser, context), creant-los si no existeixen o si han mort."""
+    global _pw_runtime
+    from playwright.async_api import async_playwright
+
+    browser = _pw_runtime.get("browser")
+    if browser:
+        try:
+            if browser.is_connected():
+                return browser, _pw_runtime["context"]
+        except Exception:
+            pass
+
+    # Netejar estat antic
+    for key in ("context", "browser"):
+        try:
+            obj = _pw_runtime.pop(key, None)
+            if obj:
+                await obj.close()
+        except Exception:
+            pass
+    try:
+        pw = _pw_runtime.pop("playwright", None)
+        if pw:
+            await pw.stop()
+    except Exception:
+        pass
+
+    pw = await async_playwright().start()
+    browser = await pw.chromium.launch(
+        headless=True,
+        args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+    )
+    context = await browser.new_context(
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/145.0.0.0 Safari/537.36"
+        ),
+        locale="en-US",
+    )
+    if os.path.exists(_SESSION_COOKIES_FILE):
+        try:
+            with open(_SESSION_COOKIES_FILE) as f:
+                await context.add_cookies(json.load(f))
+            logger.info("Restored cached Hacoo session cookies")
+        except Exception as e:
+            logger.warning(f"Could not restore cookies: {e}")
+
+    _pw_runtime["playwright"] = pw
+    _pw_runtime["browser"] = browser
+    _pw_runtime["context"] = context
+    logger.info("Playwright runtime created (browser persistent)")
+    return browser, context
 
 # ---------------------------------------------------------------------------
 # Firebase / Firestore
@@ -303,38 +373,16 @@ async def _hacoo_login(page) -> None:
 
 
 async def _generate_via_playwright(product_id: str) -> str | None:
-    from playwright.async_api import async_playwright, TimeoutError as PWTimeout
-    import asyncio
+    from playwright.async_api import TimeoutError as PWTimeout
 
     product_url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-        )
-        context = await browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/145.0.0.0 Safari/537.36"
-            ),
-            locale="en-US",
-        )
-
-        # Restaurar sesión si existe, si no hacer login completo
-        if os.path.exists(_SESSION_COOKIES_FILE):
-            try:
-                with open(_SESSION_COOKIES_FILE) as f:
-                    await context.add_cookies(json.load(f))
-                logger.info("Restored cached Hacoo session cookies")
-            except Exception as e:
-                logger.warning(f"Could not restore cookies: {e}")
-
+    async with _get_pw_lock():
+        browser, context = await _ensure_pw_runtime()
         page = await context.new_page()
 
-        # Estado compartido con el interceptor de respuestas
         promo_state = {"link": None, "error": False}
+        promo_ready = asyncio.Event()
 
         async def handle_response(response):
             if "promoLink" not in response.url:
@@ -344,7 +392,7 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 data = body.get("data") or {}
                 link = data.get("promoLink") or data.get("short_url") or data.get("link") or data.get("url")
                 if link:
-                    logger.info(f"promoLink API intercepted, short link: {link}")
+                    logger.info(f"promoLink API intercepted: {link}")
                     promo_state["link"] = link
                 else:
                     logger.warning(f"promoLink response has no link field: {body}")
@@ -352,49 +400,39 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             except Exception as e:
                 logger.warning(f"Response interception error: {e}")
                 promo_state["error"] = True
+            promo_ready.set()
 
         page.on("response", handle_response)
 
         try:
             promo_url = "https://affiliate.hacoo.app/es-ES/promotion/link"
-            logger.info(f"[PW] Navegando a promo_url, cookies={os.path.exists(_SESSION_COOKIES_FILE)}")
+            logger.info("[PW] Navegando a promo_url")
             await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
-            await page.wait_for_timeout(1500)
             logger.info(f"[PW] URL tras goto: {page.url}")
 
             if "login" in page.url.lower() or "join" in page.url.lower():
                 logger.info("[PW] Sesión expirada, haciendo login...")
                 if os.path.exists(_SESSION_COOKIES_FILE):
                     os.remove(_SESSION_COOKIES_FILE)
+                await context.clear_cookies()
                 await page.goto("https://affiliate.hacoo.app/es-ES/login", timeout=30000, wait_until="domcontentloaded")
-                await page.wait_for_timeout(1500)
                 await _hacoo_login(page)
                 await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
-                await page.wait_for_timeout(1500)
                 logger.info(f"[PW] URL tras login+goto: {page.url}")
 
-            # Guardar cookies para la próxima petición
+            # Guardar cookies
             cookies = await context.cookies()
             with open(_SESSION_COOKIES_FILE, "w") as f:
                 json.dump(cookies, f)
             logger.info(f"[PW] Cookies guardadas ({len(cookies)})")
 
-            # Log del HTML para ver el estado de la página
-            page_html_len = await page.evaluate("document.body ? document.body.innerHTML.length : 0")
-            logger.info(f"[PW] HTML length: {page_html_len}")
-            all_inputs = await page.query_selector_all('input, textarea')
-            logger.info(f"[PW] Inputs/textareas encontrados: {len(all_inputs)}")
-            for i, el in enumerate(all_inputs[:6]):
-                attrs = await el.evaluate('el => ({tag: el.tagName, type: el.type, placeholder: el.placeholder, value: el.value.substring(0,60), visible: el.offsetParent !== null})')
-                logger.info(f"[PW]   [{i}]: {attrs}")
-
-            # Esperar a que Vue monte el formulario (puede ser textarea)
+            # Esperar a que Vue monte el formulario
             try:
-                await page.wait_for_selector('textarea, input', timeout=10000)
+                await page.wait_for_selector('textarea, input', timeout=8000)
             except Exception:
                 pass
 
-            # Find URL input — primero por placeholder (evita coger el campo resultado)
+            # Find URL input
             input_el = None
             for sel in [
                 'textarea[placeholder]',
@@ -421,9 +459,8 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                         if await el.is_visible():
                             val = await el.input_value()
                             if val.startswith("http") and "hacoo" not in val:
-                                logger.info(f"[PW] Skipping result field [{i}]: {val[:60]}")
                                 continue
-                            logger.info(f"[PW] Found URL input [{i}] selector={sel} val='{val[:40]}'")
+                            logger.info(f"[PW] Found URL input selector={sel}")
                             input_el = el
                             break
                     if input_el:
@@ -434,64 +471,43 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             if not input_el:
                 inputs = await page.query_selector_all('input')
                 logger.error(f"[PW] No input found. {len(inputs)} inputs. URL: {page.url}")
-                body_len = await page.evaluate("document.body ? document.body.innerHTML.length : 0")
-                snippet = await page.evaluate("document.body ? document.body.innerHTML.substring(0, 2000) : 'no body'")
-                logger.error(f"[PW] HTML length: {body_len}")
-                logger.error(f"[PW] snippet: {snippet}")
-                for i, inp in enumerate(inputs[:8]):
-                    attrs = await inp.evaluate('el => ({type: el.type, placeholder: el.placeholder, class: el.className, visible: el.offsetParent !== null})')
-                    logger.error(f"[PW]   input[{i}]: {attrs}")
                 raise ValueError("Could not find URL input on promotion/link page")
 
-            # Cerrar cualquier modal abierto (notificaciones, modal "Promote Link", etc.)
+            # Cerrar modals abiertos
             for close_sel in [
                 'button:has-text("×")',
                 'button:has-text("✕")',
                 'button:has-text("Close")',
                 '[aria-label*="close" i]',
                 '#headlessui-portal-root button',
-                '[data-v-909a112c] button',
             ]:
                 try:
                     btn = page.locator(close_sel).first
                     if await btn.is_visible():
-                        logger.info(f"[PW] Cerrando modal: {close_sel}")
                         await btn.click(force=True)
-                        await page.wait_for_timeout(200)
                 except Exception:
                     continue
             await page.keyboard.press("Escape")
-            await page.wait_for_timeout(150)
 
-            # Clicar Clear para limpiar URL anterior
-            try:
-                btn = page.locator('button:has-text("Clear")').first
-                if await btn.is_visible():
-                    await btn.click(force=True)
-                    await page.wait_for_timeout(150)
-            except Exception:
-                pass
-
-            # Reintentar hasta 3 veces si Hacoo devuelve error 4007
+            # Reintentar hasta 3 veces
             for attempt in range(3):
                 promo_state["link"] = None
                 promo_state["error"] = False
+                promo_ready.clear()
 
-                # Limpiar campo y rellenar URL
                 try:
                     btn = page.locator('button:has-text("Clear")').first
                     if await btn.is_visible():
                         await btn.click(force=True)
-                        await page.wait_for_timeout(150)
+                        await page.wait_for_timeout(100)
                 except Exception:
                     pass
 
                 await input_el.click(click_count=3)
                 await input_el.fill(product_url)
-                logger.info(f"[PW] Intento {attempt+1}: campo rellenado con: {product_url}")
-                await page.wait_for_timeout(300)
+                logger.info(f"[PW] Intento {attempt+1}: rellenado {product_url}")
 
-                # Click Create Link button
+                # Click Create Link
                 clicked = False
                 for btn_sel in [
                     'button:has-text("Create Link")',
@@ -514,18 +530,19 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 if not clicked:
                     raise ValueError("Could not find Create Link button")
 
-                # Esperar respuesta hasta 20s
-                for _ in range(20):
-                    await asyncio.sleep(1)
-                    if promo_state["link"]:
-                        logger.info(f"Playwright short link: {promo_state['link']}")
-                        return promo_state["link"]
-                    if promo_state["error"]:
-                        break
+                # Esperar resposta — event-driven (no polling)
+                try:
+                    await asyncio.wait_for(promo_ready.wait(), timeout=20.0)
+                except asyncio.TimeoutError:
+                    pass
+
+                if promo_state["link"]:
+                    logger.info(f"Playwright short link: {promo_state['link']}")
+                    return promo_state["link"]
 
                 if attempt < 2:
-                    logger.warning(f"[PW] Intento {attempt+1} fallido, reintentando en 3s...")
-                    await page.wait_for_timeout(3000)
+                    logger.warning(f"[PW] Intento {attempt+1} fallido, reintentando en 2s...")
+                    await page.wait_for_timeout(2000)
 
             logger.error("Todos los intentos fallaron para generar el link de afiliado")
             return None
@@ -537,9 +554,16 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             logger.error(f"Playwright error: {e}")
             if os.path.exists(_SESSION_COOKIES_FILE):
                 os.remove(_SESSION_COOKIES_FILE)
+            try:
+                await context.clear_cookies()
+            except Exception:
+                pass
             return None
         finally:
-            await browser.close()
+            try:
+                await page.close()
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -670,10 +694,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
-        affiliate_link = await generate_affiliate_link(product_id)
-
-        # Fetch og:image URL to store in Firestore later
-        image_url = _fetch_og_image_url(product_id)
+        # Generar link i fetchog:image en paral·lel
+        affiliate_link, image_url = await asyncio.gather(
+            generate_affiliate_link(product_id),
+            asyncio.to_thread(_fetch_og_image_url, product_id),
+        )
+        image_url = image_url or ""
 
         user_states[user_id] = {
             "state": "waiting_title",
