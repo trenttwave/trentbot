@@ -342,9 +342,9 @@ function Catalog({ density, palette }) {
       <div className="grid">
         {paginated.map((p) => (
           <article key={p.id} className={`card ${p.hot ? 'card--hot' : ''}`}>
-            <div className="card__img">
+            <div className="card__img" style={p.image ? { aspectRatio: 'unset', height: 'auto' } : {}}>
               {p.image
-                ? <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', display: 'block' }} />
+                ? <img src={p.image} alt={p.name} style={{ width: '100%', height: 'auto', display: 'block' }} />
                 : <ProductPlaceholder stripe={p.stripe} bg={p.bg} label={p.name} drop={p.drop} />
               }
               <button
