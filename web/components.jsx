@@ -344,7 +344,7 @@ function Catalog({ density, palette }) {
           <article key={p.id} className={`card ${p.hot ? 'card--hot' : ''}`}>
             <div className="card__img">
               {p.image
-                ? <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                ? <img src={p.image} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', background: '#fff', padding: '8px', boxSizing: 'border-box' }} />
                 : <ProductPlaceholder stripe={p.stripe} bg={p.bg} label={p.name} drop={p.drop} />
               }
               <button
