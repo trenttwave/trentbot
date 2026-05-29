@@ -61,12 +61,30 @@ def _get_firestore():
         from firebase_admin import credentials, firestore as fb_firestore
         cred_dict = json.loads(FIREBASE_CREDENTIALS)
         if not firebase_admin._apps:
-            firebase_admin.initialize_app(credentials.Certificate(cred_dict))
+            project_id = cred_dict.get("project_id", "")
+            firebase_admin.initialize_app(
+                credentials.Certificate(cred_dict),
+                {"storageBucket": f"{project_id}.firebasestorage.app"},
+            )
         _firestore_client = fb_firestore.client()
         return _firestore_client
     except Exception as e:
         logger.warning(f"Firebase init failed: {e}")
         return None
+
+
+async def _upload_product_image(img_bytes: bytes, file_unique_id: str) -> str:
+    try:
+        import firebase_admin
+        from firebase_admin import storage as fb_storage
+        bucket = fb_storage.bucket()
+        blob = bucket.blob(f"products/{file_unique_id}.jpg")
+        blob.upload_from_string(img_bytes, content_type="image/jpeg")
+        blob.make_public()
+        return blob.public_url
+    except Exception as e:
+        logger.warning(f"Storage upload failed: {e}")
+        return ""
 
 
 def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliats: str, imatge: str):
@@ -1004,13 +1022,24 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
             preu_str = f"{int(float(price_clean))}€"
         except Exception:
             preu_str = price
+
+        # Get image: prefer og:image, fallback to first Telegram photo → Firebase Storage
+        imatge = state.get("image_url", "")
+        if not imatge and photos:
+            try:
+                file = await bot.get_file(photos[0])
+                img_bytes = bytes(await file.download_as_bytearray())
+                imatge = await _upload_product_image(img_bytes, file.file_unique_id)
+            except Exception as e:
+                logger.warning(f"Could not upload product image: {e}")
+
         save_to_firestore(
             nom=state.get("title", ""),
             preu=preu_str,
             colors=state.get("colores", ""),
             marca=state.get("marca", ""),
             link_afiliats=state.get("link", ""),
-            imatge=state.get("image_url", ""),
+            imatge=imatge,
         )
     except Exception as e:
         logger.warning(f"Firestore save error: {e}")
