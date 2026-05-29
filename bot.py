@@ -1041,8 +1041,10 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
             link_afiliats=state.get("link", ""),
             imatge=imatge,
         )
+        logger.info("Firestore save OK")
     except Exception as e:
         logger.warning(f"Firestore save error: {e}")
+        await bot.send_message(chat_id=chat_id, text=f"⚠️ Error guardant a Firestore: {e}")
 
     user_states[user_id] = {"state": "editing", "message_text": message_text, "photos": photos}
     await bot.send_message(chat_id=chat_id, text="¿Quieres modificar algo? Dímelo, usa /programar para enviarlo al grupo a una hora, o /cancelar para terminar.")
