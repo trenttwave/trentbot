@@ -32,6 +32,7 @@ HACOO_COOKIE = os.environ.get("HACOO_COOKIE", "").strip()
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
+FIREBASE_CREDENTIALS = os.environ.get("FIREBASE_CREDENTIALS", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
@@ -41,6 +42,51 @@ _JOBS_FILE = "/tmp/scheduled_jobs.json"
 # Estado de conversación por usuario
 user_states: dict = {}
 media_group_buffer: dict = {}
+
+# ---------------------------------------------------------------------------
+# Firebase / Firestore
+# ---------------------------------------------------------------------------
+
+_firestore_client = None
+
+
+def _get_firestore():
+    global _firestore_client
+    if _firestore_client is not None:
+        return _firestore_client
+    if not FIREBASE_CREDENTIALS:
+        return None
+    try:
+        import firebase_admin
+        from firebase_admin import credentials, firestore as fb_firestore
+        cred_dict = json.loads(FIREBASE_CREDENTIALS)
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(credentials.Certificate(cred_dict))
+        _firestore_client = fb_firestore.client()
+        return _firestore_client
+    except Exception as e:
+        logger.warning(f"Firebase init failed: {e}")
+        return None
+
+
+def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliats: str, imatge: str):
+    db = _get_firestore()
+    if not db:
+        return
+    try:
+        from firebase_admin import firestore as fb_firestore
+        db.collection("products").add({
+            "nom": nom,
+            "preu": preu,
+            "colors": colors,
+            "marca": marca,
+            "link_afiliats": link_afiliats,
+            "imatge": imatge,
+            "data": fb_firestore.SERVER_TIMESTAMP,
+        })
+        logger.info("Product saved to Firestore")
+    except Exception as e:
+        logger.warning(f"Firestore save failed: {e}")
 
 
 def _save_scheduled_job(job_name: str, target_ts: float, chat_id: int, message_text: str, photos: list):
@@ -111,6 +157,24 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
             ]
         }]
     })
+
+
+def _fetch_og_image_url(product_id: str) -> str | None:
+    try:
+        url = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
+        resp = requests.get(url, timeout=10, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
+        for pattern in [
+            r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"',
+            r'<meta[^>]+content="([^"]+)"[^>]+property="og:image"',
+        ]:
+            m = re.search(pattern, resp.text)
+            if m:
+                return m.group(1)
+    except Exception as e:
+        logger.warning(f"og:image fetch failed: {e}")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -590,17 +654,49 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         affiliate_link = await generate_affiliate_link(product_id)
 
+        # Fetch product image and detect brand/name with Gemini
+        image_url = _fetch_og_image_url(product_id)
+        marca = ""
+        product_name = ""
+        if image_url:
+            try:
+                await status_msg.edit_text(f"ID: {product_id} ✓\nDetectando marca del producto...")
+                img_bytes = requests.get(image_url, timeout=10).content
+                brand_info = gemini_vision(
+                    img_bytes,
+                    "Analiza esta imagen de producto. Devuelve exactamente dos líneas:\n"
+                    "Marca: [nombre de la marca o vacío si no se ve]\n"
+                    "Nombre: [nombre del producto sin la marca]"
+                ).strip()
+                for line in brand_info.splitlines():
+                    if line.startswith("Marca:"):
+                        marca = line.replace("Marca:", "").strip()
+                    elif line.startswith("Nombre:"):
+                        product_name = line.replace("Nombre:", "").strip()
+            except Exception as e:
+                logger.warning(f"Brand detection failed: {e}")
+
+        auto_title = f"{marca} {product_name}".strip() if (marca or product_name) else ""
+
         user_states[user_id] = {
-            "state": "waiting_title",
+            "state": "waiting_photos" if auto_title else "waiting_title",
             "link": affiliate_link,
             "price": price_raw,
             "colores": colores,
+            "marca": marca,
+            "image_url": image_url or "",
             "photos": [],
         }
-
-        await status_msg.edit_text(
-            f"{affiliate_link}\n\nAhora envíame el título del producto."
-        )
+        if auto_title:
+            user_states[user_id]["title"] = auto_title
+            await status_msg.edit_text(
+                f"Título detectado: *{auto_title}*\n\nAhora envíame las fotos del producto.",
+                parse_mode="Markdown",
+            )
+        else:
+            await status_msg.edit_text(
+                f"{affiliate_link}\n\nAhora envíame el título del producto."
+            )
 
     except Exception as e:
         logger.error(f"Error processing photo: {e}")
@@ -927,6 +1023,26 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
         await bot.send_media_group(chat_id=chat_id, media=media)
     else:
         await bot.send_message(chat_id=chat_id, text=message_text)
+
+    # Save product to Firestore before overwriting state
+    try:
+        price = state.get("price", "")
+        price_clean = price.replace(",", ".").split(".")[0].replace("€", "").strip()
+        try:
+            preu_str = f"{int(float(price_clean))}€"
+        except Exception:
+            preu_str = price
+        save_to_firestore(
+            nom=state.get("title", ""),
+            preu=preu_str,
+            colors=state.get("colores", ""),
+            marca=state.get("marca", ""),
+            link_afiliats=state.get("link", ""),
+            imatge=state.get("image_url", ""),
+        )
+    except Exception as e:
+        logger.warning(f"Firestore save error: {e}")
+
     user_states[user_id] = {"state": "editing", "message_text": message_text, "photos": photos}
     await bot.send_message(chat_id=chat_id, text="¿Quieres modificar algo? Dímelo, usa /programar para enviarlo al grupo a una hora, o /cancelar para terminar.")
 
