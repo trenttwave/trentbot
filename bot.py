@@ -33,6 +33,7 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 FIREBASE_CREDENTIALS = os.environ.get("FIREBASE_CREDENTIALS", "").strip()
+IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
@@ -61,11 +62,7 @@ def _get_firestore():
         from firebase_admin import credentials, firestore as fb_firestore
         cred_dict = json.loads(FIREBASE_CREDENTIALS)
         if not firebase_admin._apps:
-            project_id = cred_dict.get("project_id", "")
-            firebase_admin.initialize_app(
-                credentials.Certificate(cred_dict),
-                {"storageBucket": f"{project_id}.firebasestorage.app"},
-            )
+            firebase_admin.initialize_app(credentials.Certificate(cred_dict))
         _firestore_client = fb_firestore.client()
         return _firestore_client
     except Exception as e:
@@ -73,17 +70,20 @@ def _get_firestore():
         return None
 
 
-async def _upload_product_image(img_bytes: bytes, file_unique_id: str) -> str:
+async def _upload_product_image(img_bytes: bytes) -> str:
+    if not IMGBB_API_KEY:
+        return ""
     try:
-        import firebase_admin
-        from firebase_admin import storage as fb_storage
-        bucket = fb_storage.bucket()
-        blob = bucket.blob(f"products/{file_unique_id}.jpg")
-        blob.upload_from_string(img_bytes, content_type="image/jpeg")
-        blob.make_public()
-        return blob.public_url
+        img_b64 = base64.b64encode(img_bytes).decode()
+        resp = requests.post(
+            "https://api.imgbb.com/1/upload",
+            data={"key": IMGBB_API_KEY, "image": img_b64},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        return resp.json()["data"]["url"]
     except Exception as e:
-        logger.warning(f"Storage upload failed: {e}")
+        logger.warning(f"ImgBB upload failed: {e}")
         return ""
 
 
@@ -1029,7 +1029,7 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
             try:
                 file = await bot.get_file(photos[0])
                 img_bytes = bytes(await file.download_as_bytearray())
-                imatge = await _upload_product_image(img_bytes, file.file_unique_id)
+                imatge = await _upload_product_image(img_bytes)
             except Exception as e:
                 logger.warning(f"Could not upload product image: {e}")
 
