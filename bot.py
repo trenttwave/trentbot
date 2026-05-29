@@ -408,6 +408,16 @@ async def _generate_via_playwright(product_id: str) -> str | None:
             promo_url = "https://affiliate.hacoo.app/es-ES/promotion/link"
             logger.info("[PW] Navegando a promo_url")
             await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
+            # Esperar que Vue Router acabi la redirecció (login o promo page)
+            try:
+                await page.wait_for_function(
+                    "window.location.href.includes('promotion/link') || "
+                    "window.location.href.toLowerCase().includes('login') || "
+                    "window.location.href.toLowerCase().includes('join')",
+                    timeout=5000,
+                )
+            except Exception:
+                pass
             logger.info(f"[PW] URL tras goto: {page.url}")
 
             if "login" in page.url.lower() or "join" in page.url.lower():
@@ -418,6 +428,14 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 await page.goto("https://affiliate.hacoo.app/es-ES/login", timeout=30000, wait_until="domcontentloaded")
                 await _hacoo_login(page)
                 await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
+                # Esperar que Vue carregui el formulari post-login
+                try:
+                    await page.wait_for_function(
+                        "window.location.href.includes('promotion/link')",
+                        timeout=5000,
+                    )
+                except Exception:
+                    pass
                 logger.info(f"[PW] URL tras login+goto: {page.url}")
 
             # Guardar cookies
@@ -694,25 +712,34 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
-        # Generar link i fetchog:image en paral·lel
+        # Generar link i fetch og:image en paral·lel
         affiliate_link, image_url = await asyncio.gather(
             generate_affiliate_link(product_id),
             asyncio.to_thread(_fetch_og_image_url, product_id),
         )
         image_url = image_url or ""
 
+        plain_fallback = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
+        link_is_affiliate = affiliate_link != plain_fallback
+
         user_states[user_id] = {
             "state": "waiting_title",
             "link": affiliate_link,
             "price": price_raw,
             "colores": colores,
-            "image_url": image_url or "",
+            "image_url": image_url,
             "photos": [],
         }
 
-        await status_msg.edit_text(
-            f"{affiliate_link}\n\nAhora envíame el título del producto."
-        )
+        if link_is_affiliate:
+            await status_msg.edit_text(
+                f"{affiliate_link}\n\nAhora envíame el título del producto."
+            )
+        else:
+            await status_msg.edit_text(
+                f"⚠️ No s'ha pogut generar el link d'afiliats (Playwright falló). "
+                f"S'usa el link directe:\n{affiliate_link}\n\nAhora envíame el título del producto."
+            )
 
     except Exception as e:
         logger.error(f"Error processing photo: {e}")
