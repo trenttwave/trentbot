@@ -213,6 +213,7 @@ function HowToBuy() {
               href={s.href}
               target="_blank"
               rel="noreferrer"
+              onClick={editMode ? e => e.preventDefault() : undefined}
             >
               <div className="step__n">{s.n}</div>
               <div className="step__body">
