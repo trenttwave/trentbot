@@ -7,9 +7,11 @@ const { useState, useEffect, useMemo, useRef } = React;
    DISCOUNT BAR — barra anuncio con código
    ============================================================ */
 function DiscountBar() {
+  const { editMode, cfg, onSave } = React.useContext(window.EditCtx);
+  const E = window.EditableText;
   const [copied, setCopied] = useState(false);
   const copy = () => {
-    try { navigator.clipboard.writeText('TRENT14'); } catch {}
+    try { navigator.clipboard.writeText(cfg.discountCode); } catch {}
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
@@ -18,13 +20,13 @@ function DiscountBar() {
       <div className="discountbar__inner">
         <span className="discountbar__gift">🎁</span>
         <span className="discountbar__msg">
-          <strong>−14%</strong> en tu 1ª compra — código
+          <strong>−<E tag="span" value={cfg.discountPct} fieldKey="discountPct" editMode={editMode} onSave={onSave} />%</strong> en tu 1ª compra — código
         </span>
         <button className="discountbar__code" onClick={copy} title="Copiar código">
-          <span className="discountbar__code-text">TRENT14</span>
+          <E tag="span" className="discountbar__code-text" value={cfg.discountCode} fieldKey="discountCode" editMode={editMode} onSave={onSave} />
           <span className="discountbar__code-copy">{copied ? '✓ copiado' : 'copiar'}</span>
         </button>
-        <span className="discountbar__msg discountbar__msg--right">envío 7–15 días</span>
+        <E tag="span" className="discountbar__msg discountbar__msg--right" value={cfg.shippingText} fieldKey="shippingText" editMode={editMode} onSave={onSave} />
       </div>
     </div>
   );
@@ -109,7 +111,8 @@ function Navbar({ onScrollTo }) {
 /* ============================================================
    HERO
    ============================================================ */
-function Hero({ cfg, onScrollTo, palette, editMode, onSave }) {
+function Hero({ onScrollTo, palette }) {
+  const { editMode, cfg, onSave } = React.useContext(window.EditCtx);
   const E = window.EditableText;
   return (
     <header id="top" className="hero">
@@ -117,7 +120,7 @@ function Hero({ cfg, onScrollTo, palette, editMode, onSave }) {
         <div className="hero__left">
           <div className="hero__eyebrow">
             <span className="dot dot--live"></span>
-            Drops nuevos cada día · Código bienvenida −{cfg.discountPct}%
+            <E tag="span" value={cfg.heroEyebrow} fieldKey="heroEyebrow" editMode={editMode} onSave={onSave} />
           </div>
           <h1 className="hero__title">
             <span className="hero__title-line">VISTE</span>
@@ -129,10 +132,10 @@ function Hero({ cfg, onScrollTo, palette, editMode, onSave }) {
           <div className="hero__ctas">
             <a href={cfg.telegramLink} target="_blank" rel="noreferrer" className="btn btn--primary btn--lg">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
-              Ver catálogo en Telegram
+              <E tag="span" value={cfg.heroBtnPrimary} fieldKey="heroBtnPrimary" editMode={editMode} onSave={onSave} />
             </a>
             <button className="btn btn--ghost btn--lg" onClick={() => onScrollTo('how')}>
-              Cómo funciona
+              <E tag="span" value={cfg.heroBtnSecondary} fieldKey="heroBtnSecondary" editMode={editMode} onSave={onSave} />
               <span className="btn__arrow">→</span>
             </button>
           </div>
@@ -160,10 +163,10 @@ function Hero({ cfg, onScrollTo, palette, editMode, onSave }) {
             </div>
             <div className="hero__product-meta">
               <div>
-                <div className="hero__product-name">Hoodie Boxy Cream</div>
-                <div className="hero__product-cat">Sudaderas · TRENT</div>
+                <E className="hero__product-name" value={cfg.heroCardName} fieldKey="heroCardName" editMode={editMode} onSave={onSave} />
+                <E className="hero__product-cat" value={cfg.heroCardCat} fieldKey="heroCardCat" editMode={editMode} onSave={onSave} />
               </div>
-              <div className="hero__product-price">12,40€</div>
+              <E className="hero__product-price" value={cfg.heroCardPrice} fieldKey="heroCardPrice" editMode={editMode} onSave={onSave} />
             </div>
           </div>
 
@@ -187,16 +190,23 @@ function Hero({ cfg, onScrollTo, palette, editMode, onSave }) {
    STEPS — Cómo comprar
    ============================================================ */
 function HowToBuy() {
-  const steps = window.TRENT_DATA.steps;
+  const { editMode, cfg, onSave } = React.useContext(window.EditCtx);
+  const E = window.EditableText;
+  const steps = [
+    { n: '01', title: cfg.step0title, body: cfg.step0body, tag: cfg.step0tag, href: '#', cta: 'Ir →' },
+    { n: '02', title: cfg.step1title, body: cfg.step1body, tag: cfg.step1tag, href: '#', cta: 'Ir →' },
+    { n: '03', title: cfg.step2title, body: cfg.step2body, tag: cfg.step2tag, href: '#', cta: 'Ir →' },
+    { n: '04', title: cfg.step3title, body: cfg.step3body, tag: cfg.step3tag, href: '#', cta: 'Ir →' },
+  ];
   return (
     <section id="how" className="section section--how">
       <div className="section__head">
         <div className="section__eyebrow">[ 01 ] PROCESO</div>
-        <h2 className="section__title">Cómprate todo en <em>4 pasos</em>.</h2>
-        <p className="section__lead">Pulsa cada paso y te lleva directo. Si es tu primera vez, tarda un café. Después, 30 segundos.</p>
+        <E tag="h2" className="section__title" value={cfg.howTitle} fieldKey="howTitle" editMode={editMode} onSave={onSave} />
+        <E tag="p" className="section__lead" value={cfg.howLead} fieldKey="howLead" editMode={editMode} onSave={onSave} />
       </div>
       <ol className="steps">
-        {steps.map((s) => (
+        {steps.map((s, i) => (
           <li key={s.n} className="step">
             <a
               className="step__link"
@@ -206,10 +216,10 @@ function HowToBuy() {
             >
               <div className="step__n">{s.n}</div>
               <div className="step__body">
-                <h3 className="step__title">{s.title}</h3>
-                <p className="step__desc">{s.body}</p>
+                <E tag="h3" className="step__title" value={s.title} fieldKey={`step${i}title`} editMode={editMode} onSave={onSave} />
+                <E tag="p" className="step__desc" value={s.body} fieldKey={`step${i}body`} editMode={editMode} onSave={onSave} />
                 <div className="step__foot">
-                  <span className="step__tag">{s.tag}</span>
+                  <E tag="span" className="step__tag" value={s.tag} fieldKey={`step${i}tag`} editMode={editMode} onSave={onSave} />
                   <span className="step__cta">{s.cta}</span>
                 </div>
               </div>
@@ -243,7 +253,6 @@ function Catalog({ density, palette }) {
   useEffect(() => {
     if (!window._db) { setLoading(false); return; }
     const unsub = window._db.collection('products')
-      .orderBy('data', 'desc')
       .onSnapshot((snap) => {
         const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setProducts(docs);
@@ -381,11 +390,14 @@ function Catalog({ density, palette }) {
    TELEGRAM block
    ============================================================ */
 function TelegramBlock() {
+  const { editMode, cfg, onSave } = React.useContext(window.EditCtx);
+  const E = window.EditableText;
+
   const benefits = [
-    { ic: '📌', t: 'Links organizados por categoría', s: 'Sneakers, hoodies, cargos… cada uno con su carpeta. Sin scroll infinito.' },
-    { ic: '⚡', t: 'Drops en directo', s: 'Cuando encuentro algo bueno, te llega al móvil. Lo pillas antes que nadie.' },
-    { ic: '🛟', t: 'Soporte 1 a 1', s: '¿Dudas de talla o incidencia? Me escribes y te ayudo personalmente.' },
-    { ic: '🔓', t: 'Gratis y sin spam', s: 'Solo subo cuando vale la pena. Cero publi de relleno.' },
+    { ic: '📌', tKey: 'benefit0t', sKey: 'benefit0s' },
+    { ic: '⚡', tKey: 'benefit1t', sKey: 'benefit1s' },
+    { ic: '🛟', tKey: 'benefit2t', sKey: 'benefit2s' },
+    { ic: '🔓', tKey: 'benefit3t', sKey: 'benefit3s' },
   ];
 
   return (
@@ -393,25 +405,21 @@ function TelegramBlock() {
       <div className="telegram__inner">
         <div className="telegram__left">
           <div className="section__eyebrow section__eyebrow--light">[ 03 ] EL CANAL</div>
-          <h2 className="section__title section__title--light">
-            Mi Telegram es donde <em>vive todo</em>.
-          </h2>
-          <p className="section__lead section__lead--light">
-            Es el canal donde publicó cada día los enlaces directos a las prendas. De la inspiración a tu carrito en 1 toque.
-          </p>
-          <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer" className="btn btn--invert btn--lg">
+          <E tag="h2" className="section__title section__title--light" value={cfg.telegramTitle} fieldKey="telegramTitle" editMode={editMode} onSave={onSave} />
+          <E tag="p" className="section__lead section__lead--light" value={cfg.telegramLead} fieldKey="telegramLead" editMode={editMode} onSave={onSave} />
+          <a href={cfg.telegramLink} target="_blank" rel="noreferrer" className="btn btn--invert btn--lg">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
-            t.me/trentthacoo
+            <E tag="span" value={cfg.telegramLink} fieldKey="telegramLink" editMode={editMode} onSave={onSave} />
           </a>
-          <div className="telegram__handle">12.4k miembros · activos hoy</div>
+          <E tag="div" className="telegram__handle" value={cfg.telegramMembers} fieldKey="telegramMembers" editMode={editMode} onSave={onSave} />
         </div>
         <div className="telegram__right">
           {benefits.map((b, i) => (
             <div key={i} className="benefit">
               <div className="benefit__ic">{b.ic}</div>
               <div>
-                <div className="benefit__t">{b.t}</div>
-                <div className="benefit__s">{b.s}</div>
+                <E className="benefit__t" value={cfg[b.tKey]} fieldKey={b.tKey} editMode={editMode} onSave={onSave} />
+                <E className="benefit__s" value={cfg[b.sKey]} fieldKey={b.sKey} editMode={editMode} onSave={onSave} />
               </div>
             </div>
           ))}
@@ -516,8 +524,18 @@ function Guides() {
    FAQ
    ============================================================ */
 function FAQ() {
-  const faqs = window.TRENT_DATA.faq;
+  const { editMode, cfg, onSave } = React.useContext(window.EditCtx);
+  const E = window.EditableText;
   const [open, setOpen] = useState(0);
+
+  const faqs = [
+    { qKey: 'faq0q', aKey: 'faq0a' },
+    { qKey: 'faq1q', aKey: 'faq1a' },
+    { qKey: 'faq2q', aKey: 'faq2a' },
+    { qKey: 'faq3q', aKey: 'faq3a' },
+    { qKey: 'faq4q', aKey: 'faq4a' },
+  ];
+
   return (
     <section id="faq" className="section section--faq">
       <div className="section__head">
@@ -529,11 +547,11 @@ function FAQ() {
           <div key={i} className={`faq__item ${open === i ? 'faq__item--open' : ''}`}>
             <button className="faq__q" onClick={() => setOpen(open === i ? -1 : i)}>
               <span className="faq__n">0{i + 1}</span>
-              <span className="faq__qt">{f.q}</span>
+              <E tag="span" className="faq__qt" value={cfg[f.qKey]} fieldKey={f.qKey} editMode={editMode} onSave={onSave} />
               <span className="faq__plus">{open === i ? '−' : '+'}</span>
             </button>
             <div className="faq__a">
-              <p>{f.a}</p>
+              <E tag="p" value={cfg[f.aKey]} fieldKey={f.aKey} editMode={editMode} onSave={onSave} />
             </div>
           </div>
         ))}
@@ -546,6 +564,8 @@ function FAQ() {
    FOOTER
    ============================================================ */
 function Footer() {
+  const { editMode, cfg, onSave } = React.useContext(window.EditCtx);
+  const E = window.EditableText;
   return (
     <footer className="footer">
       <div className="footer__top">
@@ -553,9 +573,9 @@ function Footer() {
           <img src={(window.__resources && window.__resources.trentLogo) || "assets/trent-logo.png"} alt="TRENT Clothing" />
         </div>
         <div className="footer__cta">
-          <div className="footer__cta-line">¿Listo para</div>
-          <div className="footer__cta-line footer__cta-line--big">PILLAR DROPS?</div>
-          <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer" className="btn btn--primary btn--lg">Entrar al Telegram →</a>
+          <E tag="div" className="footer__cta-line" value={cfg.footerCta1} fieldKey="footerCta1" editMode={editMode} onSave={onSave} />
+          <E tag="div" className="footer__cta-line footer__cta-line--big" value={cfg.footerCta2} fieldKey="footerCta2" editMode={editMode} onSave={onSave} />
+          <a href={cfg.telegramLink} target="_blank" rel="noreferrer" className="btn btn--primary btn--lg">Entrar al Telegram →</a>
         </div>
       </div>
       <div className="footer__cols">
