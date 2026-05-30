@@ -109,14 +109,15 @@ function Navbar({ onScrollTo }) {
 /* ============================================================
    HERO
    ============================================================ */
-function Hero({ heroCopy, onScrollTo, palette }) {
+function Hero({ cfg, onScrollTo, palette, editMode, onSave }) {
+  const E = window.EditableText;
   return (
     <header id="top" className="hero">
       <div className="hero__grid">
         <div className="hero__left">
           <div className="hero__eyebrow">
             <span className="dot dot--live"></span>
-            Drops nuevos cada día · Código bienvenida −14%
+            Drops nuevos cada día · Código bienvenida −{cfg.discountPct}%
           </div>
           <h1 className="hero__title">
             <span className="hero__title-line">VISTE</span>
@@ -124,9 +125,9 @@ function Hero({ heroCopy, onScrollTo, palette }) {
             <span className="hero__title-line">PAGA</span>
             <span className="hero__title-line hero__title-line--outline">MENOS.</span>
           </h1>
-          <p className="hero__sub">{heroCopy}</p>
+          <E tag="p" className="hero__sub" value={cfg.heroCopy} fieldKey="heroCopy" editMode={editMode} onSave={onSave} />
           <div className="hero__ctas">
-            <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer" className="btn btn--primary btn--lg">
+            <a href={cfg.telegramLink} target="_blank" rel="noreferrer" className="btn btn--primary btn--lg">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
               Ver catálogo en Telegram
             </a>
@@ -137,16 +138,16 @@ function Hero({ heroCopy, onScrollTo, palette }) {
           </div>
           <div className="hero__metrics">
             <div className="metric">
-              <div className="metric__num">+340</div>
-              <div className="metric__lbl">Prendas activas</div>
+              <E className="metric__num" value={cfg.metric1Num} fieldKey="metric1Num" editMode={editMode} onSave={onSave} />
+              <E className="metric__lbl" value={cfg.metric1Lbl} fieldKey="metric1Lbl" editMode={editMode} onSave={onSave} />
             </div>
             <div className="metric metric--accent">
-              <div className="metric__num">−14%</div>
-              <div className="metric__lbl">1ª compra · TRENT14</div>
+              <E className="metric__num" value={cfg.metric2Num} fieldKey="metric2Num" editMode={editMode} onSave={onSave} />
+              <E className="metric__lbl" value={cfg.metric2Lbl} fieldKey="metric2Lbl" editMode={editMode} onSave={onSave} />
             </div>
             <div className="metric">
-              <div className="metric__num">7–15<span style={{ fontSize: '0.5em' }}>d</span></div>
-              <div className="metric__lbl">Entrega media</div>
+              <E className="metric__num" value={cfg.metric3Num} fieldKey="metric3Num" editMode={editMode} onSave={onSave} />
+              <E className="metric__lbl" value={cfg.metric3Lbl} fieldKey="metric3Lbl" editMode={editMode} onSave={onSave} />
             </div>
           </div>
         </div>
@@ -171,8 +172,8 @@ function Hero({ heroCopy, onScrollTo, palette }) {
             <div className="hero__code-row">
               <span className="hero__code-gift">🎁</span>
               <div className="hero__code-stack">
-                <div className="hero__code-val">TRENT14</div>
-                <div className="hero__code-sub">−14% en tu 1ª compra</div>
+                <E className="hero__code-val" value={cfg.discountCode} fieldKey="discountCode" editMode={editMode} onSave={onSave} />
+                <E className="hero__code-sub" value={`−${cfg.discountPct}% en tu 1ª compra`} fieldKey="discountPct" editMode={editMode} onSave={onSave} />
               </div>
             </div>
           </div>
