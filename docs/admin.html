@@ -68,6 +68,19 @@
     .theme-preview{height:36px}
     .theme-label{padding:5px 6px;font-size:11px;font-weight:600;text-align:center;background:#fff}
 
+    /* PRODUCTS GRID */
+    .prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;margin-top:16px}
+    .prod-card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;position:relative;transition:box-shadow .15s}
+    .prod-card:hover{box-shadow:0 4px 20px rgba(0,0,0,.10)}
+    .prod-card img{width:100%;height:160px;object-fit:cover;display:block;background:#eee}
+    .prod-card__body{padding:10px 12px 12px}
+    .prod-card__name{font-size:13px;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .prod-card__price{font-size:12px;color:var(--mute)}
+    .prod-card__del{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(230,58,46,.9);color:#fff;border:none;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s}
+    .prod-card:hover .prod-card__del{opacity:1}
+    .prod-empty{color:var(--mute);font-size:14px;padding:24px 0}
+    .prod-loading{color:var(--mute);font-size:14px;padding:24px 0}
+
     /* SAVE FOOTER */
     .save-footer{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:flex-end;gap:16px;z-index:90}
     #save-status{font-size:13px;color:var(--mute)}
@@ -105,7 +118,8 @@
 
   <div class="admin-body">
     <nav class="admin-nav">
-      <a href="#aparenca" class="nav-item active">🎨 Aparença</a>
+      <a href="#productos" class="nav-item active">🛍️ Productos</a>
+      <a href="#aparenca" class="nav-item">🎨 Aparença</a>
       <a href="#hero" class="nav-item">🏠 Hero</a>
       <a href="#descompte" class="nav-item">🎁 Descompte</a>
       <a href="#metriques" class="nav-item">📊 Mètriques</a>
@@ -115,6 +129,15 @@
     </nav>
 
     <main class="admin-content">
+
+      <!-- PRODUCTOS -->
+      <section id="productos" class="admin-section">
+        <h3>🛍️ Productos del catálogo</h3>
+        <p class="section-desc">Estos son los productos publicados por el bot. Pasa el ratón encima y pulsa la ✕ para eliminar.</p>
+        <div id="prod-grid" class="prod-grid">
+          <div class="prod-loading">Cargando productos…</div>
+        </div>
+      </section>
 
       <!-- APARENÇA -->
       <section id="aparenca" class="admin-section">
@@ -324,6 +347,46 @@
     document.getElementById('login').style.display = 'none';
     document.getElementById('admin').style.display = 'block';
     loadConfig();
+    loadProducts();
+  }
+
+  function loadProducts() {
+    const grid = document.getElementById('prod-grid');
+    db.collection('products').orderBy('data', 'desc').onSnapshot(snap => {
+      if (snap.empty) {
+        grid.innerHTML = '<div class="prod-empty">Aún no hay productos. El bot los añadirá automáticamente.</div>';
+        return;
+      }
+      grid.innerHTML = '';
+      snap.docs.forEach(doc => {
+        const p = doc.data();
+        const name = p.nom || p.name || '—';
+        const price = p.preu || p.price || '';
+        const img = p.imatge || p.image_url || '';
+        const card = document.createElement('div');
+        card.className = 'prod-card';
+        card.innerHTML = `
+          ${img ? `<img src="${img}" alt="${name}" />` : `<div style="height:160px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa">Sin imagen</div>`}
+          <div class="prod-card__body">
+            <div class="prod-card__name" title="${name}">${name}</div>
+            <div class="prod-card__price">${price}</div>
+          </div>
+          <button class="prod-card__del" title="Eliminar" onclick="deleteProduct('${doc.id}', '${name.replace(/'/g,"\\'")}')">✕</button>
+        `;
+        grid.appendChild(card);
+      });
+    }, () => {
+      grid.innerHTML = '<div class="prod-empty">Error cargando productos.</div>';
+    });
+  }
+
+  async function deleteProduct(id, name) {
+    if (!confirm(`¿Eliminar "${name}" del catálogo?`)) return;
+    try {
+      await db.collection('products').doc(id).delete();
+    } catch(e) {
+      alert('Error al eliminar: ' + e.message);
+    }
   }
 
   async function loadConfig() {
