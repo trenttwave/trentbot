@@ -78,7 +78,7 @@ function Marquee({ items = [], speed = 30 }) {
 /* ============================================================
    NAVBAR
    ============================================================ */
-function Navbar({ onScrollTo, telegramLink = 'https://t.me/trentthacoo' }) {
+function Navbar({ onScrollTo }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20);
@@ -98,7 +98,7 @@ function Navbar({ onScrollTo, telegramLink = 'https://t.me/trentthacoo' }) {
         <li><a href="#guides" onClick={(e) => { e.preventDefault(); onScrollTo('guides'); }}>Guías</a></li>
         <li><a href="#faq" onClick={(e) => { e.preventDefault(); onScrollTo('faq'); }}>FAQ</a></li>
       </ul>
-      <a href={telegramLink} target="_blank" rel="noreferrer" className="btn btn--primary nav__cta">
+      <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer" className="btn btn--primary nav__cta">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
         Entrar al canal
       </a>
@@ -109,21 +109,14 @@ function Navbar({ onScrollTo, telegramLink = 'https://t.me/trentthacoo' }) {
 /* ============================================================
    HERO
    ============================================================ */
-function Hero({ heroCopy, onScrollTo, palette, config = {} }) {
-  const {
-    discountCode = 'TRENT14', discountPct = '14',
-    metric1Num = '+340', metric1Lbl = 'Prendas activas',
-    metric2Num = '−14%', metric2Lbl = '1ª compra · TRENT14',
-    metric3Num = '7–15', metric3Lbl = 'Entrega media',
-    telegramLink = 'https://t.me/trentthacoo',
-  } = config;
+function Hero({ heroCopy, onScrollTo, palette }) {
   return (
     <header id="top" className="hero">
       <div className="hero__grid">
         <div className="hero__left">
           <div className="hero__eyebrow">
             <span className="dot dot--live"></span>
-            Drops nuevos cada día · Código bienvenida −{discountPct}%
+            Drops nuevos cada día · Código bienvenida −14%
           </div>
           <h1 className="hero__title">
             <span className="hero__title-line">VISTE</span>
@@ -133,7 +126,7 @@ function Hero({ heroCopy, onScrollTo, palette, config = {} }) {
           </h1>
           <p className="hero__sub">{heroCopy}</p>
           <div className="hero__ctas">
-            <a href={telegramLink} target="_blank" rel="noreferrer" className="btn btn--primary btn--lg">
+            <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer" className="btn btn--primary btn--lg">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
               Ver catálogo en Telegram
             </a>
@@ -144,16 +137,16 @@ function Hero({ heroCopy, onScrollTo, palette, config = {} }) {
           </div>
           <div className="hero__metrics">
             <div className="metric">
-              <div className="metric__num">{metric1Num}</div>
-              <div className="metric__lbl">{metric1Lbl}</div>
+              <div className="metric__num">+340</div>
+              <div className="metric__lbl">Prendas activas</div>
             </div>
             <div className="metric metric--accent">
-              <div className="metric__num">{metric2Num}</div>
-              <div className="metric__lbl">{metric2Lbl}</div>
+              <div className="metric__num">−14%</div>
+              <div className="metric__lbl">1ª compra · TRENT14</div>
             </div>
             <div className="metric">
-              <div className="metric__num">{metric3Num}<span style={{ fontSize: '0.5em' }}>d</span></div>
-              <div className="metric__lbl">{metric3Lbl}</div>
+              <div className="metric__num">7–15<span style={{ fontSize: '0.5em' }}>d</span></div>
+              <div className="metric__lbl">Entrega media</div>
             </div>
           </div>
         </div>
@@ -178,8 +171,8 @@ function Hero({ heroCopy, onScrollTo, palette, config = {} }) {
             <div className="hero__code-row">
               <span className="hero__code-gift">🎁</span>
               <div className="hero__code-stack">
-                <div className="hero__code-val">{discountCode}</div>
-                <div className="hero__code-sub">−{discountPct}% en tu 1ª compra</div>
+                <div className="hero__code-val">TRENT14</div>
+                <div className="hero__code-sub">−14% en tu 1ª compra</div>
               </div>
             </div>
           </div>
@@ -231,38 +224,11 @@ function HowToBuy() {
    CATÁLOGO — filtros + grid + wishlist + paginación
    ============================================================ */
 function Catalog({ density, palette }) {
-  const staticProducts = window.TRENT_DATA.products;
-  const [botProducts, setBotProducts] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const categories = window.TRENT_DATA.categories;
   const brands = window.TRENT_DATA.brands;
   const itemsPerPage = density === 'compact' ? 20 : density === 'comfy' ? 12 : 16;
-
-  useEffect(() => {
-    const db = window._firebaseDB;
-    if (!db) return;
-    const unsub = db.collection('products').orderBy('data', 'desc').onSnapshot((snap) => {
-      setBotProducts(snap.docs.map((doc) => {
-        const d = doc.data();
-        return {
-          id: 'fb-' + doc.id,
-          name: d.nom || '',
-          cat: 'Hacoo',
-          brand: d.marca || 'Hacoo',
-          price: d.preu || '',
-          colors: d.colors || '',
-          hot: true,
-          drop: 'NEW',
-          stripe: '#1E3FBE',
-          bg: '#ECECEC',
-          image: d.imatge || '',
-          url: d.link_afiliats || '',
-        };
-      }));
-    }, () => {});
-    return () => unsub();
-  }, []);
-
-  const products = [...botProducts, ...staticProducts];
 
   const [cat, setCat] = useState('Todo');
   const [brand, setBrand] = useState('Todas');
@@ -274,30 +240,36 @@ function Catalog({ density, palette }) {
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
+    if (!window._db) { setLoading(false); return; }
+    const unsub = window._db.collection('products')
+      .orderBy('data', 'desc')
+      .onSnapshot((snap) => {
+        const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setProducts(docs);
+        setLoading(false);
+      }, () => setLoading(false));
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('trent_wishlist', JSON.stringify(wishlist));
   }, [wishlist]);
 
   const filtered = useMemo(() => {
     return products.filter((p) => {
-      if (cat !== 'Todo' && p.cat !== cat) return false;
-      if (brand !== 'Todas' && p.brand !== brand) return false;
-      if (q && !p.name.toLowerCase().includes(q.toLowerCase())) return false;
+      const name = p.nom || p.name || '';
+      const brandVal = p.marca || p.brand || '';
+      if (brand !== 'Todas' && brandVal !== brand) return false;
+      if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     });
-  }, [products, cat, brand, q]);
+  }, [products, brand, q]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
   const toggleWish = (id) => {
     setWishlist((w) => w.includes(id) ? w.filter((x) => x !== id) : [...w, id]);
-  };
-
-  const copyLink = (p) => {
-    const link = p.url || `https://t.me/trentthacoo/${p.id}`;
-    try { navigator.clipboard.writeText(link); } catch {}
-    setToast(`Link copiado · ${p.name}`);
-    setTimeout(() => setToast(null), 1800);
   };
 
   const resetPagination = () => setPage(1);
@@ -308,7 +280,7 @@ function Catalog({ density, palette }) {
         <div>
           <div className="section__eyebrow">[ 02 ] CATÁLOGO</div>
           <h2 className="section__title">Prendas <em>seleccionadas</em>.</h2>
-          <p className="section__lead">{filtered.length} prendas disponibles. Filtra por categoría y marca o busca por nombre.</p>
+          <p className="section__lead">{loading ? 'Cargando…' : `${filtered.length} prendas disponibles.`} Filtra por marca o busca por nombre.</p>
         </div>
         <div className="catalog__search">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
@@ -318,16 +290,6 @@ function Catalog({ density, palette }) {
       </div>
 
       <div className="catalog__filters">
-        <div className="filter-group">
-          <span className="filter-label">Categoría</span>
-          <div className="chips">
-            {categories.map((c) => (
-              <button key={c} className={`chip ${cat === c ? 'chip--active' : ''}`} onClick={() => { setCat(c); resetPagination(); }}>
-                {c}
-              </button>
-            ))}
-          </div>
-        </div>
         <div className="filter-group">
           <span className="filter-label">Marca</span>
           <div className="chips">
@@ -347,44 +309,54 @@ function Catalog({ density, palette }) {
       )}
 
       <div className="grid">
-        {paginated.map((p) => (
-          <article key={p.id} className={`card ${p.hot ? 'card--hot' : ''}`}>
-            <div className="card__img" style={p.image ? { aspectRatio: 'unset', height: 'auto' } : {}}>
-              {p.image
-                ? <img src={p.image} alt={p.name} style={{ width: '100%', height: 'auto', display: 'block' }} />
-                : <ProductPlaceholder stripe={p.stripe} bg={p.bg} label={p.name} drop={p.drop} />
-              }
-              <button
-                className={`card__wish ${wishlist.includes(p.id) ? 'card__wish--on' : ''}`}
-                onClick={() => toggleWish(p.id)}
-                aria-label="Guardar"
-              >
-                {wishlist.includes(p.id) ? '♥' : '♡'}
-              </button>
-            </div>
-            <div className="card__body">
-              <div className="card__row">
-                <div className="card__cat">{p.brand}</div>
-                <div className="card__price">{p.price}</div>
-              </div>
-              <h3 className="card__name">{p.name}</h3>
-              <div className="card__sub">{p.colors ? `${p.colors} colores 🎨` : p.cat}</div>
-              <div className="card__actions">
-                <a href={p.url || 'https://t.me/trentthacoo'} target="_blank" rel="noreferrer" className="card__btn card__btn--primary"
-                   onClick={() => window.gtag && window.gtag('event', 'comprar_click', { product_name: p.name, product_brand: p.brand, product_price: p.price })}>
-                  Comprar →
-                </a>
-                <button className="card__btn card__btn--ghost" onClick={() => copyLink(p)} title="Copiar link">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        {loading && (
+          <div className="empty">
+            <div className="empty__big">Cargando productos…</div>
+          </div>
+        )}
+        {!loading && paginated.map((p) => {
+          const name = p.nom || p.name || '';
+          const price = p.preu || p.price || '';
+          const brand = p.marca || p.brand || '';
+          const imgUrl = p.imatge || p.image_url || '';
+          const link = p.link_afiliats || p.link || 'https://t.me/trentthacoo';
+          return (
+            <article key={p.id} className="card">
+              <div className="card__img">
+                {imgUrl
+                  ? <img src={imgUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  : <ProductPlaceholder stripe="#1E3FBE" bg="#ECECEC" label={name} />
+                }
+                <button
+                  className={`card__wish ${wishlist.includes(p.id) ? 'card__wish--on' : ''}`}
+                  onClick={() => toggleWish(p.id)}
+                  aria-label="Guardar"
+                >
+                  {wishlist.includes(p.id) ? '♥' : '♡'}
                 </button>
               </div>
-            </div>
-          </article>
-        ))}
-        {filtered.length === 0 && (
+              <div className="card__body">
+                <div className="card__row">
+                  <div className="card__cat">{brand}</div>
+                  <div className="card__price">{price}</div>
+                </div>
+                <h3 className="card__name">{name}</h3>
+                <div className="card__actions">
+                  <a href={link} target="_blank" rel="noreferrer" className="card__btn card__btn--primary">
+                    Comprar →
+                  </a>
+                  <button className="card__btn card__btn--ghost" onClick={() => { try { navigator.clipboard.writeText(link); } catch {} setToast(`Link copiado · ${name}`); setTimeout(() => setToast(null), 1800); }} title="Copiar link">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+        {!loading && filtered.length === 0 && (
           <div className="empty">
-            <div className="empty__big">Sin resultados</div>
-            <div className="empty__sub">Intenta con otro filtro o búsqueda.</div>
+            <div className="empty__big">{products.length === 0 ? 'Aún no hay productos' : 'Sin resultados'}</div>
+            <div className="empty__sub">{products.length === 0 ? 'Los productos aparecerán aquí cuando el bot publique en el canal.' : 'Intenta con otro filtro o búsqueda.'}</div>
           </div>
         )}
       </div>
@@ -407,7 +379,7 @@ function Catalog({ density, palette }) {
 /* ============================================================
    TELEGRAM block
    ============================================================ */
-function TelegramBlock({ telegramLink = 'https://t.me/trentthacoo', members = '12.4k miembros · activos hoy' }) {
+function TelegramBlock() {
   const benefits = [
     { ic: '📌', t: 'Links organizados por categoría', s: 'Sneakers, hoodies, cargos… cada uno con su carpeta. Sin scroll infinito.' },
     { ic: '⚡', t: 'Drops en directo', s: 'Cuando encuentro algo bueno, te llega al móvil. Lo pillas antes que nadie.' },
@@ -426,11 +398,11 @@ function TelegramBlock({ telegramLink = 'https://t.me/trentthacoo', members = '1
           <p className="section__lead section__lead--light">
             Es el canal donde publicó cada día los enlaces directos a las prendas. De la inspiración a tu carrito en 1 toque.
           </p>
-          <a href={telegramLink} target="_blank" rel="noreferrer" className="btn btn--invert btn--lg">
+          <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer" className="btn btn--invert btn--lg">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
-            {telegramLink.replace('https://', '')}
+            t.me/trentthacoo
           </a>
-          <div className="telegram__handle">{members}</div>
+          <div className="telegram__handle">12.4k miembros · activos hoy</div>
         </div>
         <div className="telegram__right">
           {benefits.map((b, i) => (

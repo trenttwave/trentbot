@@ -1,27 +1,11 @@
-// TRENT — App principal
+// TRENT — App principal con Tweaks
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "primaryColor": "#1E3FBE",
   "bgMode": "warm",
   "density": "regular",
   "displayFont": "Archivo Black",
-  "heroCopy": "Prendas seleccionadas cada día. Descarga la app, entra al Telegram, encuentra tu estilo, aplica TRENT14 y compra.",
-  "discountCode": "TRENT14",
-  "discountPct": "14",
-  "metric1Num": "+340",
-  "metric1Lbl": "Prendas activas",
-  "metric2Num": "−14%",
-  "metric2Lbl": "1ª compra · TRENT14",
-  "metric3Num": "7–15",
-  "metric3Lbl": "Entrega media",
-  "telegramLink": "https://t.me/trentthacoo",
-  "telegramMembers": "12.4k miembros · activos hoy",
-  "marquee1": "NUEVOS LINKS CADA DÍA",
-  "marquee2": "ENVÍO 7–15 DÍAS",
-  "marquee3": "SUB 20€ MAYORÍA",
-  "marquee4": "SOPORTE 1 A 1 EN TELEGRAM",
-  "marquee5": "SIN PASARELAS RAROS",
-  "marquee6": "GUÍAS DE TALLAS"
+  "heroCopy": "Prendas seleccionadas cada día. Descarga la app, entra al Telegram, encuentra tu estilo, aplica TRENT14 y compra."
 }/*EDITMODE-END*/;
 
 const BG_THEMES = {
@@ -41,25 +25,10 @@ const FONT_STACKS = {
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
-  // Load config from Firestore and apply (live updates)
-  useEffect(() => {
-    const db = window._firebaseDB;
-    if (!db) return;
-    const unsub = db.collection('config').doc('site').onSnapshot((doc) => {
-      if (!doc.exists) return;
-      const data = doc.data();
-      const updates = {};
-      Object.keys(TWEAK_DEFAULTS).forEach(key => {
-        if (data[key] !== undefined) updates[key] = data[key];
-      });
-      if (Object.keys(updates).length > 0) setTweak(updates);
-    }, () => {});
-    return () => unsub();
-  }, []);
-
   const theme = BG_THEMES[t.bgMode] || BG_THEMES.warm;
   const palette = { primary: t.primaryColor, ...theme };
 
+  // expose CSS variables for the page
   useEffect(() => {
     const r = document.documentElement;
     r.style.setProperty('--c-primary', t.primaryColor);
@@ -84,29 +53,23 @@ function App() {
     }
   };
 
-  const marqueeItems = [t.marquee1, t.marquee2, t.marquee3, t.marquee4, t.marquee5, t.marquee6].filter(Boolean);
-
-  const config = {
-    discountCode: t.discountCode,
-    discountPct: t.discountPct,
-    metric1Num: t.metric1Num,
-    metric1Lbl: t.metric1Lbl,
-    metric2Num: t.metric2Num,
-    metric2Lbl: t.metric2Lbl,
-    metric3Num: t.metric3Num,
-    metric3Lbl: t.metric3Lbl,
-    telegramLink: t.telegramLink,
-    telegramMembers: t.telegramMembers,
-  };
+  const marqueeItems = [
+    'NUEVOS LINKS CADA DÍA',
+    'ENVÍO 7–15 DÍAS',
+    'SUB 20€ MAYORÍA',
+    'SOPORTE 1 A 1 EN TELEGRAM',
+    'SIN PASARELAS RAROS',
+    'GUÍAS DE TALLAS',
+  ];
 
   return (
     <div className="page">
-      <Navbar onScrollTo={scrollTo} telegramLink={t.telegramLink} />
-      <Hero heroCopy={t.heroCopy} onScrollTo={scrollTo} palette={palette} config={config} />
+      <Navbar onScrollTo={scrollTo} />
+      <Hero heroCopy={t.heroCopy} onScrollTo={scrollTo} palette={palette} />
       <Marquee items={marqueeItems} />
       <HowToBuy />
       <Catalog density={t.density} palette={palette} />
-      <TelegramBlock telegramLink={t.telegramLink} members={t.telegramMembers} />
+      <TelegramBlock />
       <Guides />
       <FAQ />
       <Footer />

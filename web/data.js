@@ -105,6 +105,6 @@ window.TRENT_DATA = {
     { q: '¿Hay más códigos además de TRENT14?', a: 'TRENT14 es el código de bienvenida. Síguenos en Telegram para ofertas exclusivas y códigos sorpresa.' },
   ],
 
-  categories: ['Todo', 'Hacoo', 'Sneakers', 'Sudaderas', 'Camisetas', 'Pantalones', 'Chaquetas', 'Bolsos', 'Accesorios'],
-  brands: ['Todas', 'Hacoo', 'TRENT', 'Nike', 'Adidas', 'Puma', 'Stüssy', 'Carhartt'],
+  categories: ['Todo', 'Sneakers', 'Sudaderas', 'Camisetas', 'Pantalones', 'Chaquetas', 'Bolsos', 'Accesorios'],
+  brands: ['Todas', 'TRENT', 'Nike', 'Adidas', 'Puma', 'Stüssy', 'Carhartt'],
 };
