@@ -68,6 +68,12 @@
     .theme-preview{height:36px}
     .theme-label{padding:5px 6px;font-size:11px;font-weight:600;text-align:center;background:#fff}
 
+    /* EDITOR IFRAME */
+    #editor { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
+    .editor-wrap { position: relative; border: 2px solid var(--primary); border-radius: 12px; overflow: hidden; margin-top: 12px; }
+    .editor-wrap iframe { display: block; width: 100%; height: 70vh; border: none; }
+    .editor-hint { display: flex; align-items: center; gap: 8px; background: #EEF2FF; border: 1px solid #C7D2FE; border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #3730A3; margin-bottom: 12px; }
+
     /* PRODUCTS GRID */
     .prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;margin-top:16px}
     .prod-card{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;overflow:hidden;position:relative;transition:box-shadow .15s}
@@ -118,7 +124,8 @@
 
   <div class="admin-body">
     <nav class="admin-nav">
-      <a href="#productos" class="nav-item active">🛍️ Productos</a>
+      <a href="#editor" class="nav-item active">🖊️ Editar web</a>
+      <a href="#productos" class="nav-item">🛍️ Productos</a>
       <a href="#aparenca" class="nav-item">🎨 Aparença</a>
       <a href="#hero" class="nav-item">🏠 Hero</a>
       <a href="#descompte" class="nav-item">🎁 Descompte</a>
@@ -129,6 +136,18 @@
     </nav>
 
     <main class="admin-content">
+
+      <!-- EDITOR EN VIVO -->
+      <section id="editor" class="admin-section">
+        <h3>🖊️ Editar web en vivo</h3>
+        <p class="section-desc">Haz clic directamente sobre cualquier texto de la web para editarlo. Los cambios se guardan solos.</p>
+        <div class="editor-hint">
+          ✏️ <span>Haz clic en cualquier texto con <strong>borde azul punteado</strong> para editarlo directamente.</span>
+        </div>
+        <div class="editor-wrap">
+          <iframe src="index.html?edit=1" id="live-editor-frame"></iframe>
+        </div>
+      </section>
 
       <!-- PRODUCTOS -->
       <section id="productos" class="admin-section">

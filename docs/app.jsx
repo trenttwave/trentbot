@@ -77,10 +77,8 @@ window.EditableText = EditableText;
 // ── App ───────────────────────────────────────────────────────
 function App() {
   const [cfg, setCfg] = useState(DEFAULTS);
-  const [editMode, setEditMode] = useState(false);
-  const [showPwd, setShowPwd] = useState(false);
-  const [pwd, setPwd] = useState('');
-  const [pwdErr, setPwdErr] = useState('');
+  const inEditFrame = new URLSearchParams(location.search).get('edit') === '1';
+  const [editMode, setEditMode] = useState(inEditFrame);
   const [savedKey, setSavedKey] = useState(null);
 
   // Cargar config de Firestore
@@ -120,23 +118,7 @@ function App() {
     } catch(e) { console.error('saveField error', e); }
   };
 
-  // Login edit mode
-  const tryLogin = async () => {
-    setPwdErr('');
-    if (!pwd) { setPwdErr('Escribe la contraseña'); return; }
-    const DEFAULT_PWD = 'trent2026';
-    try {
-      const doc = await window._db.collection('config').doc('admin').get();
-      const stored = (doc.exists() && doc.data().password) ? doc.data().password : DEFAULT_PWD;
-      if (pwd === stored) { setEditMode(true); setShowPwd(false); setPwd(''); }
-      else setPwdErr('Contraseña incorrecta');
-    } catch {
-      if (pwd === DEFAULT_PWD) { setEditMode(true); setShowPwd(false); setPwd(''); }
-      else setPwdErr('Error de conexión');
-    }
-  };
-
-  const scrollTo = (id) => {
+const scrollTo = (id) => {
     const el = id === 'top' ? document.body : document.getElementById(id);
     if (!el) return;
     if (id === 'top') window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -157,74 +139,6 @@ function App() {
       <FAQ />
       <Footer />
 
-      {/* Botón flotante editar */}
-      {!editMode && (
-        <button
-          onClick={() => setShowPwd(true)}
-          style={{
-            position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
-            background: '#1E3FBE', color: '#fff', border: 'none',
-            borderRadius: 50, padding: '12px 20px', fontFamily: 'inherit',
-            fontSize: 14, fontWeight: 600, cursor: 'pointer',
-            boxShadow: '0 4px 20px rgba(30,63,190,.4)',
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}
-        >
-          ✏️ Editar web
-        </button>
-      )}
-
-      {editMode && (
-        <div style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
-          background: '#1E3FBE', color: '#fff',
-          borderRadius: 12, padding: '10px 18px',
-          fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-          boxShadow: '0 4px 20px rgba(30,63,190,.4)',
-          display: 'flex', alignItems: 'center', gap: 12,
-        }}>
-          {savedKey ? '✅ Guardado' : '✏️ Modo edición — haz clic en cualquier texto'}
-          <button onClick={() => setEditMode(false)} style={{
-            background: 'rgba(255,255,255,.2)', border: 'none', color: '#fff',
-            borderRadius: 8, padding: '4px 10px', fontFamily: 'inherit',
-            fontSize: 12, cursor: 'pointer',
-          }}>Salir</button>
-        </div>
-      )}
-
-      {/* Modal contraseña */}
-      {showPwd && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)',
-          zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }} onClick={() => setShowPwd(false)}>
-          <div style={{
-            background: '#fff', borderRadius: 16, padding: 32, width: 320,
-            boxShadow: '0 20px 60px rgba(0,0,0,.2)',
-          }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 16 }}>Acceso editor</div>
-            <input
-              type="password"
-              placeholder="Contraseña"
-              value={pwd}
-              onChange={e => setPwd(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && tryLogin()}
-              autoFocus
-              style={{
-                width: '100%', padding: '10px 12px', borderRadius: 8,
-                border: '1.5px solid #D6D5D0', fontFamily: 'inherit',
-                fontSize: 14, outline: 'none', marginBottom: 8, boxSizing: 'border-box',
-              }}
-            />
-            {pwdErr && <div style={{ color: '#E63A2E', fontSize: 13, marginBottom: 8 }}>{pwdErr}</div>}
-            <button onClick={tryLogin} style={{
-              width: '100%', padding: '11px', background: '#1E3FBE', color: '#fff',
-              border: 'none', borderRadius: 8, fontFamily: 'inherit',
-              fontSize: 14, fontWeight: 600, cursor: 'pointer',
-            }}>Entrar</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
