@@ -352,7 +352,7 @@
 
   function loadProducts() {
     const grid = document.getElementById('prod-grid');
-    db.collection('products').orderBy('data', 'desc').onSnapshot(snap => {
+    db.collection('products').onSnapshot(snap => {
       if (snap.empty) {
         grid.innerHTML = '<div class="prod-empty">Aún no hay productos. El bot los añadirá automáticamente.</div>';
         return;
