@@ -95,7 +95,18 @@
     .prod-empty{color:var(--mute);font-size:14px;padding:24px 0}
     .prod-loading{color:var(--mute);font-size:14px;padding:24px 0}
 
-    /* SAVE FOOTER */
+    .prod-card__edit { position: absolute; top: 8px; left: 8px; background: rgba(30,63,190,.9); color: #fff; border: none; border-radius: 6px; padding: 4px 10px; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; opacity: 0; transition: opacity .15s; }
+    .prod-card:hover .prod-card__edit { opacity: 1; }
+
+    /* EDIT MODAL */
+    #edit-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 9999; align-items: center; justify-content: center; }
+    #edit-modal.open { display: flex; }
+    .edit-modal-box { background: #fff; border-radius: 16px; padding: 28px; width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,.2); }
+    .edit-modal-box h3 { font-size: 17px; font-weight: 700; margin-bottom: 20px; }
+    .edit-modal-img { width: 100%; height: 180px; object-fit: cover; border-radius: 10px; margin-bottom: 16px; background: #eee; display: block; }
+    .edit-modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .btn-edit-save { flex: 1; padding: 11px; background: #1E3FBE; color: #fff; border: none; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-edit-cancel { padding: 11px 18px; border: 1.5px solid #D6D5D0; border-radius: 8px; font: inherit; font-size: 14px; cursor: pointer; background: #fff; }
     .save-footer{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:flex-end;gap:16px;z-index:90}
     #save-status{font-size:13px;color:var(--mute)}
     #save-status.ok{color:#1F8A5B}
@@ -335,6 +346,40 @@
   </div>
 </div>
 
+<!-- MODAL EDITAR PRODUCTO -->
+<div id="edit-modal">
+  <div class="edit-modal-box">
+    <h3>✏️ Editar producto</h3>
+    <img id="edit-img-preview" class="edit-modal-img" src="" alt="" />
+    <div class="field">
+      <label>Foto (URL)</label>
+      <input type="text" id="edit-img" oninput="document.getElementById('edit-img-preview').src=this.value" />
+    </div>
+    <div class="field">
+      <label>Nombre</label>
+      <input type="text" id="edit-name" />
+    </div>
+    <div class="fields-row">
+      <div class="field">
+        <label>Precio</label>
+        <input type="text" id="edit-price" />
+      </div>
+      <div class="field">
+        <label>Marca</label>
+        <input type="text" id="edit-brand" />
+      </div>
+    </div>
+    <div class="field">
+      <label>Link de afiliado</label>
+      <input type="text" id="edit-link" />
+    </div>
+    <div class="edit-modal-actions">
+      <button class="btn-edit-cancel" onclick="closeEditModal()">Cancelar</button>
+      <button class="btn-edit-save" onclick="saveEditModal()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- EDITOR FULLSCREEN OVERLAY -->
 <div id="editor-overlay">
   <div class="editor-overlay-bar">
@@ -387,6 +432,8 @@
     loadProducts();
   }
 
+  let _currentEditId = null;
+
   function loadProducts() {
     const grid = document.getElementById('prod-grid');
     db.collection('products').onSnapshot(snap => {
@@ -399,7 +446,10 @@
         const p = doc.data();
         const name = p.nom || p.name || '—';
         const price = p.preu || p.price || '';
+        const brand = p.marca || p.brand || '';
         const img = p.imatge || p.image_url || '';
+        const link = p.link_afiliats || p.link || '';
+        const safeId = doc.id;
         const card = document.createElement('div');
         card.className = 'prod-card';
         card.innerHTML = `
@@ -408,14 +458,55 @@
             <div class="prod-card__name" title="${name}">${name}</div>
             <div class="prod-card__price">${price}</div>
           </div>
-          <button class="prod-card__del" title="Eliminar" onclick="deleteProduct('${doc.id}', '${name.replace(/'/g,"\\'")}')">✕</button>
+          <button class="prod-card__edit" title="Editar">✏️ Editar</button>
+          <button class="prod-card__del" title="Eliminar" onclick="deleteProduct('${safeId}', '${name.replace(/'/g,"\\'")}')">✕</button>
         `;
+        card.querySelector('.prod-card__edit').addEventListener('click', () => {
+          openEditModal(safeId, { nom: name, preu: price, marca: brand, imatge: img, link_afiliats: link });
+        });
         grid.appendChild(card);
       });
     }, () => {
       grid.innerHTML = '<div class="prod-empty">Error cargando productos.</div>';
     });
   }
+
+  function openEditModal(id, data) {
+    _currentEditId = id;
+    document.getElementById('edit-img').value = data.imatge || '';
+    document.getElementById('edit-img-preview').src = data.imatge || '';
+    document.getElementById('edit-name').value = data.nom || '';
+    document.getElementById('edit-price').value = data.preu || '';
+    document.getElementById('edit-brand').value = data.marca || '';
+    document.getElementById('edit-link').value = data.link_afiliats || '';
+    document.getElementById('edit-modal').classList.add('open');
+  }
+
+  function closeEditModal() {
+    document.getElementById('edit-modal').classList.remove('open');
+    _currentEditId = null;
+  }
+
+  async function saveEditModal() {
+    if (!_currentEditId) return;
+    const updates = {
+      imatge: document.getElementById('edit-img').value.trim(),
+      nom:    document.getElementById('edit-name').value.trim(),
+      preu:   document.getElementById('edit-price').value.trim(),
+      marca:  document.getElementById('edit-brand').value.trim(),
+      link_afiliats: document.getElementById('edit-link').value.trim(),
+    };
+    try {
+      await db.collection('products').doc(_currentEditId).update(updates);
+      closeEditModal();
+    } catch(e) {
+      alert('Error al guardar: ' + e.message);
+    }
+  }
+
+  document.getElementById('edit-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
+  });
 
   async function deleteProduct(id, name) {
     if (!confirm(`¿Eliminar "${name}" del catálogo?`)) return;
