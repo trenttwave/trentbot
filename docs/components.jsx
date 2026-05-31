@@ -331,35 +331,87 @@ function Catalog({ density, palette }) {
           const brand = p.marca || p.brand || '';
           const imgUrl = p.imatge || p.image_url || '';
           const link = p.link_afiliats || p.link || 'https://t.me/trentthacoo';
+
+          const saveProduct = async (field, value) => {
+            if (!window._db) return;
+            await window._db.collection('products').doc(p.id).update({ [field]: value });
+          };
+
+          const changeImage = () => {
+            const url = prompt('URL de la nueva imagen:', imgUrl);
+            if (url !== null) saveProduct('imatge', url);
+          };
+
           return (
             <article key={p.id} className="card">
-              <div className="card__img">
+              <div className="card__img" style={{ position: 'relative' }}>
                 {imgUrl
                   ? <img src={imgUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                   : <ProductPlaceholder stripe="#1E3FBE" bg="#ECECEC" label={name} />
                 }
-                <button
-                  className={`card__wish ${wishlist.includes(p.id) ? 'card__wish--on' : ''}`}
-                  onClick={() => toggleWish(p.id)}
-                  aria-label="Guardar"
-                >
-                  {wishlist.includes(p.id) ? '♥' : '♡'}
-                </button>
+                {editMode && (
+                  <button onClick={changeImage} style={{
+                    position: 'absolute', inset: 0, width: '100%', height: '100%',
+                    background: 'rgba(30,63,190,.55)', color: '#fff', border: 'none',
+                    cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}>
+                    🖼️ Cambiar foto
+                  </button>
+                )}
+                {!editMode && (
+                  <button
+                    className={`card__wish ${wishlist.includes(p.id) ? 'card__wish--on' : ''}`}
+                    onClick={() => toggleWish(p.id)}
+                    aria-label="Guardar"
+                  >
+                    {wishlist.includes(p.id) ? '♥' : '♡'}
+                  </button>
+                )}
               </div>
               <div className="card__body">
                 <div className="card__row">
-                  <div className="card__cat">{brand}</div>
-                  <div className="card__price">{price}</div>
+                  {editMode
+                    ? <span contentEditable suppressContentEditableWarning
+                        style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, padding: '1px 4px', minWidth: 10 }}
+                        onBlur={e => saveProduct('marca', e.currentTarget.textContent.trim())}
+                      >{brand}</span>
+                    : <div className="card__cat">{brand}</div>
+                  }
+                  {editMode
+                    ? <span contentEditable suppressContentEditableWarning
+                        style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, padding: '1px 4px', minWidth: 10, fontWeight: 700 }}
+                        onBlur={e => saveProduct('preu', e.currentTarget.textContent.trim())}
+                      >{price}</span>
+                    : <div className="card__price">{price}</div>
+                  }
                 </div>
-                <h3 className="card__name">{name}</h3>
-                <div className="card__actions">
-                  <a href={link} target="_blank" rel="noreferrer" className="card__btn card__btn--primary">
-                    Comprar →
-                  </a>
-                  <button className="card__btn card__btn--ghost" onClick={() => { try { navigator.clipboard.writeText(link); } catch {} setToast(`Link copiado · ${name}`); setTimeout(() => setToast(null), 1800); }} title="Copiar link">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  </button>
-                </div>
+                {editMode
+                  ? <h3 className="card__name" contentEditable suppressContentEditableWarning
+                      style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, cursor: 'text' }}
+                      onBlur={e => saveProduct('nom', e.currentTarget.textContent.trim())}
+                    >{name}</h3>
+                  : <h3 className="card__name">{name}</h3>
+                }
+                {!editMode && (
+                  <div className="card__actions">
+                    <a href={link} target="_blank" rel="noreferrer" className="card__btn card__btn--primary">
+                      Comprar →
+                    </a>
+                    <button className="card__btn card__btn--ghost" onClick={() => { try { navigator.clipboard.writeText(link); } catch {} setToast(`Link copiado · ${name}`); setTimeout(() => setToast(null), 1800); }} title="Copiar link">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                  </div>
+                )}
+                {editMode && (
+                  <div className="card__actions">
+                    <span contentEditable suppressContentEditableWarning
+                      style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, padding: '1px 4px', fontSize: 12, flex: 1 }}
+                      onBlur={e => saveProduct('link_afiliats', e.currentTarget.textContent.trim())}
+                      title="Editar link"
+                    >{link}</span>
+                  </div>
+                )}
               </div>
             </article>
           );
