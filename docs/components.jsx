@@ -236,7 +236,8 @@ function HowToBuy() {
    CATÁLOGO — filtros + grid + wishlist + paginación
    ============================================================ */
 function Catalog({ density, palette }) {
-  const { editMode } = React.useContext(window.EditCtx);
+  const ctx = React.useContext(window.EditCtx || React.createContext({ editMode: false, cfg: {}, onSave: () => {} }));
+  const editMode = ctx ? ctx.editMode : false;
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const itemsPerPage = density === 'compact' ? 20 : density === 'comfy' ? 12 : 16;
