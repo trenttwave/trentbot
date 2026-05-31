@@ -172,7 +172,7 @@ def _detect_categoria(nom: str) -> str:
     if re.search(r'cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf', n): return 'Accesorios'
     return 'Otros'
 
-def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliats: str, imatge: str):
+def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliats: str, imatge: str, categoria: str = ""):
     db = _get_firestore()
     if not db:
         return
@@ -185,7 +185,7 @@ def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliat
             "marca": marca,
             "link_afiliats": link_afiliats,
             "imatge": imatge,
-            "categoria": _detect_categoria(nom),
+            "categoria": categoria or _detect_categoria(nom),
             "data": fb_firestore.SERVER_TIMESTAMP,
         })
         logger.info("Product saved to Firestore")
@@ -249,6 +249,31 @@ def _gemini_post(url: str, body: dict) -> str:
 
 def gemini_text(prompt: str) -> str:
     return _gemini_post(GEMINI_URL, {"contents": [{"parts": [{"text": prompt}]}]})
+
+
+def _enrich_title(titulo: str) -> tuple[str, str, str]:
+    """Devuelve (titulo_corregido, marca, categoria) usando Gemini solo con el texto."""
+    try:
+        resp = gemini_text(
+            f"Analiza este título de producto de moda: \"{titulo}\"\n"
+            "Devuelve exactamente tres líneas:\n"
+            "Titulo: [título corregido en español, con mayúscula inicial, ortografía correcta]\n"
+            "Marca: [nombre de la marca detectada, o vacío si no hay]\n"
+            "Categoria: [una de estas opciones exactas: Zapatos, Camisetas, Sudaderas, Pantalones, Chaquetas, Bolsos, Vestidos, Accesorios, Otros]\n"
+            "Solo esas tres líneas, sin explicaciones adicionales."
+        ).strip()
+        titulo_ok, marca_ok, cat_ok = titulo, "", ""
+        for line in resp.splitlines():
+            if line.startswith("Titulo:"):
+                titulo_ok = line.replace("Titulo:", "").strip()
+            elif line.startswith("Marca:"):
+                marca_ok = line.replace("Marca:", "").strip()
+            elif line.startswith("Categoria:"):
+                cat_ok = line.replace("Categoria:", "").strip()
+        return titulo_ok, marca_ok, cat_ok
+    except Exception as e:
+        logger.warning(f"_enrich_title failed: {e}")
+        return titulo, "", ""
 
 
 def gemini_vision(image_bytes: bytes, prompt: str) -> str:
@@ -779,6 +804,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "colores": colores,
             "image_url": image_url,
             "photos": [],
+            "marca": "",
+            "categoria": "",
         }
 
         if link_is_affiliate:
@@ -1136,13 +1163,18 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
             except Exception as e:
                 logger.warning(f"Could not upload product image: {e}")
 
+        raw_title = state.get("title", "")
+        titulo_ok, marca_ok, cat_ok = await asyncio.to_thread(_enrich_title, raw_title)
+        marca_final = state.get("marca") or marca_ok
+
         save_to_firestore(
-            nom=state.get("title", ""),
+            nom=titulo_ok,
             preu=preu_str,
             colors=state.get("colores", ""),
-            marca=state.get("marca", ""),
+            marca=marca_final,
             link_afiliats=state.get("link", ""),
             imatge=imatge,
+            categoria=cat_ok or _detect_categoria(titulo_ok),
         )
         logger.info("Firestore save OK")
     except Exception as e:
