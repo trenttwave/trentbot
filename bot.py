@@ -157,6 +157,21 @@ async def _upload_product_image(img_bytes: bytes) -> str:
         return ""
 
 
+def _detect_categoria(nom: str) -> str:
+    import unicodedata, re
+    n = unicodedata.normalize('NFD', (nom or '').lower())
+    n = ''.join(c for c in n if unicodedata.category(c) != 'Mn')
+    if re.search(r'zapati|sneaker|zapatill|boot|bota|shoe|calzad', n): return 'Zapatos'
+    if re.search(r'camiseta|tee|tshirt|polo|shirt|camisa|top\b', n): return 'Camisetas'
+    if re.search(r'hoodie|sudadera|sweat|jersey|crewneck', n): return 'Sudaderas'
+    if re.search(r'pantalon|jean|denim|cargo|jogger|short|bermuda|vaquero', n): return 'Pantalones'
+    if re.search(r'chaqueta|jacket|abrigo|coat|puffer|parka|blazer|chaleco', n): return 'Chaquetas'
+    if re.search(r'bolso|bag|mochila|tote|clutch|cartera', n): return 'Bolsos'
+    if re.search(r'vestido|dress|falda|skirt', n): return 'Vestidos'
+    if re.search(r'gorro|hat|cap|gorra|beanie|bucket|scrunchie', n): return 'Accesorios'
+    if re.search(r'cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf', n): return 'Accesorios'
+    return 'Otros'
+
 def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliats: str, imatge: str):
     db = _get_firestore()
     if not db:
@@ -170,6 +185,7 @@ def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliat
             "marca": marca,
             "link_afiliats": link_afiliats,
             "imatge": imatge,
+            "categoria": _detect_categoria(nom),
             "data": fb_firestore.SERVER_TIMESTAMP,
         })
         logger.info("Product saved to Firestore")

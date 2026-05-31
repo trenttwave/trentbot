@@ -236,17 +236,19 @@ function HowToBuy() {
    CATÁLOGO — filtros + grid + wishlist + paginación
    ============================================================ */
 // Detecta categoría desde el nombre del producto
-function detectCat(name) {
-  const n = (name || '').toLowerCase();
+function detectCat(name, savedCat) {
+  if (savedCat) return savedCat;
+  // Normalize accents: á→a, é→e, í→i, ó→o, ú→u
+  const n = (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   if (/zapati|sneaker|zapatill|boot|bota|shoe|calzad/.test(n)) return 'Zapatos';
-  if (/camiseta|tee|tshirt|polo|shirt|camisa/.test(n)) return 'Camisetas';
+  if (/camiseta|tee|tshirt|polo|shirt|camisa|top\b/.test(n)) return 'Camisetas';
   if (/hoodie|sudadera|sweat|jersey|crewneck/.test(n)) return 'Sudaderas';
-  if (/pantalon|jean|denim|cargo|jogger|short|bermuda/.test(n)) return 'Pantalones';
+  if (/pantalon|jean|denim|cargo|jogger|short|bermuda|vaquero/.test(n)) return 'Pantalones';
   if (/chaqueta|jacket|abrigo|coat|puffer|parka|blazer|chaleco/.test(n)) return 'Chaquetas';
   if (/bolso|bag|mochila|tote|clutch|cartera/.test(n)) return 'Bolsos';
   if (/vestido|dress|falda|skirt/.test(n)) return 'Vestidos';
-  if (/gorro|hat|cap|gorra|beanie|bucket/.test(n)) return 'Accesorios';
-  if (/cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|scrunchie|bufanda|scarf/.test(n)) return 'Accesorios';
+  if (/gorro|hat|cap|gorra|beanie|bucket|scrunchie/.test(n)) return 'Accesorios';
+  if (/cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf/.test(n)) return 'Accesorios';
   return 'Otros';
 }
 
@@ -288,7 +290,7 @@ function Catalog({ density, palette }) {
   }, [products]);
 
   const cats = useMemo(() => {
-    const set = new Set(products.map(p => detectCat(p.nom || p.name || '')));
+    const set = new Set(products.map(p => detectCat(p.nom || p.name || '', p.categoria)));
     return ['Todo', ...Array.from(set).sort()];
   }, [products]);
 
@@ -297,7 +299,7 @@ function Catalog({ density, palette }) {
       const name = p.nom || p.name || '';
       const brandVal = p.marca || p.brand || '';
       if (brand !== 'Todas' && brandVal !== brand) return false;
-      if (cat !== 'Todo' && detectCat(name) !== cat) return false;
+      if (cat !== 'Todo' && detectCat(name, p.categoria) !== cat) return false;
       if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     });
