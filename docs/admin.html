@@ -176,6 +176,11 @@
       <section id="productos" class="admin-section">
         <h3>🛍️ Productos del catálogo</h3>
         <p class="section-desc">Estos son los productos publicados por el bot. Pasa el ratón encima y pulsa la ✕ para eliminar.</p>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:8px 14px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mute)" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+          <input id="prod-search" type="text" placeholder="Buscar por nombre, marca o precio…" oninput="filterProducts()" style="border:none;outline:none;background:transparent;font:inherit;font-size:13px;width:100%;color:var(--ink)" />
+          <span id="prod-count" style="font-size:12px;color:var(--mute);white-space:nowrap"></span>
+        </div>
         <div id="prod-grid" class="prod-grid">
           <div class="prod-loading">Cargando productos…</div>
         </div>
@@ -436,39 +441,67 @@
   }
 
   let _currentEditId = null;
+  let _allProducts = [];
+
+  function renderProductCards(docs) {
+    const grid = document.getElementById('prod-grid');
+    const count = document.getElementById('prod-count');
+    if (!docs.length) {
+      grid.innerHTML = '<div class="prod-empty">Sin resultados.</div>';
+      if (count) count.textContent = '0 productos';
+      return;
+    }
+    if (count) count.textContent = `${docs.length} producto${docs.length !== 1 ? 's' : ''}`;
+    grid.innerHTML = '';
+    docs.forEach(({ id: safeId, name, price, brand, img, link }) => {
+      const card = document.createElement('div');
+      card.className = 'prod-card';
+      card.innerHTML = `
+        ${img ? `<img src="${img}" alt="${name}" />` : `<div style="height:160px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa">Sin imagen</div>`}
+        <div class="prod-card__body">
+          <div class="prod-card__name" title="${name}">${name}</div>
+          <div class="prod-card__price">${price}</div>
+        </div>
+        <button class="prod-card__edit" title="Editar">✏️ Editar</button>
+        <button class="prod-card__del" title="Eliminar" onclick="deleteProduct('${safeId}', '${name.replace(/'/g,"\\'")}')">✕</button>
+      `;
+      card.querySelector('.prod-card__edit').addEventListener('click', () => {
+        openEditModal(safeId, { nom: name, preu: price, marca: brand, imatge: img, link_afiliats: link });
+      });
+      grid.appendChild(card);
+    });
+  }
+
+  function filterProducts() {
+    const q = (document.getElementById('prod-search')?.value || '').toLowerCase().trim();
+    const filtered = q ? _allProducts.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.brand.toLowerCase().includes(q) ||
+      p.price.toLowerCase().includes(q)
+    ) : _allProducts;
+    renderProductCards(filtered);
+  }
 
   function loadProducts() {
     const grid = document.getElementById('prod-grid');
     db.collection('products').onSnapshot(snap => {
       if (snap.empty) {
+        _allProducts = [];
         grid.innerHTML = '<div class="prod-empty">Aún no hay productos. El bot los añadirá automáticamente.</div>';
         return;
       }
-      grid.innerHTML = '';
-      snap.docs.forEach(doc => {
+      _allProducts = snap.docs.map(doc => {
         const p = doc.data();
-        const name = p.nom || p.name || '—';
-        const price = p.preu || p.price || '';
-        const brand = p.marca || p.brand || '';
-        const img = p.imatge || p.image_url || '';
-        const link = p.link_afiliats || p.link || '';
-        const safeId = doc.id;
-        const card = document.createElement('div');
-        card.className = 'prod-card';
-        card.innerHTML = `
-          ${img ? `<img src="${img}" alt="${name}" />` : `<div style="height:160px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa">Sin imagen</div>`}
-          <div class="prod-card__body">
-            <div class="prod-card__name" title="${name}">${name}</div>
-            <div class="prod-card__price">${price}</div>
-          </div>
-          <button class="prod-card__edit" title="Editar">✏️ Editar</button>
-          <button class="prod-card__del" title="Eliminar" onclick="deleteProduct('${safeId}', '${name.replace(/'/g,"\\'")}')">✕</button>
-        `;
-        card.querySelector('.prod-card__edit').addEventListener('click', () => {
-          openEditModal(safeId, { nom: name, preu: price, marca: brand, imatge: img, link_afiliats: link });
-        });
-        grid.appendChild(card);
+        return {
+          id: doc.id,
+          name: p.nom || p.name || '—',
+          price: p.preu || p.price || '',
+          brand: p.marca || p.brand || '',
+          img: p.imatge || p.image_url || '',
+          link: p.link_afiliats || p.link || '',
+        };
       });
+      filterProducts();
     }, () => {
       grid.innerHTML = '<div class="prod-empty">Error cargando productos.</div>';
     });
