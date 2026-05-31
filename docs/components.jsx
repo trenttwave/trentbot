@@ -235,6 +235,21 @@ function HowToBuy() {
 /* ============================================================
    CATÁLOGO — filtros + grid + wishlist + paginación
    ============================================================ */
+// Detecta categoría desde el nombre del producto
+function detectCat(name) {
+  const n = (name || '').toLowerCase();
+  if (/zapati|sneaker|zapatill|boot|bota|shoe|calzad/.test(n)) return 'Zapatos';
+  if (/camiseta|tee|tshirt|polo|shirt|camisa/.test(n)) return 'Camisetas';
+  if (/hoodie|sudadera|sweat|jersey|crewneck/.test(n)) return 'Sudaderas';
+  if (/pantalon|jean|denim|cargo|jogger|short|bermuda/.test(n)) return 'Pantalones';
+  if (/chaqueta|jacket|abrigo|coat|puffer|parka|blazer|vest/.test(n)) return 'Chaquetas';
+  if (/bolso|bag|mochila|tote|clutch|cartera/.test(n)) return 'Bolsos';
+  if (/vestido|dress|falda|skirt/.test(n)) return 'Vestidos';
+  if (/gorro|hat|cap|gorra|beanie|bucket/.test(n)) return 'Accesorios';
+  if (/cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|scrunchie|bufanda|scarf/.test(n)) return 'Accesorios';
+  return 'Otros';
+}
+
 function Catalog({ density, palette }) {
   const ctx = React.useContext(window.EditCtx || React.createContext({ editMode: false, cfg: {}, onSave: () => {} }));
   const editMode = ctx ? ctx.editMode : false;
@@ -246,6 +261,7 @@ function Catalog({ density, palette }) {
   const [brand, setBrand] = useState('Todas');
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [wishlist, setWishlist] = useState(() => {
     try { return JSON.parse(localStorage.getItem('trent_wishlist') || '[]'); } catch { return []; }
   });
@@ -271,15 +287,21 @@ function Catalog({ density, palette }) {
     return ['Todas', ...Array.from(set).sort()];
   }, [products]);
 
+  const cats = useMemo(() => {
+    const set = new Set(products.map(p => detectCat(p.nom || p.name || '')));
+    return ['Todo', ...Array.from(set).sort()];
+  }, [products]);
+
   const filtered = useMemo(() => {
     return products.filter((p) => {
       const name = p.nom || p.name || '';
       const brandVal = p.marca || p.brand || '';
       if (brand !== 'Todas' && brandVal !== brand) return false;
+      if (cat !== 'Todo' && detectCat(name) !== cat) return false;
       if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     });
-  }, [products, brand, q]);
+  }, [products, brand, cat, q]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
@@ -290,33 +312,72 @@ function Catalog({ density, palette }) {
 
   const resetPagination = () => setPage(1);
 
+  const activeFilters = (brand !== 'Todas' ? 1 : 0) + (cat !== 'Todo' ? 1 : 0);
+
+  const clearFilters = () => { setBrand('Todas'); setCat('Todo'); resetPagination(); };
+
   return (
     <section id="drops" className={`section section--catalog density--${density}`}>
       <div className="section__head section__head--row">
         <div>
           <div className="section__eyebrow">[ 02 ] CATÁLOGO</div>
           <h2 className="section__title">Prendas <em>seleccionadas</em>.</h2>
-          <p className="section__lead">{loading ? 'Cargando…' : `${filtered.length} prendas disponibles.`} Filtra por marca o busca por nombre.</p>
+          <p className="section__lead">{loading ? 'Cargando…' : `${filtered.length} prendas disponibles.`}</p>
         </div>
-        <div className="catalog__search">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
-          <input placeholder="Busca hoodie, sneaker…" value={q} onChange={(e) => { setQ(e.target.value); resetPagination(); }} />
-          {q && <button className="catalog__clear" onClick={() => { setQ(''); resetPagination(); }}>×</button>}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="catalog__search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+            <input placeholder="Busca hoodie, sneaker…" value={q} onChange={(e) => { setQ(e.target.value); resetPagination(); }} />
+            {q && <button className="catalog__clear" onClick={() => { setQ(''); resetPagination(); }}>×</button>}
+          </div>
+          <button onClick={() => setFilterOpen(o => !o)} style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px',
+            border: `1.5px solid ${activeFilters > 0 ? 'var(--c-primary)' : 'var(--c-border)'}`,
+            borderRadius: 999, background: activeFilters > 0 ? 'var(--c-primary)' : 'var(--c-surface)',
+            color: activeFilters > 0 ? '#fff' : 'var(--c-ink)',
+            fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+            Filtrar {activeFilters > 0 ? `(${activeFilters})` : ''}
+          </button>
         </div>
       </div>
 
-      <div className="catalog__filters">
-        <div className="filter-group">
-          <span className="filter-label">Marca</span>
-          <div className="chips">
-            {brands.map((b) => (
-              <button key={b} className={`chip ${brand === b ? 'chip--active' : ''}`} onClick={() => { setBrand(b); resetPagination(); }}>
-                {b}
+      {filterOpen && (
+        <div style={{
+          background: 'var(--c-surface)', border: '1.5px solid var(--c-border)',
+          borderRadius: 14, padding: '20px 24px', marginBottom: 20,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>Filtros</span>
+            {activeFilters > 0 && (
+              <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: 'var(--c-primary)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Limpiar filtros
               </button>
-            ))}
+            )}
+          </div>
+          <div className="filter-group" style={{ marginBottom: 16 }}>
+            <span className="filter-label">Tipo de prenda</span>
+            <div className="chips">
+              {cats.map((c) => (
+                <button key={c} className={`chip ${cat === c ? 'chip--active' : ''}`} onClick={() => { setCat(c); resetPagination(); }}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="filter-group">
+            <span className="filter-label">Marca</span>
+            <div className="chips">
+              {brands.map((b) => (
+                <button key={b} className={`chip ${brand === b ? 'chip--active' : ''}`} onClick={() => { setBrand(b); resetPagination(); }}>
+                  {b}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {wishlist.length > 0 && (
         <button className="wishlist-badge" onClick={() => setWishlist([])}>
