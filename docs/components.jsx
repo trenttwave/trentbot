@@ -238,8 +238,6 @@ function HowToBuy() {
 function Catalog({ density, palette }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const categories = window.TRENT_DATA.categories;
-  const brands = window.TRENT_DATA.brands;
   const itemsPerPage = density === 'compact' ? 20 : density === 'comfy' ? 12 : 16;
 
   const [cat, setCat] = useState('Todo');
@@ -265,6 +263,11 @@ function Catalog({ density, palette }) {
   useEffect(() => {
     localStorage.setItem('trent_wishlist', JSON.stringify(wishlist));
   }, [wishlist]);
+
+  const brands = useMemo(() => {
+    const set = new Set(products.map(p => p.marca || p.brand || '').filter(Boolean));
+    return ['Todas', ...Array.from(set).sort()];
+  }, [products]);
 
   const filtered = useMemo(() => {
     return products.filter((p) => {
