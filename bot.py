@@ -1274,6 +1274,15 @@ async def _restore_scheduled_jobs(app):
     if restored:
         logger.info(f"Restaurados {restored} trabajos programados")
 
+    # Precalentar Playwright en background para que el primer link sea rápido
+    async def _warm_playwright():
+        try:
+            await _ensure_pw_runtime()
+            logger.info("Playwright precalentado al arrancar")
+        except Exception as e:
+            logger.warning(f"Playwright warmup failed: {e}")
+    asyncio.create_task(_warm_playwright())
+
 
 def main():
     if not BOT_TOKEN:
