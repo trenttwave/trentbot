@@ -1144,45 +1144,47 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
     else:
         await bot.send_message(chat_id=chat_id, text=message_text)
 
-    # Save product to Firestore before overwriting state
-    try:
-        price = state.get("price", "")
-        price_clean = price.replace(",", ".").split(".")[0].replace("€", "").strip()
-        try:
-            preu_str = f"{int(float(price_clean))}€"
-        except Exception:
-            preu_str = price
-
-        # Get image: prefer og:image, fallback to first Telegram photo → Firebase Storage
-        imatge = state.get("image_url", "")
-        if not imatge and photos:
-            try:
-                file = await bot.get_file(photos[0])
-                img_bytes = bytes(await file.download_as_bytearray())
-                imatge = await _upload_product_image(img_bytes)
-            except Exception as e:
-                logger.warning(f"Could not upload product image: {e}")
-
-        raw_title = state.get("title", "")
-        titulo_ok, marca_ok, cat_ok = await asyncio.to_thread(_enrich_title, raw_title)
-        marca_final = state.get("marca") or marca_ok
-
-        save_to_firestore(
-            nom=titulo_ok,
-            preu=preu_str,
-            colors=state.get("colores", ""),
-            marca=marca_final,
-            link_afiliats=state.get("link", ""),
-            imatge=imatge,
-            categoria=cat_ok or _detect_categoria(titulo_ok),
-        )
-        logger.info("Firestore save OK")
-    except Exception as e:
-        logger.warning(f"Firestore save error: {e}")
-        await bot.send_message(chat_id=chat_id, text=f"⚠️ Error guardant a Firestore: {e}")
-
+    # Enviar el segundo mensaje inmediatamente, sin esperar Firestore
     user_states[user_id] = {"state": "editing", "message_text": message_text, "photos": photos}
     await bot.send_message(chat_id=chat_id, text="¿Quieres modificar algo? Dímelo, usa /programar para enviarlo al grupo a una hora, o /cancelar para terminar.")
+
+    # Guardar en Firestore en background (no bloquea al usuario)
+    async def _save_bg():
+        try:
+            price = state.get("price", "")
+            price_clean = price.replace(",", ".").split(".")[0].replace("€", "").strip()
+            try:
+                preu_str = f"{int(float(price_clean))}€"
+            except Exception:
+                preu_str = price
+
+            imatge = state.get("image_url", "")
+            if not imatge and photos:
+                try:
+                    file = await bot.get_file(photos[0])
+                    img_bytes = bytes(await file.download_as_bytearray())
+                    imatge = await _upload_product_image(img_bytes)
+                except Exception as e:
+                    logger.warning(f"Could not upload product image: {e}")
+
+            raw_title = state.get("title", "")
+            titulo_ok, marca_ok, cat_ok = await asyncio.to_thread(_enrich_title, raw_title)
+            marca_final = state.get("marca") or marca_ok
+
+            save_to_firestore(
+                nom=titulo_ok,
+                preu=preu_str,
+                colors=state.get("colores", ""),
+                marca=marca_final,
+                link_afiliats=state.get("link", ""),
+                imatge=imatge,
+                categoria=cat_ok or _detect_categoria(titulo_ok),
+            )
+            logger.info("Firestore save OK (background)")
+        except Exception as e:
+            logger.warning(f"Firestore save error (background): {e}")
+
+    asyncio.create_task(_save_bg())
 
 
 async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
