@@ -225,18 +225,27 @@ def _load_scheduled_jobs() -> list:
 
 
 def _gemini_post(url: str, body: dict) -> str:
-    for attempt in range(4):
-        current_url = GEMINI_FALLBACK_URL if attempt == 3 else url
-        resp = requests.post(
-            f"{current_url}?key={GEMINI_API_KEY}",
-            json=body,
-            timeout=30,
-        )
+    for attempt in range(5):
+        current_url = GEMINI_FALLBACK_URL if attempt >= 3 else url
+        try:
+            resp = requests.post(
+                f"{current_url}?key={GEMINI_API_KEY}",
+                json=body,
+                timeout=30,
+            )
+        except requests.exceptions.RequestException as e:
+            if attempt < 4:
+                time.sleep(4 * (attempt + 1))
+                continue
+            raise Exception("No se pudo conectar con Gemini. Inténtalo de nuevo.") from e
         logger.info(f"Gemini status ({current_url.split('/models/')[1].split(':')[0]}): {resp.status_code}")
         if resp.status_code in (429, 500, 503):
-            if attempt < 3:
-                time.sleep(3 * (attempt + 1))
+            if attempt < 4:
+                wait = 4 * (attempt + 1)
+                logger.warning(f"Gemini {resp.status_code}, reintentando en {wait}s...")
+                time.sleep(wait)
                 continue
+            raise Exception("Gemini no está disponible ahora mismo (503). Espera unos segundos e inténtalo de nuevo.")
         resp.raise_for_status()
         data = resp.json()
         candidates = data.get("candidates")
