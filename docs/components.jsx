@@ -33,6 +33,58 @@ function DiscountBar() {
 }
 
 /* ============================================================
+   HERO IMAGE SLIDER
+   ============================================================ */
+function HeroImageSlider({ images }) {
+  const [idx, setIdx] = React.useState(0);
+  const startX = React.useRef(null);
+
+  const prev = () => setIdx(i => (i - 1 + images.length) % images.length);
+  const next = () => setIdx(i => (i + 1) % images.length);
+
+  const onTouchStart = (e) => { startX.current = e.touches[0].clientX; };
+  const onTouchEnd = (e) => {
+    if (startX.current === null) return;
+    const dx = e.changedTouches[0].clientX - startX.current;
+    if (dx > 40) prev();
+    else if (dx < -40) next();
+    startX.current = null;
+  };
+
+  return (
+    <div className="hero__product hero__slider"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      style={{ position: 'relative', overflow: 'hidden', borderRadius: 12, cursor: 'grab' }}>
+      {images.map((src, i) => (
+        <img key={i} src={src} alt={`producto ${i+1}`}
+          style={{
+            position: i === 0 ? 'relative' : 'absolute',
+            inset: 0, width: '100%', height: '100%',
+            objectFit: 'cover', display: 'block',
+            opacity: idx === i ? 1 : 0,
+            transition: 'opacity 0.35s ease',
+          }} />
+      ))}
+      {/* Badge NEW */}
+      <div style={{ position: 'absolute', top: 10, left: 10, background: 'var(--c-primary)', color: '#fff', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', padding: '3px 10px', borderRadius: 999, zIndex: 2 }}>NEW</div>
+      {/* Arrows */}
+      {images.length > 1 && <>
+        <button onClick={prev} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', background:'rgba(255,255,255,0.85)', border:'none', borderRadius:'50%', width:28, height:28, fontSize:14, cursor:'pointer', zIndex:2, display:'flex', alignItems:'center', justifyContent:'center' }}>‹</button>
+        <button onClick={next} style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', background:'rgba(255,255,255,0.85)', border:'none', borderRadius:'50%', width:28, height:28, fontSize:14, cursor:'pointer', zIndex:2, display:'flex', alignItems:'center', justifyContent:'center' }}>›</button>
+      </>}
+      {/* Dots */}
+      <div style={{ position:'absolute', bottom:10, left:'50%', transform:'translateX(-50%)', display:'flex', gap:5, zIndex:2 }}>
+        {images.map((_, i) => (
+          <button key={i} onClick={() => setIdx(i)} style={{ width: idx===i ? 18 : 6, height:6, borderRadius:999, background: idx===i ? 'var(--c-primary)' : 'rgba(255,255,255,0.7)', border:'none', cursor:'pointer', padding:0, transition:'all 0.2s' }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+window.HeroImageSlider = HeroImageSlider;
+
+/* ============================================================
    PLACEHOLDER de imagen (rayado sutil) — el "product shot"
    ============================================================ */
 function ProductPlaceholder({ stripe = '#1E3FBE', bg = '#ECECEC', label, drop }) {
@@ -158,9 +210,7 @@ function Hero({ onScrollTo, palette }) {
         <aside className="hero__right">
           <div className="hero__card hero__card--big">
             <div className="hero__card-label">— ÚLTIMO DROP</div>
-            <div className="hero__product">
-              <ProductPlaceholder stripe={palette.primary} bg={palette.bgSoft} label="hoodie boxy" drop="NEW" />
-            </div>
+            <HeroImageSlider images={["assets/nude-project-back.jpg","assets/nude-project-front.jpg"]} />
             <div className="hero__product-meta">
               <div>
                 <E className="hero__product-name" value={cfg.heroCardName} fieldKey="heroCardName" editMode={editMode} onSave={onSave} />
@@ -556,20 +606,33 @@ function TelegramBlock() {
    SIZE CALCULATOR
    ============================================================ */
 function SizeCalculator() {
-  const [chest, setChest] = useState(94);
-  const [waist, setWaist] = useState(80);
+  const [height, setHeight] = useState(175);
+  const [weight, setWeight] = useState(72);
   const [fit, setFit] = useState('regular');
 
   const size = useMemo(() => {
-    let base = chest;
-    if (fit === 'baggy') base -= 6;
-    if (fit === 'slim') base += 4;
-    if (base < 88) return 'S';
-    if (base < 96) return 'M';
-    if (base < 104) return 'L';
-    if (base < 112) return 'XL';
-    return 'XXL';
-  }, [chest, fit]);
+    // Peso como factor principal (fuente: O'Neill, VadeRetro, marcas deportivas)
+    const SIZES = ['XS','S','M','L','XL','XXL','3XL'];
+    let idx = 0;
+
+    if (weight < 55)       idx = 0; // XS
+    else if (weight < 65)  idx = 1; // S
+    else if (weight < 78)  idx = 2; // M
+    else if (weight < 92)  idx = 3; // L
+    else if (weight < 108) idx = 4; // XL
+    else if (weight < 125) idx = 5; // XXL
+    else                   idx = 6; // 3XL
+
+    // Altura ajusta ±1: si eres muy alto sube talla, muy bajo baja
+    if (height >= 188) idx = Math.min(idx + 1, 6);
+    else if (height < 163) idx = Math.max(idx - 1, 0);
+
+    // Fit adjustment
+    if (fit === 'baggy') idx = Math.min(idx + 1, 6);
+    if (fit === 'slim')  idx = Math.max(idx - 1, 0);
+
+    return SIZES[idx];
+  }, [height, weight, fit]);
 
   return (
     <div className="sizecalc">
@@ -580,20 +643,20 @@ function SizeCalculator() {
       <div className="sizecalc__body">
         <div className="sizecalc__controls">
           <label className="sizecalc__row">
-            <span>Pecho (cm)</span>
-            <input type="range" min="78" max="124" value={chest} onChange={(e) => setChest(+e.target.value)} />
-            <output>{chest}</output>
+            <span>Altura (cm)</span>
+            <input type="range" min="150" max="210" value={height} onChange={(e) => setHeight(+e.target.value)} />
+            <output>{height}</output>
           </label>
           <label className="sizecalc__row">
-            <span>Cintura (cm)</span>
-            <input type="range" min="64" max="120" value={waist} onChange={(e) => setWaist(+e.target.value)} />
-            <output>{waist}</output>
+            <span>Peso (kg)</span>
+            <input type="range" min="45" max="140" value={weight} onChange={(e) => setWeight(+e.target.value)} />
+            <output>{weight}</output>
           </label>
           <div className="sizecalc__fit">
             <span>Cómo te gusta</span>
             <div className="seg">
               {['slim', 'regular', 'baggy'].map((f) => (
-                <button key={f} className={`seg__btn ${fit === f ? 'seg__btn--on' : ''}`} onClick={() => setFit(f)}>{f}</button>
+                <button key={f} className={`seg__btn ${fit === f ? 'seg__btn--on' : ''}`} onClick={() => setFit(f)}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
               ))}
             </div>
           </div>
@@ -614,8 +677,30 @@ function SizeCalculator() {
 /* ============================================================
    GUIDES
    ============================================================ */
+function GuideModal({ guide, onClose }) {
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="guide-modal__overlay" onClick={onClose}>
+      <div className="guide-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="guide-modal__tag">{guide.tag}</div>
+        <h2 className="guide-modal__title">{guide.title}</h2>
+        <p className="guide-modal__read">{guide.read} lectura</p>
+        <p className="guide-modal__body">{guide.body}</p>
+        <button className="guide-modal__close" onClick={onClose} aria-label="Cerrar">✕</button>
+      </div>
+    </div>
+  );
+}
+
 function Guides() {
   const guides = window.TRENT_DATA.guides;
+  const [active, setActive] = React.useState(null);
+
   return (
     <section id="guides" className="section section--guides">
       <div className="section__head">
@@ -626,11 +711,18 @@ function Guides() {
 
       <div className="guides__grid">
         {guides.map((g, i) => (
-          <a key={i} href="#" className={`guide ${g.big ? 'guide--big' : ''}`}>
+          <a key={i} href="#" className={`guide ${g.big ? 'guide--big' : ''}`}
+            onClick={(e) => { 
+              e.preventDefault(); 
+              if (g.tag === 'MARCAS') {
+                document.getElementById('drops')?.scrollIntoView && window.scrollTo({ top: document.getElementById('drops').offsetTop - 80, behavior: 'smooth' });
+              } else if (g.body) {
+                setActive(g);
+              }
+            }}>
             <div className="guide__tag">{g.tag}</div>
             <h3 className="guide__title">{g.title}</h3>
             <div className="guide__foot">
-              <span>{g.read} lectura</span>
               <span className="guide__arrow">→</span>
             </div>
           </a>
@@ -639,6 +731,8 @@ function Guides() {
           <SizeCalculator />
         </div>
       </div>
+
+      {active && <GuideModal guide={active} onClose={() => setActive(null)} />}
     </section>
   );
 }

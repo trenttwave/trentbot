@@ -21,7 +21,7 @@ const DEFAULTS = {
   metric3Num: "7–15",  metric3Lbl: "Días de entrega",
   heroBtnPrimary: "Únete a Telegram",
   heroBtnSecondary: "Cómo funciona",
-  heroCardName: "Hoodie Boxy Cream", heroCardCat: "Sudaderas · TRENT", heroCardPrice: "12,40€",
+  heroCardName: "Nude Project Resort Tee", heroCardCat: "Camisetas · Nude Project", heroCardPrice: "11,00€",
 
   // Marquee
   marquee1: "NUEVOS LINKS CADA DÍA", marquee2: "ENVÍO 7–15 DÍAS",
