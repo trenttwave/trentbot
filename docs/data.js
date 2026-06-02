@@ -88,12 +88,12 @@ window.TRENT_DATA = {
   ],
 
   guides: [
-    { tag: 'TALLAS', title: 'Cómo elegir tu talla sin fallar', read: '4 min', big: true },
-    { tag: 'ENVÍO', title: 'Tiempos de envío y opciones', read: '3 min' },
-    { tag: 'CÓDIGO', title: 'Cómo usar TRENT14 — −14%', read: '2 min' },
-    { tag: 'DEVOLUCIÓN', title: 'Cómo devolver o cambiar', read: '5 min' },
-    { tag: 'CONTACTO', title: 'Soporte y preguntas frecuentes', read: '2 min' },
-    { tag: 'MARCAS', title: 'Conoce nuestras colecciones', read: '6 min' },
+    { tag: 'TALLAS', title: 'Cómo elegir tu talla sin fallar', read: '4 min', big: true, body: 'Las tallas no siempre coinciden con las europeas — suelen ir más pequeñas. El truco es no fiarte de la S/M/L y mirar siempre la tabla de medidas en centímetros que aparece en cada producto. Mídete el pecho, la cintura y la cadera con una cinta métrica antes de pedir. Si dudas entre dos tallas, pide siempre la más grande.' },
+    { tag: 'ENVÍO', title: 'Tiempos de envío y opciones', read: '3 min', body: 'El envío estándar tarda entre 7 y 15 días hábiles desde China. La mayoría de pedidos llegan en 10 días. No hay envío express disponible. El seguimiento llega por email una vez sale el paquete. Si no ves movimiento en 20 días, abre una incidencia en la app.' },
+    { tag: 'CÓDIGO', title: 'Cómo usar TRENT14 — −14%', read: '2 min', body: 'El código TRENT14 te da un 14% de descuento en tu primera compra. En el último paso del pago, antes de confirmar, introduce el código en el campo "cupón" o "código promocional". Solo es válido una vez por cuenta. Si no te funciona, asegúrate de que es tu primera compra y de que lo escribes en mayúsculas: TRENT14.' },
+    { tag: 'DEVOLUCIÓN', title: 'Cómo devolver o cambiar', read: '5 min', body: 'Si el producto llega defectuoso o no es lo que pediste, abre una disputa en la app de Hacoo en las primeras 72 horas desde la entrega. Ve a "Mis pedidos", selecciona el producto y pulsa "Problema con el pedido". Adjunta fotos claras del problema. Hacoo suele resolver en 3-5 días con reembolso o reenvío gratuito.' },
+    { tag: 'CONTACTO', title: 'Soporte y preguntas frecuentes', read: '2 min', body: 'Para cualquier duda sobre tallas, envíos o incidencias, escríbeme directamente al canal de Telegram. Respondo personalmente a todos los mensajes. Para incidencias con Hacoo (producto mal, no llega, etc.) usa el sistema de disputas de la propia app — es la vía más rápida para obtener solución.' },
+    { tag: 'MARCAS', title: 'Conoce nuestras colecciones', read: '6 min', body: 'En el catálogo encontrarás réplicas y productos inspirados en marcas como Palm Angels, Corteiz, Stone Island, Nude Project, Rick Owens y muchas más. Todos los productos están verificados personalmente antes de publicarse. Uso el canal de Telegram para publicar los mejores drops cada día — únete para no perderte nada.' },
   ],
 
   faq: [
