@@ -210,7 +210,7 @@ function Hero({ onScrollTo, palette }) {
         <aside className="hero__right">
           <div className="hero__card hero__card--big">
             <div className="hero__card-label">— ÚLTIMO DROP</div>
-            <HeroImageSlider images={["assets/nude-project-back.jpg","assets/nude-project-front.jpg"]} />
+            <HeroImageSlider images={["https://i.ibb.co/N6dBVffc/5834782908244234434.jpg","https://i.ibb.co/ZzBCgqm5/5834782908244234435.jpg"]} />
             <div className="hero__product-meta">
               <div>
                 <E className="hero__product-name" value={cfg.heroCardName} fieldKey="heroCardName" editMode={editMode} onSave={onSave} />
