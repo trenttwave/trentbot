@@ -343,6 +343,11 @@
           </div>
         </div>
         <p class="hint">Contrasenya per defecte: <strong>trent2026</strong></p>
+        <div class="field" style="margin-top:20px">
+          <label>ImgBB API Key (para subir imágenes)</label>
+          <input type="text" id="imgbbApiKey" placeholder="Pega aquí tu API key de imgbb.com" />
+          <p class="hint">Necesaria para subir fotos desde el panel. Consíguela gratis en <strong>imgbb.com/api</strong></p>
+        </div>
       </section>
 
     </main>
@@ -358,10 +363,18 @@
 <div id="edit-modal">
   <div class="edit-modal-box">
     <h3>✏️ Editar producto</h3>
-    <img id="edit-img-preview" class="edit-modal-img" src="" alt="" />
+    <img id="edit-img-preview" class="edit-modal-img" src="" alt="" onerror="this.style.display='none'" onload="this.style.display='block'" />
     <div class="field">
-      <label>Foto (URL)</label>
-      <input type="text" id="edit-img" oninput="document.getElementById('edit-img-preview').src=this.value" />
+      <label>Foto</label>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <input type="text" id="edit-img" placeholder="URL de la imagen" oninput="document.getElementById('edit-img-preview').src=this.value;document.getElementById('edit-img-preview').style.display='block'" />
+        <label style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1.5px dashed var(--border);border-radius:8px;padding:10px 12px;cursor:pointer;font-size:12px;color:var(--mute);font-weight:500">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Subir imagen desde el dispositivo
+          <input type="file" accept="image/*" style="display:none" onchange="uploadImageFile(this)" />
+        </label>
+        <span id="upload-status" style="font-size:11px;color:var(--mute)"></span>
+      </div>
     </div>
     <div class="field">
       <label>Nombre</label>
@@ -507,6 +520,44 @@
     });
   }
 
+  async function uploadImageFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const status = document.getElementById('upload-status');
+    status.textContent = '⏳ Subiendo imagen...';
+    try {
+      // Obtener ImgBB API key desde Firestore config
+      const snap = await db.collection('config').doc('site').get();
+      const imgbbKey = snap.exists() ? (snap.data().imgbbApiKey || '') : '';
+      if (!imgbbKey) {
+        status.textContent = '⚠️ Falta la ImgBB API key en config. Añádela en Seguretat.';
+        return;
+      }
+      const b64 = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = e => res(e.target.result.split(',')[1]);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+      const form = new FormData();
+      form.append('key', imgbbKey);
+      form.append('image', b64);
+      const resp = await fetch('https://api.imgbb.com/1/upload', { method: 'POST', body: form });
+      const data = await resp.json();
+      if (data.success) {
+        const url = data.data.url;
+        document.getElementById('edit-img').value = url;
+        document.getElementById('edit-img-preview').src = url;
+        document.getElementById('edit-img-preview').style.display = 'block';
+        status.textContent = '✅ Imagen subida correctamente';
+      } else {
+        status.textContent = '❌ Error al subir: ' + (data.error?.message || 'desconocido');
+      }
+    } catch(e) {
+      status.textContent = '❌ Error: ' + e.message;
+    }
+  }
+
   function openEditModal(id, data) {
     _currentEditId = id;
     document.getElementById('edit-img').value = data.imatge || '';
@@ -561,7 +612,7 @@
       const ids = ['heroCopy','discountCode','discountPct',
         'metric1Num','metric1Lbl','metric2Num','metric2Lbl','metric3Num','metric3Lbl',
         'marquee1','marquee2','marquee3','marquee4','marquee5','marquee6',
-        'telegramLink','telegramMembers','displayFont'];
+        'telegramLink','telegramMembers','displayFont','imgbbApiKey'];
       ids.forEach(id => { const el = document.getElementById(id); if (el && d[id] != null) el.value = d[id]; });
       if (d.primaryColor) {
         document.getElementById('primaryColor').value = d.primaryColor;
@@ -618,6 +669,7 @@
       marquee6: document.getElementById('marquee6').value,
       telegramLink: document.getElementById('telegramLink').value,
       telegramMembers: document.getElementById('telegramMembers').value,
+      imgbbApiKey: document.getElementById('imgbbApiKey').value,
     };
 
     try {
