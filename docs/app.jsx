@@ -14,12 +14,12 @@ const DEFAULTS = {
   discountCode: "TRENT14", discountPct: "14", shippingText: "envío 7–15 días",
 
   // Hero
-  heroEyebrow: "Drops nuevos cada día · Código bienvenida −14%",
-  heroCopy: "Prendas seleccionadas cada día. Descarga la app, entra al Telegram, encuentra tu estilo, aplica TRENT14 y compra.",
-  metric1Num: "+340", metric1Lbl: "Prendas activas",
-  metric2Num: "−14%", metric2Lbl: "1ª compra · TRENT14",
-  metric3Num: "7–15",  metric3Lbl: "Entrega media",
-  heroBtnPrimary: "Ver catálogo en Telegram",
+  heroEyebrow: "Prendas nuevas cada día · Código bienvenida −14%",
+  heroCopy: "Descarga la app, entra al chat de Telegram, encuentra tus marcas favoritas, aplica el código de descuento TRENT14 y compra.",
+  metric1Num: "+340", metric1Lbl: "Prendas",
+  metric2Num: "−14%", metric2Lbl: "Código: TRENT14",
+  metric3Num: "7–15",  metric3Lbl: "Días de entrega",
+  heroBtnPrimary: "Únete a Telegram",
   heroBtnSecondary: "Cómo funciona",
   heroCardName: "Hoodie Boxy Cream", heroCardCat: "Sudaderas · TRENT", heroCardPrice: "12,40€",
 
@@ -29,31 +29,31 @@ const DEFAULTS = {
   marquee5: "SIN PASARELAS RAROS",    marquee6: "GUÍAS DE TALLAS",
 
   // Cómo comprar
-  howTitle: "Cómprate todo en 4 pasos.",
-  howLead: "Pulsa cada paso y te lleva directo. Si es tu primera vez, tarda un café. Después, 30 segundos.",
-  step0title: "Descarga la app",      step0body: "Disponible en iOS y Android. Es donde compras todas tus prendas TRENT.",      step0tag: "iOS · Android",
-  step1title: "Únete a mi Telegram",  step1body: "El canal donde publico cada día los enlaces a las mejores prendas seleccionadas.", step1tag: "+12k miembros",
+  howTitle: "Compra en 4 pasos.",
+  howLead: "¿Es tu primera compra? Sigue los pasos, solo serán 30 segundos.",
+  step0title: "Descarga la app",      step0body: "Disponible en iOS y Android. Clica el botón y descarga la app en tu móvil.",      step0tag: "Descarga HACOO",
+  step1title: "Únete a mi Telegram",  step1body: "El canal donde publico cada día los enlaces verificados a todas las prendas.", step1tag: "Chat Telegram",
   step2title: "Encuentra tu prenda",  step2body: "Busca en nuestro catálogo o en el canal. Filtra por marca, categoría y precio.",  step2tag: "Búsqueda rápida",
-  step3title: "Aplica el código",     step3body: "En el checkout escribe TRENT14 y te descuenta un 14% en tu primera compra.",       step3tag: "−14% 1ª compra",
+  step3title: "Aplica el código",     step3body: "En el checkout escribe TRENT14 y aplica el descuento del 14%.",       step3tag: "Código: TRENT14",
 
   // Telegram block
-  telegramTitle: "Mi Telegram es donde vive todo.",
-  telegramLead: "Es el canal donde publico cada día los enlaces directos a las prendas. De la inspiración a tu carrito en 1 toque.",
-  telegramLink: "https://t.me/trentthacoo", telegramMembers: "12.4k miembros · activos hoy",
-  benefit0t: "Links organizados por categoría", benefit0s: "Sneakers, hoodies, cargos… cada uno con su carpeta. Sin scroll infinito.",
-  benefit1t: "Drops en directo",               benefit1s: "Cuando encuentro algo bueno, te llega al móvil. Lo pillas antes que nadie.",
-  benefit2t: "Soporte 1 a 1",                  benefit2s: "¿Dudas de talla o incidencia? Me escribes y te ayudo personalmente.",
+  telegramTitle: "Descubre todas las novedades en Telegram",
+  telegramLead: "Únete al canal donde publico cada día nuevos enlaces a las prendas.",
+  telegramLink: "https://t.me/trentthacoo", telegramMembers: "12.4k miembros activos",
+  benefit0t: "Links organizados por categoría", benefit0s: "Escribe lo que quieres en el buscador del chat y clica.",
+  benefit1t: "Actualizaciones cada día",       benefit1s: "Con nuevos enlaces verificados cada día.",
+  benefit2t: "Soporte 1 a 1",                  benefit2s: "¿Dudas de talla o incidencias? Me escribes y te ayudo.",
   benefit3t: "Gratis y sin spam",              benefit3s: "Solo subo cuando vale la pena. Cero publi de relleno.",
 
   // FAQ
   faq0q: "¿Cuánto tarda el envío?",            faq0a: "Entre 7 y 15 días hábiles según el destino. La mayoría llega en 10 días.",
-  faq1q: "¿Pago aduanas?",                     faq1a: "En pedidos bajo 150€ suele entrar sin problemas. Por encima puede haber tasas según aduana.",
+  faq1q: "¿Pago aduanas?",                     faq1a: "No. Hacoo usa el sistema IOSS, por lo que el IVA ya está incluido en el precio que ves. En compras bajo 150€ no pagas nada extra al recibir el paquete. Si por algún motivo te cobran algo en aduana, Hacoo lo reembolsa — guarda la factura y contacta con su soporte.",
   faq2q: "¿Qué pasa si me llega mal?",         faq2a: "Abre una disputa en la app en 72h. Hacoo suele reembolsar o reenviar sin coste.",
   faq3q: "¿Es fiable Hacoo?",                  faq3a: "Sí. Es una plataforma con años de historia. Yo mismo compro ahí y selecciono solo lo que he probado o verificado.",
-  faq4q: "¿Necesito cuenta para comprar?",     faq4a: "Sí, crea una cuenta gratuita en la app. Solo tarda 1 minuto con el email.",
+  faq4q: "¿Necesito cuenta para comprar?",     faq4a: "Sí, crea una cuenta gratuita en la app — solo tarda 1 minuto con tu email. Al registrarte y hacer tu primera compra, usa el código TRENT14 para llevarte un 14% de descuento. ¡No te lo pierdas!",
 
   // Footer
-  footerCta1: "¿Listo para", footerCta2: "PILLAR DROPS?",
+  footerCta1: "¿Listo para", footerCta2: "tu nuevo pedido?",
 };
 
 const BG_THEMES = {
@@ -104,7 +104,7 @@ function App() {
   useEffect(() => {
     if (!window._db) return;
     const unsub = window._db.collection('config').doc('site').onSnapshot(snap => {
-      if (snap.exists()) setCfg(c => ({ ...c, ...snap.data() }));
+      if (snap.exists) setCfg(c => ({ ...c, ...snap.data() }));
     });
     return () => unsub();
   }, []);
