@@ -193,10 +193,10 @@ function HowToBuy() {
   const { editMode, cfg, onSave } = React.useContext(window.EditCtx);
   const E = window.EditableText;
   const steps = [
-    { n: '01', title: cfg.step0title, body: cfg.step0body, tag: cfg.step0tag, href: '#', cta: 'Ir →' },
-    { n: '02', title: cfg.step1title, body: cfg.step1body, tag: cfg.step1tag, href: '#', cta: 'Ir →' },
-    { n: '03', title: cfg.step2title, body: cfg.step2body, tag: cfg.step2tag, href: '#', cta: 'Ir →' },
-    { n: '04', title: cfg.step3title, body: cfg.step3body, tag: cfg.step3tag, href: '#', cta: 'Ir →' },
+    { n: '01', title: cfg.step0title, body: cfg.step0body, tag: cfg.step0tag, href: 'https://apps.apple.com/es/app/hacoo-discovering-inspiring/id1399907836', cta: '' },
+    { n: '02', title: cfg.step1title, body: cfg.step1body, tag: cfg.step1tag, href: 'https://t.me/trentthacoo', cta: '' },
+    { n: '03', title: cfg.step2title, body: cfg.step2body, tag: cfg.step2tag, href: '#drops', cta: '' },
+    { n: '04', title: cfg.step3title, body: cfg.step3body, tag: cfg.step3tag, href: '#', cta: 'copiar', isCopyCode: true },
   ];
   return (
     <section id="how" className="section section--how">
@@ -211,9 +211,13 @@ function HowToBuy() {
             <a
               className="step__link"
               href={s.href}
-              target="_blank"
-              rel="noreferrer"
-              onClick={editMode ? e => e.preventDefault() : undefined}
+              target={s.isCopyCode ? undefined : "_blank"}
+              rel={s.isCopyCode ? undefined : "noreferrer"}
+              onClick={s.isCopyCode ? (e) => {
+                e.preventDefault();
+                navigator.clipboard.writeText('TRENT14');
+                alert('Código copiado: TRENT14');
+              } : (editMode ? e => e.preventDefault() : undefined)}
             >
               <div className="step__n">{s.n}</div>
               <div className="step__body">
@@ -323,19 +327,19 @@ function Catalog({ density, palette }) {
       <div className="section__head">
         <div className="section__eyebrow">[ 02 ] CATÁLOGO</div>
         <h2 className="section__title">Prendas <em>seleccionadas</em>.</h2>
-        <p className="section__lead">{loading ? 'Cargando…' : `${filtered.length} prendas disponibles. Filtra por marca o busca por nombre.`}</p>
+        <p className="section__lead">{loading ? 'Cargando…' : `${filtered.length} prendas disponibles. Filtra por marca o en el buscador.`}</p>
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
-        <div className="catalog__search" style={{ flex: 1, minWidth: 180 }}>
+        <div className="catalog__search" style={{ flex: 1, minWidth: 350 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
           <input placeholder="Busca hoodie, sneaker…" value={q} onChange={(e) => { setQ(e.target.value); resetPagination(); }} />
           {q && <button className="catalog__clear" onClick={() => { setQ(''); resetPagination(); }}>×</button>}
         </div>
         <button onClick={() => setFilterOpen(o => !o)} style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px',
-          border: `1.5px solid ${activeFilters > 0 ? 'var(--c-primary)' : 'var(--c-border)'}`,
+          display: 'flex', alignItems: 'center', gap: 6, padding: '12px 18px',
+          border: `2px solid var(--c-primary)`,
           borderRadius: 999, background: activeFilters > 0 ? 'var(--c-primary)' : 'var(--c-surface)',
-          color: activeFilters > 0 ? '#fff' : 'var(--c-ink)',
+          color: activeFilters > 0 ? '#fff' : 'var(--c-primary)',
           fontFamily: 'inherit', fontSize: 14, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
@@ -535,11 +539,11 @@ function TelegramBlock() {
         <div className="telegram__right">
           {benefits.map((b, i) => (
             <div key={i} className="benefit">
-              <div className="benefit__ic">{b.ic}</div>
-              <div>
+              <div className="benefit__head">
+                <div className="benefit__ic">{b.ic}</div>
                 <E className="benefit__t" value={cfg[b.tKey]} fieldKey={b.tKey} editMode={editMode} onSave={onSave} />
-                <E className="benefit__s" value={cfg[b.sKey]} fieldKey={b.sKey} editMode={editMode} onSave={onSave} />
               </div>
+              <E className="benefit__s" value={cfg[b.sKey]} fieldKey={b.sKey} editMode={editMode} onSave={onSave} />
             </div>
           ))}
         </div>
@@ -688,40 +692,30 @@ function Footer() {
   return (
     <footer className="footer">
       <div className="footer__top">
-        <div className="footer__logo">
-          <img src={(window.__resources && window.__resources.trentLogo) || "assets/trent-logo.png"} alt="TRENT Clothing" />
+        <div className="footer__left">
+          <div className="footer__cta">
+            <E tag="div" className="footer__cta-line" value={cfg.footerCta1} fieldKey="footerCta1" editMode={editMode} onSave={onSave} />
+            <E tag="div" className="footer__cta-line footer__cta-line--big" value={cfg.footerCta2} fieldKey="footerCta2" editMode={editMode} onSave={onSave} />
+            <a href={cfg.telegramLink} target="_blank" rel="noreferrer" className="btn btn--primary btn--lg">Chat de Telegram →</a>
+          </div>
         </div>
-        <div className="footer__cta">
-          <E tag="div" className="footer__cta-line" value={cfg.footerCta1} fieldKey="footerCta1" editMode={editMode} onSave={onSave} />
-          <E tag="div" className="footer__cta-line footer__cta-line--big" value={cfg.footerCta2} fieldKey="footerCta2" editMode={editMode} onSave={onSave} />
-          <a href={cfg.telegramLink} target="_blank" rel="noreferrer" className="btn btn--primary btn--lg">Entrar al Telegram →</a>
-        </div>
-      </div>
-      <div className="footer__cols">
-        <div className="footer__col">
-          <div className="footer__h">Encuéntrame</div>
-          <a href="https://www.tiktok.com/@trent_wave" target="_blank" rel="noreferrer">TikTok · @trent_wave</a>
-          <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer">Telegram · trentthacoo</a>
-          <a href="#">Instagram · pronto</a>
-          <a href="mailto:hola@trentclothing.com">hola@trentclothing.com</a>
-        </div>
-        <div className="footer__col">
-          <div className="footer__h">Web</div>
-          <a href="#how">Cómo comprar</a>
-          <a href="#drops">Catálogo</a>
-          <a href="#guides">Guías</a>
-          <a href="#faq">FAQ</a>
-        </div>
-        <div className="footer__col">
-          <div className="footer__h">Legal</div>
-          <a href="#">Aviso de afiliación</a>
-          <a href="#">Política de cookies</a>
-          <a href="#">Términos</a>
+        <div className="footer__right">
+          <div className="footer__col">
+            <div className="footer__h">Encuéntrame</div>
+            <a href="https://www.tiktok.com/@trent_wave" target="_blank" rel="noreferrer">TikTok</a>
+            <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer">Telegram</a>
+          </div>
+          <div className="footer__col">
+            <div className="footer__h">Web</div>
+            <a href="#how">Cómo comprar</a>
+            <a href="#drops">Catálogo</a>
+            <a href="#guides">Guías</a>
+            <a href="#faq">FAQ</a>
+          </div>
         </div>
       </div>
       <div className="footer__bottom">
-        <div>© 2026 TRENT Clothing — Curaduría no oficial de Hacoo.</div>
-        <div>Hecho con ☕ y mucho scroll.</div>
+        <div>© 2025 TRENT</div>
       </div>
     </footer>
   );
