@@ -347,8 +347,10 @@ const BRAND_ALIASES = {
   'on cloud': 'On Cloud',
   'synaworld': 'Synaworld',
   'syna world': 'Synaworld',
+  'syna word': 'Synaworld',
   'synaworld, psg': 'Synaworld',
   'syna world, psg': 'Synaworld',
+  'syna word, psg': 'Synaworld',
   'polene': 'Polène',
   'polène': 'Polène',
 };
@@ -382,8 +384,8 @@ function Catalog({ density, palette }) {
   const [loading, setLoading] = useState(true);
   const itemsPerPage = density === 'compact' ? 20 : density === 'comfy' ? 12 : 16;
 
-  const [cat, setCat] = useState('Todo');
-  const [brand, setBrand] = useState('Todas');
+  const [cat, setCat] = useState([]);
+  const [brand, setBrand] = useState([]);
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -421,8 +423,8 @@ function Catalog({ density, palette }) {
     return products.filter((p) => {
       const name = p.nom || p.name || '';
       const brandVal = normalizeBrand(p.marca || p.brand || '');
-      if (brand !== 'Todas' && brandVal !== brand) return false;
-      if (cat !== 'Todo' && detectCat(name, p.categoria) !== cat) return false;
+      if (brand.length > 0 && !brand.includes(brandVal)) return false;
+      if (cat.length > 0 && !cat.includes(detectCat(name, p.categoria))) return false;
       if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     });
@@ -437,9 +439,21 @@ function Catalog({ density, palette }) {
 
   const resetPagination = () => setPage(1);
 
-  const activeFilters = (brand !== 'Todas' ? 1 : 0) + (cat !== 'Todo' ? 1 : 0);
+  const activeFilters = brand.length + cat.length;
 
-  const clearFilters = () => { setBrand('Todas'); setCat('Todo'); resetPagination(); };
+  const clearFilters = () => { setBrand([]); setCat([]); resetPagination(); };
+
+  const toggleCat = (c) => {
+    if (c === 'Todo') { setCat([]); resetPagination(); return; }
+    setCat((prev) => prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]);
+    resetPagination();
+  };
+
+  const toggleBrand = (b) => {
+    if (b === 'Todas') { setBrand([]); resetPagination(); return; }
+    setBrand((prev) => prev.includes(b) ? prev.filter((x) => x !== b) : [...prev, b]);
+    resetPagination();
+  };
 
   return (
     <section id="drops" className={`section section--catalog density--${density}`}>
@@ -483,7 +497,7 @@ function Catalog({ density, palette }) {
             <span className="filter-label">Tipo de prenda</span>
             <div className="chips">
               {cats.map((c) => (
-                <button key={c} className={`chip ${cat === c ? 'chip--active' : ''}`} onClick={() => { setCat(c); resetPagination(); }}>
+                <button key={c} className={`chip ${(c === 'Todo' ? cat.length === 0 : cat.includes(c)) ? 'chip--active' : ''}`} onClick={() => toggleCat(c)}>
                   {c}
                 </button>
               ))}
@@ -493,7 +507,7 @@ function Catalog({ density, palette }) {
             <span className="filter-label">Marca</span>
             <div className="chips">
               {brands.map((b) => (
-                <button key={b} className={`chip ${brand === b ? 'chip--active' : ''}`} onClick={() => { setBrand(b); resetPagination(); }}>
+                <button key={b} className={`chip ${(b === 'Todas' ? brand.length === 0 : brand.includes(b)) ? 'chip--active' : ''}`} onClick={() => toggleBrand(b)}>
                   {b}
                 </button>
               ))}
