@@ -143,6 +143,20 @@ img { display: block; max-width: 100%; }
   background: var(--c-ink);
   color: var(--c-bg);
 }
+@media (max-width: 760px) {
+  .nav {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .nav__logo { order: 1; }
+  .nav__cta { order: 2; margin-left: auto; }
+  .nav__links {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+}
 
 /* ============================================================
    HERO
