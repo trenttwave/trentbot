@@ -172,7 +172,7 @@ def _detect_categoria(nom: str) -> str:
     if re.search(r'cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf', n): return 'Accesorios'
     return 'Otros'
 
-def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliats: str, imatge: str, categoria: str = ""):
+def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliats: str, imatge: str, categoria: str = "", imagenes: list = None):
     db = _get_firestore()
     if not db:
         return
@@ -185,6 +185,7 @@ def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliat
             "marca": marca,
             "link_afiliats": link_afiliats,
             "imatge": imatge,
+            "imagenes": imagenes or ([imatge] if imatge else []),
             "categoria": categoria or _detect_categoria(nom),
             "data": fb_firestore.SERVER_TIMESTAMP,
         })
@@ -1168,13 +1169,23 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
                 preu_str = price
 
             imatge = state.get("image_url", "")
-            if not imatge and photos:
-                try:
-                    file = await bot.get_file(photos[0])
-                    img_bytes = bytes(await file.download_as_bytearray())
-                    imatge = await _upload_product_image(img_bytes)
-                except Exception as e:
-                    logger.warning(f"Could not upload product image: {e}")
+            imagenes = []
+
+            if photos:
+                for pid in photos:
+                    try:
+                        file = await bot.get_file(pid)
+                        img_bytes = bytes(await file.download_as_bytearray())
+                        url = await _upload_product_image(img_bytes)
+                        if url:
+                            imagenes.append(url)
+                    except Exception as e:
+                        logger.warning(f"Could not upload product image: {e}")
+
+            if not imatge:
+                imatge = imagenes[0] if imagenes else ""
+            elif not imagenes:
+                imagenes = [imatge]
 
             raw_title = state.get("title", "")
             titulo_ok, marca_ok, cat_ok = await asyncio.to_thread(_enrich_title, raw_title)
@@ -1187,6 +1198,7 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
                 marca=marca_final,
                 link_afiliats=state.get("link", ""),
                 imatge=imatge,
+                imagenes=imagenes,
                 categoria=cat_ok or _detect_categoria(titulo_ok),
             )
             logger.info("Firestore save OK (background)")

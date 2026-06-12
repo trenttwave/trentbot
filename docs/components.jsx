@@ -85,6 +85,52 @@ function HeroImageSlider({ images }) {
 window.HeroImageSlider = HeroImageSlider;
 
 /* ============================================================
+   CARD IMAGE SLIDER — carrusel ligero para tarjetas de producto
+   ============================================================ */
+function CardImageSlider({ images, alt }) {
+  const [idx, setIdx] = React.useState(0);
+  const startX = React.useRef(null);
+
+  const prev = (e) => { e.stopPropagation(); setIdx(i => (i - 1 + images.length) % images.length); };
+  const next = (e) => { e.stopPropagation(); setIdx(i => (i + 1) % images.length); };
+
+  const onTouchStart = (e) => { startX.current = e.touches[0].clientX; };
+  const onTouchEnd = (e) => {
+    if (startX.current === null) return;
+    const dx = e.changedTouches[0].clientX - startX.current;
+    if (dx > 40) setIdx(i => (i - 1 + images.length) % images.length);
+    else if (dx < -40) setIdx(i => (i + 1) % images.length);
+    startX.current = null;
+  };
+
+  return (
+    <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+      style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+      {images.map((src, i) => (
+        <img key={i} src={src} alt={`${alt} ${i+1}`}
+          style={{
+            position: i === 0 ? 'relative' : 'absolute',
+            inset: 0, width: '100%', height: '100%',
+            objectFit: 'cover', display: 'block',
+            opacity: idx === i ? 1 : 0,
+            transition: 'opacity 0.35s ease',
+          }} />
+      ))}
+      {images.length > 1 && <>
+        <button onClick={prev} style={{ position:'absolute', left:6, top:'50%', transform:'translateY(-50%)', background:'rgba(255,255,255,0.85)', border:'none', borderRadius:'50%', width:24, height:24, fontSize:13, cursor:'pointer', zIndex:2, display:'flex', alignItems:'center', justifyContent:'center' }}>‹</button>
+        <button onClick={next} style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)', background:'rgba(255,255,255,0.85)', border:'none', borderRadius:'50%', width:24, height:24, fontSize:13, cursor:'pointer', zIndex:2, display:'flex', alignItems:'center', justifyContent:'center' }}>›</button>
+        <div style={{ position:'absolute', bottom:8, left:'50%', transform:'translateX(-50%)', display:'flex', gap:4, zIndex:2 }}>
+          {images.map((_, i) => (
+            <span key={i} style={{ width: idx===i ? 14 : 5, height:5, borderRadius:999, background: idx===i ? 'var(--c-primary)' : 'rgba(255,255,255,0.7)', transition:'all 0.2s' }} />
+          ))}
+        </div>
+      </>}
+    </div>
+  );
+}
+window.CardImageSlider = CardImageSlider;
+
+/* ============================================================
    PLACEHOLDER de imagen (rayado sutil) — el "product shot"
    ============================================================ */
 function ProductPlaceholder({ stripe = '#1E3FBE', bg = '#ECECEC', label, drop }) {
@@ -450,6 +496,7 @@ function Catalog({ density, palette }) {
           const price = p.preu || p.price || '';
           const brand = p.marca || p.brand || '';
           const imgUrl = p.imatge || p.image_url || '';
+          const imgList = (Array.isArray(p.imagenes) && p.imagenes.length > 0) ? p.imagenes : (imgUrl ? [imgUrl] : []);
           const link = p.link_afiliats || p.link || 'https://t.me/trentthacoo';
 
           const saveProduct = async (field, value) => {
@@ -465,8 +512,8 @@ function Catalog({ density, palette }) {
           return (
             <article key={p.id} className="card">
               <div className="card__img" style={{ position: 'relative' }}>
-                {imgUrl
-                  ? <img src={imgUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                {imgList.length > 0
+                  ? <CardImageSlider images={imgList} alt={name} />
                   : <ProductPlaceholder stripe="#1E3FBE" bg="#ECECEC" label={name} />
                 }
                 {editMode && (
