@@ -150,8 +150,8 @@ function App() {
         <Navbar onScrollTo={scrollTo} />
         <Hero onScrollTo={scrollTo} palette={palette} />
         <Marquee items={marqueeItems} />
-        <HowToBuy />
         <Catalog density={cfg.density} palette={palette} />
+        <HowToBuy />
         <TelegramBlock />
         <Guides />
         <FAQ />

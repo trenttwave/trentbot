@@ -192,8 +192,8 @@ function Navbar({ onScrollTo }) {
         <img src={(window.__resources && window.__resources.trentLogo) || "assets/trent-logo.png"} alt="TRENT Clothing" />
       </a>
       <ul className="nav__links">
-        <li><a href="#how" onClick={(e) => { e.preventDefault(); onScrollTo('how'); }}>Cómo comprar</a></li>
         <li><a href="#drops" onClick={(e) => { e.preventDefault(); onScrollTo('drops'); }}>Links</a></li>
+        <li><a href="#how" onClick={(e) => { e.preventDefault(); onScrollTo('how'); }}>Cómo comprar</a></li>
         <li><a href="#telegram" onClick={(e) => { e.preventDefault(); onScrollTo('telegram'); }}>Telegram</a></li>
         <li><a href="#guides" onClick={(e) => { e.preventDefault(); onScrollTo('guides'); }}>Guías</a></li>
         <li><a href="#faq" onClick={(e) => { e.preventDefault(); onScrollTo('faq'); }}>FAQ</a></li>
@@ -297,7 +297,7 @@ function HowToBuy() {
   return (
     <section id="how" className="section section--how">
       <div className="section__head">
-        <div className="section__eyebrow">[ 01 ] PROCESO</div>
+        <div className="section__eyebrow">[ 02 ] PROCESO</div>
         <E tag="h2" className="section__title" value={cfg.howTitle} fieldKey="howTitle" editMode={editMode} onSave={onSave} />
         <E tag="p" className="section__lead" value={cfg.howLead} fieldKey="howLead" editMode={editMode} onSave={onSave} />
       </div>
@@ -458,7 +458,7 @@ function Catalog({ density, palette }) {
   return (
     <section id="drops" className={`section section--catalog density--${density}`}>
       <div className="section__head">
-        <div className="section__eyebrow">[ 02 ] CATÁLOGO</div>
+        <div className="section__eyebrow">[ 01 ] CATÁLOGO</div>
         <h2 className="section__title">Prendas <em>seleccionadas</em>.</h2>
         <p className="section__lead">{loading ? 'Cargando…' : `${filtered.length} prendas disponibles. Filtra por marca o en el buscador.`}</p>
       </div>
