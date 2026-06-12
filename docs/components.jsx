@@ -371,6 +371,7 @@ function detectCat(name, savedCat) {
   if (/vestido|dress|falda|skirt/.test(n)) return 'Vestidos';
   if (/gorro|hat|cap|gorra|beanie|bucket|scrunchie/.test(n)) return 'Accesorios';
   if (/cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf/.test(n)) return 'Accesorios';
+  if (/auricular|airpod|earbud|earphone|headphone|altavoz|speaker|iphone|ipad|macbook|apple watch|smartwatch|airtag|cargador|charger|powerbank|electronic/.test(n)) return 'Electrónica';
   return 'Otros';
 }
 
