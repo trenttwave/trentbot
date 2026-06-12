@@ -395,6 +395,7 @@ function Catalog({ density, palette }) {
   const [toast, setToast] = useState(null);
   const [lightbox, setLightbox] = useState(null);
   const [quickView, setQuickView] = useState(null);
+  const [showWishlistOnly, setShowWishlistOnly] = useState(false);
 
   useEffect(() => {
     if (!window._db) { setLoading(false); return; }
@@ -409,6 +410,7 @@ function Catalog({ density, palette }) {
 
   useEffect(() => {
     localStorage.setItem('trent_wishlist', JSON.stringify(wishlist));
+    if (wishlist.length === 0) setShowWishlistOnly(false);
   }, [wishlist]);
 
   const brands = useMemo(() => {
@@ -425,6 +427,7 @@ function Catalog({ density, palette }) {
     return products.filter((p) => {
       const name = p.nom || p.name || '';
       const brandVal = normalizeBrand(p.marca || p.brand || '');
+      if (showWishlistOnly && !wishlist.includes(p.id)) return false;
       if (brand.length > 0 && !brand.includes(brandVal)) return false;
       if (cat.length > 0 && !cat.includes(detectCat(name, p.categoria))) return false;
       if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
@@ -434,7 +437,7 @@ function Catalog({ density, palette }) {
       const db = b.destacado ? 1 : 0;
       return db - da;
     });
-  }, [products, brand, cat, q]);
+  }, [products, brand, cat, q, showWishlistOnly, wishlist]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
@@ -523,9 +526,16 @@ function Catalog({ density, palette }) {
       )}
 
       {wishlist.length > 0 && (
-        <button className="wishlist-badge" onClick={() => setWishlist([])}>
-          ♥ {wishlist.length} en wishlist · borrar
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <button className="wishlist-badge" onClick={() => { setShowWishlistOnly((v) => !v); resetPagination(); }}>
+            {showWishlistOnly ? '← Ver todo el catálogo' : `♥ ${wishlist.length} en wishlist · ver`}
+          </button>
+          {showWishlistOnly && (
+            <button className="wishlist-badge" onClick={() => { setWishlist([]); setShowWishlistOnly(false); }}>
+              Borrar wishlist
+            </button>
+          )}
+        </div>
       )}
 
       <div className="grid">
