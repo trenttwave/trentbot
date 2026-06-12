@@ -393,6 +393,7 @@ function Catalog({ density, palette }) {
     try { return JSON.parse(localStorage.getItem('trent_wishlist') || '[]'); } catch { return []; }
   });
   const [toast, setToast] = useState(null);
+  const [lightbox, setLightbox] = useState(null);
 
   useEffect(() => {
     if (!window._db) { setLoading(false); return; }
@@ -548,13 +549,14 @@ function Catalog({ density, palette }) {
 
           return (
             <article key={p.id} className="card">
-              <div className="card__img" style={{ position: 'relative' }}>
+              <div className="card__img" style={{ position: 'relative', cursor: imgList.length > 0 && !editMode ? 'zoom-in' : 'default' }}
+                onClick={() => { if (!editMode && imgList.length > 0) setLightbox({ images: imgList, alt: name }); }}>
                 {imgList.length > 0
                   ? <CardImageSlider images={imgList} alt={name} />
                   : <ProductPlaceholder stripe="#1E3FBE" bg="#ECECEC" label={name} />
                 }
                 {editMode && (
-                  <button onClick={changeImage} style={{
+                  <button onClick={(e) => { e.stopPropagation(); changeImage(); }} style={{
                     position: 'absolute', inset: 0, width: '100%', height: '100%',
                     background: 'rgba(30,63,190,.55)', color: '#fff', border: 'none',
                     cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
@@ -566,7 +568,7 @@ function Catalog({ density, palette }) {
                 {!editMode && (
                   <button
                     className={`card__wish ${wishlist.includes(p.id) ? 'card__wish--on' : ''}`}
-                    onClick={() => toggleWish(p.id)}
+                    onClick={(e) => { e.stopPropagation(); toggleWish(p.id); }}
                     aria-label="Guardar"
                   >
                     {wishlist.includes(p.id) ? '♥' : '♡'}
@@ -639,6 +641,24 @@ function Catalog({ density, palette }) {
       )}
 
       {toast && <div className="toast">{toast}</div>}
+
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(10,10,18,0.85)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <button onClick={() => setLightbox(null)} aria-label="Cerrar" style={{
+            position: 'absolute', top: 18, right: 18, background: 'rgba(255,255,255,0.9)', border: 'none',
+            borderRadius: '50%', width: 36, height: 36, fontSize: 18, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>×</button>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            width: 'min(92vw, 520px)', height: 'min(92vw, 520px)', borderRadius: 16, overflow: 'hidden',
+          }}>
+            <CardImageSlider images={lightbox.images} alt={lightbox.alt} />
+          </div>
+        </div>
+      )}
     </section>
   );
 }
