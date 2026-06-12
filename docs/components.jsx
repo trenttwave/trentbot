@@ -394,6 +394,7 @@ function Catalog({ density, palette }) {
   });
   const [toast, setToast] = useState(null);
   const [lightbox, setLightbox] = useState(null);
+  const [quickView, setQuickView] = useState(null);
 
   useEffect(() => {
     if (!window._db) { setLoading(false); return; }
@@ -553,8 +554,8 @@ function Catalog({ density, palette }) {
 
           return (
             <article key={p.id} className="card">
-              <div className="card__img" style={{ position: 'relative', cursor: imgList.length > 0 && !editMode ? 'zoom-in' : 'default' }}
-                onClick={() => { if (!editMode && imgList.length > 0) setLightbox({ images: imgList, alt: name }); }}>
+              <div className="card__img" style={{ position: 'relative', cursor: !editMode ? 'pointer' : 'default' }}
+                onClick={() => { if (!editMode) setQuickView({ id: p.id, name, price, brand, imgList, link }); }}>
                 {imgList.length > 0
                   ? <CardImageSlider images={imgList} alt={name} />
                   : <ProductPlaceholder stripe="#1E3FBE" bg="#ECECEC" label={name} />
@@ -615,7 +616,7 @@ function Catalog({ density, palette }) {
                       style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, cursor: 'text' }}
                       onBlur={e => saveProduct('nom', e.currentTarget.textContent.trim())}
                     >{name}</h3>
-                  : <h3 className="card__name">{name}</h3>
+                  : <h3 className="card__name" style={{ cursor: 'pointer' }} onClick={() => setQuickView({ id: p.id, name, price, brand, imgList, link })}>{name}</h3>
                 }
                 {!editMode && (
                   <div className="card__actions">
@@ -659,6 +660,48 @@ function Catalog({ density, palette }) {
       )}
 
       {toast && <div className="toast">{toast}</div>}
+
+      {quickView && (
+        <div onClick={() => setQuickView(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(10,10,18,0.75)', zIndex: 900,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            width: 'min(92vw, 420px)', maxHeight: '90vh', overflowY: 'auto',
+            background: 'var(--c-surface)', borderRadius: 16, position: 'relative',
+          }}>
+            <button onClick={() => setQuickView(null)} aria-label="Cerrar" style={{
+              position: 'absolute', top: 10, right: 10, zIndex: 2, background: 'rgba(255,255,255,0.9)', border: 'none',
+              borderRadius: '50%', width: 36, height: 36, fontSize: 18, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>×</button>
+            <div
+              style={{ width: '100%', height: 'min(92vw, 420px)', borderRadius: '16px 16px 0 0', overflow: 'hidden', cursor: quickView.imgList.length > 0 ? 'zoom-in' : 'default' }}
+              onClick={() => { if (quickView.imgList.length > 0) setLightbox({ images: quickView.imgList, alt: quickView.name }); }}
+            >
+              {quickView.imgList.length > 0
+                ? <CardImageSlider images={quickView.imgList} alt={quickView.name} />
+                : <ProductPlaceholder stripe="#1E3FBE" bg="#ECECEC" label={quickView.name} />
+              }
+            </div>
+            <div style={{ padding: '18px 20px 22px' }}>
+              <div className="card__row">
+                <div className="card__cat">{normalizeBrand(quickView.brand)}</div>
+                <div className="card__price">{quickView.price}</div>
+              </div>
+              <h3 className="card__name" style={{ marginBottom: 16 }}>{quickView.name}</h3>
+              <div className="card__actions">
+                <a href={quickView.link} target="_blank" rel="noreferrer" className="card__btn card__btn--primary">
+                  Comprar →
+                </a>
+                <button className="card__btn card__btn--ghost" onClick={() => { try { navigator.clipboard.writeText(quickView.link); } catch {} setToast(`Link copiado · ${quickView.name}`); setTimeout(() => setToast(null), 1800); }} title="Copiar link">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {lightbox && (
         <div onClick={() => setLightbox(null)} style={{
