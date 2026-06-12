@@ -146,15 +146,29 @@ img { display: block; max-width: 100%; }
 @media (max-width: 760px) {
   .nav {
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
   }
-  .nav__logo { order: 1; }
-  .nav__cta { order: 2; margin-left: auto; }
+  .nav__logo {
+    order: 1;
+    width: 48px;
+    height: 24px;
+  }
+  .nav__cta {
+    order: 2;
+    margin-left: auto;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
   .nav__links {
     order: 3;
     flex-basis: 100%;
     justify-content: flex-start;
     overflow-x: auto;
+    gap: 2px;
+  }
+  .nav__links a {
+    padding: 6px 8px;
+    font-size: 12.5px;
   }
 }
 
@@ -176,6 +190,9 @@ img { display: block; max-width: 100%; }
 @media (max-width: 960px) {
   .hero__grid { grid-template-columns: 1fr; }
   .hero { padding: 100px 20px 24px; }
+}
+@media (max-width: 760px) {
+  .hero { padding-top: 130px; }
 }
 
 .hero__eyebrow {
