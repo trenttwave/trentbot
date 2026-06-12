@@ -428,6 +428,10 @@ function Catalog({ density, palette }) {
       if (cat.length > 0 && !cat.includes(detectCat(name, p.categoria))) return false;
       if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
+    }).sort((a, b) => {
+      const da = a.destacado ? 1 : 0;
+      const db = b.destacado ? 1 : 0;
+      return db - da;
     });
   }, [products, brand, cat, q]);
 
@@ -563,6 +567,20 @@ function Catalog({ density, palette }) {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   }}>
                     🖼️ Cambiar foto
+                  </button>
+                )}
+                {editMode && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); saveProduct('destacado', !p.destacado); }}
+                    title={p.destacado ? 'Quitar de destacados' : 'Destacar (mostrar primero)'}
+                    style={{
+                      position: 'absolute', top: 10, right: 10, zIndex: 3,
+                      background: p.destacado ? 'var(--c-primary)' : 'rgba(255,255,255,0.9)',
+                      color: p.destacado ? '#fff' : '#0A0A12',
+                      border: 'none', borderRadius: '50%', width: 32, height: 32, fontSize: 16,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                    {p.destacado ? '★' : '☆'}
                   </button>
                 )}
                 {!editMode && (
