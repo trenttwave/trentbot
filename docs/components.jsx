@@ -335,6 +335,28 @@ function HowToBuy() {
 /* ============================================================
    CATÁLOGO — filtros + grid + wishlist + paginación
    ============================================================ */
+// Unifica variantes de la misma marca (mayúsculas, abreviaturas, acentos...)
+const BRAND_ALIASES = {
+  'a bathing ape': 'BAPE',
+  'bape': 'BAPE',
+  'cp company': 'C.P. Company',
+  'c.p. company': 'C.P. Company',
+  'c. p. company': 'C.P. Company',
+  'longchamp': 'Longchamp',
+  'on': 'On Cloud',
+  'on cloud': 'On Cloud',
+  'synaworld': 'Synaworld',
+  'syna world': 'Synaworld',
+  'synaworld, psg': 'Synaworld',
+  'syna world, psg': 'Synaworld',
+  'polene': 'Polène',
+  'polène': 'Polène',
+};
+function normalizeBrand(brand) {
+  const key = (brand || '').trim().toLowerCase();
+  return BRAND_ALIASES[key] || brand;
+}
+
 // Detecta categoría desde el nombre del producto
 function detectCat(name, savedCat) {
   if (savedCat) return savedCat;
@@ -385,7 +407,7 @@ function Catalog({ density, palette }) {
   }, [wishlist]);
 
   const brands = useMemo(() => {
-    const set = new Set(products.map(p => p.marca || p.brand || '').filter(Boolean));
+    const set = new Set(products.map(p => normalizeBrand(p.marca || p.brand || '')).filter(Boolean));
     return ['Todas', ...Array.from(set).sort()];
   }, [products]);
 
@@ -397,7 +419,7 @@ function Catalog({ density, palette }) {
   const filtered = useMemo(() => {
     return products.filter((p) => {
       const name = p.nom || p.name || '';
-      const brandVal = p.marca || p.brand || '';
+      const brandVal = normalizeBrand(p.marca || p.brand || '');
       if (brand !== 'Todas' && brandVal !== brand) return false;
       if (cat !== 'Todo' && detectCat(name, p.categoria) !== cat) return false;
       if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
@@ -543,7 +565,7 @@ function Catalog({ density, palette }) {
                         style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, padding: '1px 4px', minWidth: 10 }}
                         onBlur={e => saveProduct('marca', e.currentTarget.textContent.trim())}
                       >{brand}</span>
-                    : <div className="card__cat">{brand}</div>
+                    : <div className="card__cat">{normalizeBrand(brand)}</div>
                   }
                   {editMode
                     ? <span contentEditable suppressContentEditableWarning
