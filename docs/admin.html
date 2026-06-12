@@ -179,6 +179,13 @@
       <section id="productos" class="admin-section">
         <h3>🛍️ Productos del catálogo</h3>
         <p class="section-desc">Estos son los productos publicados por el bot. Pasa el ratón encima y pulsa la ✕ para eliminar.</p>
+
+        <h4 style="margin:0 0 6px;font-size:14px;font-weight:700">⭐ Destacados</h4>
+        <p class="section-desc">Estos productos aparecen primero en el catálogo. Pulsa ★ para quitarlos de aquí.</p>
+        <div id="prod-featured-grid" class="prod-grid" style="margin-bottom:28px">
+          <div class="prod-loading">Cargando…</div>
+        </div>
+
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:8px 14px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mute)" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
           <input id="prod-search" type="text" placeholder="Buscar por nombre, marca o precio…" oninput="filterProducts()" style="border:none;outline:none;background:transparent;font:inherit;font-size:13px;width:100%;color:var(--ink)" />
@@ -459,11 +466,11 @@
   let _currentEditId = null;
   let _allProducts = [];
 
-  function renderProductCards(docs) {
-    const grid = document.getElementById('prod-grid');
-    const count = document.getElementById('prod-count');
+  function renderProductCards(docs, gridId, emptyMsg) {
+    const grid = document.getElementById(gridId);
+    const count = gridId === 'prod-grid' ? document.getElementById('prod-count') : null;
     if (!docs.length) {
-      grid.innerHTML = '<div class="prod-empty">Sin resultados.</div>';
+      grid.innerHTML = `<div class="prod-empty">${emptyMsg}</div>`;
       if (count) count.textContent = '0 productos';
       return;
     }
@@ -499,7 +506,8 @@
       p.brand.toLowerCase().includes(q) ||
       p.price.toLowerCase().includes(q)
     ) : _allProducts;
-    renderProductCards(filtered);
+    renderProductCards(filtered, 'prod-grid', 'Sin resultados.');
+    renderProductCards(_allProducts.filter(p => p.destacado), 'prod-featured-grid', 'Aún no has destacado ningún producto.');
   }
 
   function loadProducts() {
