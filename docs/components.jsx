@@ -675,6 +675,14 @@ function Catalog({ density, palette }) {
               borderRadius: '50%', width: 36, height: 36, fontSize: 18, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>×</button>
+            <button
+              className={`card__wish ${wishlist.includes(quickView.id) ? 'card__wish--on' : ''}`}
+              onClick={() => toggleWish(quickView.id)}
+              aria-label="Guardar"
+              style={{ position: 'absolute', top: 10, left: 10, zIndex: 2 }}
+            >
+              {wishlist.includes(quickView.id) ? '♥' : '♡'}
+            </button>
             <div
               style={{ width: '100%', height: 'min(92vw, 420px)', borderRadius: '16px 16px 0 0', overflow: 'hidden', cursor: quickView.imgList.length > 0 ? 'zoom-in' : 'default' }}
               onClick={() => { if (quickView.imgList.length > 0) setLightbox({ images: quickView.imgList, alt: quickView.name }); }}
