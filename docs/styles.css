@@ -162,13 +162,13 @@ img { display: block; max-width: 100%; }
   .nav__links {
     order: 3;
     flex-basis: 100%;
-    justify-content: flex-start;
+    justify-content: center;
     overflow-x: auto;
-    gap: 2px;
+    gap: 4px;
   }
   .nav__links a {
-    padding: 6px 8px;
-    font-size: 12.5px;
+    padding: 8px 10px;
+    font-size: 15px;
   }
 }
 
@@ -192,7 +192,7 @@ img { display: block; max-width: 100%; }
   .hero { padding: 100px 20px 24px; }
 }
 @media (max-width: 760px) {
-  .hero { padding-top: 130px; }
+  .hero { padding-top: 140px; }
 }
 
 .hero__eyebrow {
