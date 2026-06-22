@@ -552,13 +552,15 @@ function Catalog({ density, palette }) {
                 >{r}</button>
               ))}
             </div>
-            <div className="chips">
-              {visibleBrands.map((b) => (
-                <button key={b} className={`chip ${(b === 'Todas' ? brand.length === 0 : brand.includes(b)) ? 'chip--active' : ''}`} onClick={() => toggleBrand(b)}>
-                  {b}
-                </button>
-              ))}
-            </div>
+            {letterRange !== 'Todas' && (
+              <div className="chips">
+                {visibleBrands.map((b) => (
+                  <button key={b} className={`chip ${(b === 'Todas' ? brand.length === 0 : brand.includes(b)) ? 'chip--active' : ''}`} onClick={() => toggleBrand(b)}>
+                    {b}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
