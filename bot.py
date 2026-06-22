@@ -161,7 +161,7 @@ def _detect_categoria(nom: str) -> str:
     import unicodedata, re
     n = unicodedata.normalize('NFD', (nom or '').lower())
     n = ''.join(c for c in n if unicodedata.category(c) != 'Mn')
-    if re.search(r'futbol|football|soccer|balon|equipacion|real madrid|barcelona|barca\b|psg|champions league|seleccion|copa del mundo|mundial|jersey de futbol|camiseta de futbol|camiseta del', n): return 'Fútbol ⚽'
+    if re.search(r'futbol|football|soccer|balon|equipacion|champions|copa|liga\b|mundial|seleccion|titular|visitante|retro shirt|camiseta retro|jersey club|kit de futbol|camiseta del|camiseta de futbol|real madrid|barcelona|barca\b|atletico de madrid|atletico madrid|psg|paris saint|manchester|man city|man united|liverpool|chelsea|arsenal|tottenham|bayern|dortmund|juventus|inter de milan|ac milan|napoli|roma\b|brasil|argentina|francia\b|alemania\b|italia\b|portugal\b|espana\b|holanda\b|inglaterra\b|croacia\b|nike futbol|adidas futbol', n): return 'Fútbol ⚽'
     if re.search(r'zapati|sneaker|zapatill|boot|bota|shoe|calzad', n): return 'Zapatos'
     if re.search(r'camiseta|tee|tshirt|polo|shirt|camisa|top\b', n): return 'Camisetas'
     if re.search(r'hoodie|sudadera|sweat|jersey|crewneck', n): return 'Sudaderas'
