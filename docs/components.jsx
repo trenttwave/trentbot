@@ -364,6 +364,7 @@ function normalizeBrand(brand) {
   const key = (brand || '').trim().toLowerCase();
   return BRAND_ALIASES[key] || (brand || '').trim();
 }
+const LETTER_RANGES = ['A-C', 'D-F', 'G-I', 'J-L', 'M-O', 'P-R', 'S-U', 'V-Z'];
 function splitBrands(raw) {
   if (!raw) return [];
   return raw.split(/\s*,\s*|\s+x\s+/i).map(normalizeBrand).filter(Boolean);
@@ -409,6 +410,7 @@ function Catalog({ density, palette }) {
   const [lightbox, setLightbox] = useState(null);
   const [quickView, setQuickView] = useState(null);
   const [showWishlistOnly, setShowWishlistOnly] = useState(false);
+  const [letterRange, setLetterRange] = useState('Todas');
 
   useEffect(() => {
     if (!window._db) { setLoading(false); return; }
@@ -430,6 +432,16 @@ function Catalog({ density, palette }) {
     const set = new Set(products.flatMap(p => splitBrands(p.marca || p.brand || '')));
     return ['Todas', ...Array.from(set).sort()];
   }, [products]);
+
+  const visibleBrands = useMemo(() => {
+    if (letterRange === 'Todas') return brands;
+    const [from, to] = letterRange.split('-');
+    return brands.filter((b) => {
+      if (b === 'Todas') return true;
+      const ch = b[0].toUpperCase();
+      return ch >= from && ch <= to;
+    });
+  }, [brands, letterRange]);
 
   const cats = useMemo(() => {
     const set = new Set(products.map(p => detectCat(p.nom || p.name || '', p.categoria)));
@@ -527,8 +539,21 @@ function Catalog({ density, palette }) {
           </div>
           <div className="filter-group">
             <span className="filter-label">Marca</span>
+            <div className="chips" style={{ marginBottom: 10 }}>
+              <button
+                className={`chip ${letterRange === 'Todas' ? 'chip--active' : ''}`}
+                onClick={() => setLetterRange('Todas')}
+              >Todas</button>
+              {LETTER_RANGES.map((r) => (
+                <button
+                  key={r}
+                  className={`chip ${letterRange === r ? 'chip--active' : ''}`}
+                  onClick={() => setLetterRange(r)}
+                >{r}</button>
+              ))}
+            </div>
             <div className="chips">
-              {brands.map((b) => (
+              {visibleBrands.map((b) => (
                 <button key={b} className={`chip ${(b === 'Todas' ? brand.length === 0 : brand.includes(b)) ? 'chip--active' : ''}`} onClick={() => toggleBrand(b)}>
                   {b}
                 </button>
