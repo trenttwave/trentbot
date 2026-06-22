@@ -371,7 +371,8 @@ function splitBrands(raw) {
 
 // Detecta categoría desde el nombre del producto
 function detectCat(name, savedCat) {
-  if (savedCat) return savedCat;
+  // Recalcula siempre por nombre (las reglas de detección se afinan con el tiempo,
+  // así que una categoria guardada de hace tiempo puede haber quedado obsoleta)
   // Normalize accents: á→a, é→e, í→i, ó→o, ú→u
   const n = (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   if (/futbol|football|soccer|balon|equipacion|real madrid|barcelona|barca\b|psg|champions league|seleccion|copa del mundo|mundial|jersey de futbol|camiseta de futbol|camiseta del/.test(n)) return 'Fútbol ⚽';
