@@ -348,15 +348,25 @@ const BRAND_ALIASES = {
   'synaworld': 'Synaworld',
   'syna world': 'Synaworld',
   'syna word': 'Synaworld',
-  'synaworld, psg': 'Synaworld',
-  'syna world, psg': 'Synaworld',
-  'syna word, psg': 'Synaworld',
   'polene': 'Polène',
   'polène': 'Polène',
+  'aime leon dore': 'Aimé Leon Dore',
+  'aimé leon dore': 'Aimé Leon Dore',
+  'off white': 'Off-White',
+  'off-white': 'Off-White',
+  'poedagar': 'Poedegar',
+  'poedegar': 'Poedegar',
+  'miu mui': 'Miu Miu',
+  'miu miu': 'Miu Miu',
 };
+// Une variantes de la misma marca y separa campos con varias marcas ("Adidas, Gucci", "Bape x Nike")
 function normalizeBrand(brand) {
   const key = (brand || '').trim().toLowerCase();
-  return BRAND_ALIASES[key] || brand;
+  return BRAND_ALIASES[key] || (brand || '').trim();
+}
+function splitBrands(raw) {
+  if (!raw) return [];
+  return raw.split(/\s*,\s*|\s+x\s+/i).map(normalizeBrand).filter(Boolean);
 }
 
 // Detecta categoría desde el nombre del producto
@@ -414,7 +424,7 @@ function Catalog({ density, palette }) {
   }, [wishlist]);
 
   const brands = useMemo(() => {
-    const set = new Set(products.map(p => normalizeBrand(p.marca || p.brand || '')).filter(Boolean));
+    const set = new Set(products.flatMap(p => splitBrands(p.marca || p.brand || '')));
     return ['Todas', ...Array.from(set).sort()];
   }, [products]);
 
@@ -426,9 +436,9 @@ function Catalog({ density, palette }) {
   const filtered = useMemo(() => {
     return products.filter((p) => {
       const name = p.nom || p.name || '';
-      const brandVal = normalizeBrand(p.marca || p.brand || '');
+      const brandVals = splitBrands(p.marca || p.brand || '');
       if (showWishlistOnly && !wishlist.includes(p.id)) return false;
-      if (brand.length > 0 && !brand.includes(brandVal)) return false;
+      if (brand.length > 0 && !brand.some(b => brandVals.includes(b))) return false;
       if (cat.length > 0 && !cat.includes(detectCat(name, p.categoria))) return false;
       if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
@@ -611,7 +621,7 @@ function Catalog({ density, palette }) {
                         style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, padding: '1px 4px', minWidth: 10 }}
                         onBlur={e => saveProduct('marca', e.currentTarget.textContent.trim())}
                       >{brand}</span>
-                    : <div className="card__cat">{normalizeBrand(brand)}</div>
+                    : <div className="card__cat">{splitBrands(brand).join(' · ') || brand}</div>
                   }
                   {editMode
                     ? <span contentEditable suppressContentEditableWarning
@@ -704,7 +714,7 @@ function Catalog({ density, palette }) {
             </div>
             <div style={{ padding: '18px 20px 22px' }}>
               <div className="card__row">
-                <div className="card__cat">{normalizeBrand(quickView.brand)}</div>
+                <div className="card__cat">{splitBrands(quickView.brand).join(' · ') || quickView.brand}</div>
                 <div className="card__price">{quickView.price}</div>
               </div>
               <h3 className="card__name" style={{ marginBottom: 16 }}>{quickView.name}</h3>
