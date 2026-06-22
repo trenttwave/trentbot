@@ -374,6 +374,7 @@ function detectCat(name, savedCat) {
   if (savedCat) return savedCat;
   // Normalize accents: á→a, é→e, í→i, ó→o, ú→u
   const n = (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (/futbol|football|soccer|balon|equipacion|real madrid|barcelona|barca\b|psg|champions league|seleccion|copa del mundo|mundial|jersey de futbol|camiseta de futbol|camiseta del/.test(n)) return 'Fútbol ⚽';
   if (/zapati|sneaker|zapatill|boot|bota|shoe|calzad/.test(n)) return 'Zapatos';
   if (/camiseta|tee|tshirt|polo|shirt|camisa|top\b/.test(n)) return 'Camisetas';
   if (/hoodie|sudadera|sweat|jersey|crewneck/.test(n)) return 'Sudaderas';
