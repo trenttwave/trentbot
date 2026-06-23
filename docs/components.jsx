@@ -665,29 +665,29 @@ function Catalog({ density, palette }) {
                 )}
               </div>
               <div className="card__body">
-                <div className="card__row">
-                  {editMode
-                    ? <span contentEditable suppressContentEditableWarning
+                {editMode
+                  ? (
+                    <div className="card__row">
+                      <span contentEditable suppressContentEditableWarning
                         style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, padding: '1px 4px', minWidth: 10 }}
                         onBlur={e => saveProduct('marca', e.currentTarget.textContent.trim())}
                       >{brand}</span>
-                    : <div className="card__cat">{splitBrands(brand).join(' · ') || brand}</div>
-                  }
-                  {editMode
-                    ? <span contentEditable suppressContentEditableWarning
+                      <span contentEditable suppressContentEditableWarning
                         style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, padding: '1px 4px', minWidth: 10, fontWeight: 700 }}
                         onBlur={e => saveProduct('preu', e.currentTarget.textContent.trim())}
                       >{price}</span>
-                    : <div className="card__price">{price}</div>
-                  }
-                </div>
+                    </div>
+                  )
+                  : <div className="card__cat" style={{ marginBottom: 6 }}>{splitBrands(brand).join(' · ') || brand}</div>
+                }
                 {editMode
                   ? <h3 className="card__name" contentEditable suppressContentEditableWarning
                       style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, cursor: 'text' }}
                       onBlur={e => saveProduct('nom', e.currentTarget.textContent.trim())}
                     >{name}</h3>
-                  : <h3 className="card__name" style={{ cursor: 'pointer' }} onClick={() => setQuickView({ id: p.id, name, price, brand, imgList, link })}>{name}</h3>
+                  : <h3 className="card__name" style={{ cursor: 'pointer', fontSize: 17, lineHeight: 1.25, marginBottom: 8 }} onClick={() => setQuickView({ id: p.id, name, price, brand, imgList, link })}>{name}</h3>
                 }
+                {!editMode && <div className="card__price" style={{ fontSize: 19, marginBottom: 14 }}>{price}</div>}
                 {!editMode && (
                   <div className="card__actions">
                     <a href={link} target="_blank" rel="noreferrer" className="card__btn card__btn--primary">
