@@ -22,6 +22,7 @@ const DEFAULTS = {
   heroBtnPrimary: "Únete a Telegram",
   heroBtnSecondary: "Cómo funciona",
   heroCardName: "Nude Project Resort Tee", heroCardCat: "Camisetas · Nude Project", heroCardPrice: "11,00€",
+  heroCardImages: ["https://i.ibb.co/N6dBVffc/5834782908244234434.jpg", "https://i.ibb.co/ZzBCgqm5/5834782908244234435.jpg"],
 
   // Marquee
   marquee1: "NUEVOS LINKS CADA DÍA", marquee2: "ENVÍO 7–15 DÍAS",

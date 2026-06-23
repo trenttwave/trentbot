@@ -95,6 +95,8 @@
     .prod-card__star{position:absolute;top:8px;right:42px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.92);color:#0A0A12;border:none;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s}
     .prod-card:hover .prod-card__star{opacity:1}
     .prod-card__star--on{opacity:1;background:#1E3FBE;color:#fff}
+    .prod-card__drop{position:absolute;top:8px;right:76px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.92);color:#0A0A12;border:none;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s}
+    .prod-card:hover .prod-card__drop{opacity:1}
     .prod-empty{color:var(--mute);font-size:14px;padding:24px 0}
     .prod-loading{color:var(--mute);font-size:14px;padding:24px 0}
 
@@ -179,6 +181,9 @@
       <section id="productos" class="admin-section">
         <h3>🛍️ Productos del catálogo</h3>
         <p class="section-desc">Estos son los productos publicados por el bot. Pasa el ratón encima y pulsa la ✕ para eliminar.</p>
+
+        <h4 style="margin:0 0 6px;font-size:14px;font-weight:700">🚀 Último drop (hero)</h4>
+        <p class="section-desc">Producto mostrado en la tarjeta "ÚLTIMO DROP" de la home. Pulsa 🚀 en cualquier producto de abajo para ponerlo aquí. <span id="current-drop-label" style="font-weight:700"></span></p>
 
         <h4 style="margin:0 0 6px;font-size:14px;font-weight:700">⭐ Destacados</h4>
         <p class="section-desc">Estos productos aparecen primero en el catálogo. Pulsa ★ para quitarlos de aquí.</p>
@@ -476,17 +481,19 @@
     }
     if (count) count.textContent = `${docs.length} producto${docs.length !== 1 ? 's' : ''}`;
     grid.innerHTML = '';
-    docs.forEach(({ id: safeId, name, price, brand, img, link, destacado }) => {
+    docs.forEach(({ id: safeId, name, price, brand, categoria, img, imagenes, link, destacado }) => {
       const card = document.createElement('div');
       card.className = 'prod-card';
+      const isDrop = _currentDropName && name === _currentDropName && price === _currentDropPrice;
       card.innerHTML = `
         ${img ? `<img src="${img}" alt="${name}" />` : `<div style="height:160px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa">Sin imagen</div>`}
         <div class="prod-card__body">
-          <div class="prod-card__name" title="${name}">${name}</div>
+          <div class="prod-card__name" title="${name}">${name}${isDrop ? ' 🚀' : ''}</div>
           <div class="prod-card__price">${price}</div>
         </div>
         <button class="prod-card__edit" title="Editar">✏️ Editar</button>
         <button class="prod-card__star ${destacado ? 'prod-card__star--on' : ''}" title="${destacado ? 'Quitar de destacados' : 'Destacar (mostrar primero)'}">${destacado ? '★' : '☆'}</button>
+        <button class="prod-card__drop" title="${isDrop ? 'Ya es el último drop' : 'Poner como Último Drop'}">🚀</button>
         <button class="prod-card__del" title="Eliminar" onclick="deleteProduct('${safeId}', '${name.replace(/'/g,"\\'")}')">✕</button>
       `;
       card.querySelector('.prod-card__edit').addEventListener('click', () => {
@@ -495,8 +502,32 @@
       card.querySelector('.prod-card__star').addEventListener('click', () => {
         db.collection('products').doc(safeId).update({ destacado: !destacado });
       });
+      card.querySelector('.prod-card__drop').addEventListener('click', () => setAsHeroDrop({ name, price, brand, categoria, img, imagenes }));
       grid.appendChild(card);
     });
+  }
+
+  let _currentDropName = '';
+  let _currentDropPrice = '';
+
+  async function setAsHeroDrop({ name, price, brand, categoria, img, imagenes }) {
+    const images = (imagenes && imagenes.length) ? imagenes : (img ? [img] : []);
+    const cat = [categoria, brand].filter(Boolean).join(' · ');
+    try {
+      await db.collection('config').doc('site').set({
+        heroCardName: name,
+        heroCardCat: cat,
+        heroCardPrice: price,
+        heroCardImages: images,
+      }, { merge: true });
+      _currentDropName = name;
+      _currentDropPrice = price;
+      const label = document.getElementById('current-drop-label');
+      if (label) label.textContent = `Actual: ${name}`;
+      filterProducts();
+    } catch(e) {
+      alert('Error al guardar: ' + e.message);
+    }
   }
 
   function filterProducts() {
@@ -525,7 +556,9 @@
           name: p.nom || p.name || '—',
           price: p.preu || p.price || '',
           brand: p.marca || p.brand || '',
+          categoria: p.categoria || '',
           img: p.imatge || p.image_url || '',
+          imagenes: Array.isArray(p.imagenes) ? p.imagenes : [],
           link: p.link_afiliats || p.link || '',
           destacado: !!p.destacado,
         };
@@ -638,6 +671,10 @@
         const r = document.querySelector(`input[name="bgMode"][value="${d.bgMode}"]`);
         if (r) r.checked = true;
       }
+      _currentDropName = d.heroCardName || '';
+      _currentDropPrice = d.heroCardPrice || '';
+      const label = document.getElementById('current-drop-label');
+      if (label) label.textContent = _currentDropName ? `Actual: ${_currentDropName}` : '';
     } catch(e) { console.error('loadConfig error', e); }
   }
 
