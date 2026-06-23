@@ -762,12 +762,10 @@ function Catalog({ density, palette }) {
                 : <ProductPlaceholder stripe="#1E3FBE" bg="#ECECEC" label={quickView.name} />
               }
             </div>
-            <div style={{ padding: '18px 20px 22px' }}>
-              <div className="card__row">
-                <div className="card__cat">{splitBrands(quickView.brand).join(' · ') || quickView.brand}</div>
-                <div className="card__price">{quickView.price}</div>
-              </div>
-              <h3 className="card__name" style={{ marginBottom: 16 }}>{quickView.name}</h3>
+            <div style={{ padding: '20px 22px 24px' }}>
+              <div className="card__cat" style={{ marginBottom: 8 }}>{splitBrands(quickView.brand).join(' · ') || quickView.brand}</div>
+              <h3 className="card__name" style={{ fontSize: 21, lineHeight: 1.25, marginBottom: 10 }}>{quickView.name}</h3>
+              <div className="card__price" style={{ fontSize: 22, marginBottom: 20 }}>{quickView.price}</div>
               <div className="card__actions">
                 <a href={quickView.link} target="_blank" rel="noreferrer" className="card__btn card__btn--primary">
                   Comprar →
