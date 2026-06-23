@@ -727,7 +727,7 @@
     };
 
     try {
-      await db.collection('config').doc('site').set(config);
+      await db.collection('config').doc('site').set(config, { merge: true });
       status.textContent = '✅ Canvis guardats!';
       status.className = 'ok';
       setTimeout(() => { status.textContent = ''; }, 3000);
