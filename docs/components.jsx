@@ -265,12 +265,12 @@ function Hero({ onScrollTo, palette }) {
               </div>
               <E className="hero__product-price" value={cfg.heroCardPrice} fieldKey="heroCardPrice" editMode={editMode} onSave={onSave} />
             </div>
-            {!editMode && cfg.heroCardLink && (
+            {!editMode && (
               <div className="card__actions" style={{ padding: '0 20px 20px' }}>
-                <a href={cfg.heroCardLink} target="_blank" rel="noreferrer" className="card__btn card__btn--primary">
+                <a href={cfg.heroCardLink || cfg.telegramLink} target="_blank" rel="noreferrer" className="card__btn card__btn--primary">
                   Comprar →
                 </a>
-                <button className="card__btn card__btn--ghost" onClick={() => { try { navigator.clipboard.writeText(cfg.heroCardLink); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1800); }} title="Copiar link">
+                <button className="card__btn card__btn--ghost" onClick={() => { try { navigator.clipboard.writeText(cfg.heroCardLink || cfg.telegramLink); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1800); }} title="Copiar link">
                   {copied ? '✓' : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
                 </button>
               </div>
