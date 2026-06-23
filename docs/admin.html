@@ -502,7 +502,7 @@
       card.querySelector('.prod-card__star').addEventListener('click', () => {
         db.collection('products').doc(safeId).update({ destacado: !destacado });
       });
-      card.querySelector('.prod-card__drop').addEventListener('click', () => setAsHeroDrop({ name, price, brand, categoria, img, imagenes }));
+      card.querySelector('.prod-card__drop').addEventListener('click', () => setAsHeroDrop({ name, price, brand, categoria, img, imagenes, link }));
       grid.appendChild(card);
     });
   }
@@ -510,7 +510,7 @@
   let _currentDropName = '';
   let _currentDropPrice = '';
 
-  async function setAsHeroDrop({ name, price, brand, categoria, img, imagenes }) {
+  async function setAsHeroDrop({ name, price, brand, categoria, img, imagenes, link }) {
     const images = (imagenes && imagenes.length) ? imagenes : (img ? [img] : []);
     const cat = [categoria, brand].filter(Boolean).join(' · ');
     try {
@@ -519,6 +519,7 @@
         heroCardCat: cat,
         heroCardPrice: price,
         heroCardImages: images,
+        heroCardLink: link || '',
       }, { merge: true });
       _currentDropName = name;
       _currentDropPrice = price;
