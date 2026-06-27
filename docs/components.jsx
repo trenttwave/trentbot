@@ -222,10 +222,8 @@ function Hero({ onScrollTo, palette }) {
             <E tag="span" value={cfg.heroEyebrow} fieldKey="heroEyebrow" editMode={editMode} onSave={onSave} />
           </div>
           <h1 className="hero__title">
-            <span className="hero__title-line">VISTE</span>
-            <span className="hero__title-line hero__title-line--accent">DIFERENTE.</span>
-            <span className="hero__title-line">PAGA</span>
-            <span className="hero__title-line hero__title-line--outline">MENOS.</span>
+            <span className="hero__title-line hero__title-line--accent">LINKS</span>
+            <span className="hero__title-line hero__title-line--outline">HACOO</span>
           </h1>
           <E tag="p" className="hero__sub" value={cfg.heroCopy} fieldKey="heroCopy" editMode={editMode} onSave={onSave} />
           <div className="hero__ctas">
