@@ -472,6 +472,12 @@ img { display: block; max-width: 100%; }
 @media (max-width: 760px) {
   .section { padding: 64px 20px 24px; }
 }
+.section--catalog {
+  padding-top: 28px;
+}
+@media (max-width: 760px) {
+  .section--catalog { padding-top: 18px; }
+}
 
 .section__head {
   margin-bottom: 48px;
