@@ -478,7 +478,10 @@ function Catalog({ density, palette }) {
     }).sort((a, b) => {
       const da = a.destacado ? 1 : 0;
       const db = b.destacado ? 1 : 0;
-      return db - da;
+      if (db !== da) return db - da;
+      const ta = a.data && a.data.toMillis ? a.data.toMillis() : (a.data && a.data.seconds ? a.data.seconds * 1000 : 0);
+      const tb = b.data && b.data.toMillis ? b.data.toMillis() : (b.data && b.data.seconds ? b.data.seconds * 1000 : 0);
+      return tb - ta;
     });
   }, [products, brand, cat, q, showWishlistOnly, wishlist]);
 
