@@ -20,7 +20,7 @@ const DEFAULTS = {
   metric2Num: "−14%", metric2Lbl: "Código: TRENT14",
   metric3Num: "7–15",  metric3Lbl: "Días de entrega",
   heroBtnPrimary: "Únete a Telegram",
-  heroBtnSecondary: "Cómo funciona",
+  heroBtnSecondary: "Todos los links",
   heroCardName: "Nude Project Resort Tee", heroCardCat: "Camisetas · Nude Project", heroCardPrice: "11,00€",
   heroCardImages: ["https://i.ibb.co/N6dBVffc/5834782908244234434.jpg", "https://i.ibb.co/ZzBCgqm5/5834782908244234435.jpg"],
   heroCardLink: "",
