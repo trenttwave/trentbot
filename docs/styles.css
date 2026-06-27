@@ -177,7 +177,7 @@ img { display: block; max-width: 100%; }
    ============================================================ */
 .hero {
   position: relative;
-  padding: 120px var(--pad-x) 40px;
+  padding: 90px var(--pad-x) 24px;
   max-width: var(--max-w);
   margin: 0 auto;
 }
@@ -189,23 +189,23 @@ img { display: block; max-width: 100%; }
 }
 @media (max-width: 960px) {
   .hero__grid { grid-template-columns: 1fr; }
-  .hero { padding: 100px 20px 24px; }
+  .hero { padding: 80px 20px 16px; }
 }
 @media (max-width: 760px) {
-  .hero { padding-top: 140px; }
+  .hero { padding-top: 108px; }
 }
 
 .hero__eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 16px;
-  padding: 8px 14px;
+  padding: 6px 12px;
   border: 2px solid var(--c-primary);
   border-radius: 999px;
   font-family: var(--font-mono);
   font-size: 12px;
   letter-spacing: 0.02em;
-  margin-bottom: 28px;
+  margin-bottom: 14px;
   background: var(--c-surface);
 }
 .dot {
@@ -225,9 +225,9 @@ img { display: block; max-width: 100%; }
 }
 
 .hero__title {
-  margin: 0 0 24px;
+  margin: 0 0 14px;
   font-family: var(--font-display);
-  font-size: clamp(56px, 9.5vw, 152px);
+  font-size: clamp(40px, 7vw, 110px);
   line-height: 0.88;
   letter-spacing: -0.035em;
   text-transform: uppercase;
@@ -246,17 +246,17 @@ img { display: block; max-width: 100%; }
 
 .hero__sub {
   max-width: 520px;
-  font-size: clamp(16px, 1.5vw, 19px);
-  line-height: 1.45;
+  font-size: clamp(15px, 1.4vw, 18px);
+  line-height: 1.4;
   color: var(--c-mute);
-  margin: 0 0 32px;
+  margin: 0 0 18px;
 }
 
 .hero__ctas {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 48px;
+  margin-bottom: 22px;
 }
 
 .hero__metrics {
@@ -266,7 +266,7 @@ img { display: block; max-width: 100%; }
   max-width: 520px;
 }
 .metric {
-  padding: 24px 20px;
+  padding: 14px 12px;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: var(--r);
@@ -275,7 +275,7 @@ img { display: block; max-width: 100%; }
   align-items: center;
   justify-content: center;
   text-align: center;
-  min-height: 160px;
+  min-height: 90px;
 }
 .metric__num {
   font-family: var(--font-display);
@@ -1302,7 +1302,8 @@ html[data-bg-mode="dark"] .footer__logo { background: var(--c-bg); }
 
 /* hide horizontal scroll on mobile from marquee */
 @media (max-width: 720px) {
-  .hero__title { font-size: clamp(56px, 14vw, 96px); }
+  .hero__title { font-size: clamp(36px, 11vw, 72px); }
+  .hero__metrics { display: none; }
 }
 
 /* ============================================================
