@@ -331,7 +331,7 @@ img { display: block; max-width: 100%; }
   .hero__code-strip-sep { height: 22px; }
   .hero__code-strip-label { font-size: 10px; white-space: normal; line-height: 1.15; }
   .hero__code-strip-code { font-size: 12px; padding: 3px 7px; }
-  .hero__code-strip-copy { display: none; }
+  .hero__code-strip-copy { font-size: 10px; flex-shrink: 0; }
 }
 .hero__metrics {
   display: grid;
@@ -883,8 +883,12 @@ img { display: block; max-width: 100%; }
   background: rgba(255, 255, 255, 0.92);
   color: var(--c-ink);
   font-size: 17px;
-  display: grid;
-  place-items: center;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
   transition: all 0.15s ease;
   backdrop-filter: blur(6px);
 }
