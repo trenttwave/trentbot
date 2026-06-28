@@ -476,7 +476,7 @@ function Catalog({ density, palette }) {
           <input placeholder="Busca hoodie, sneaker…" value={q} onChange={(e) => { setQ(e.target.value); resetPagination(); }} />
           {q && <button className="catalog__clear" onClick={() => { setQ(''); resetPagination(); }}>×</button>}
         </div>
-        <button onClick={() => setFilterOpen(o => !o)} style={{
+        <button className="catalog__filter-btn" onClick={() => setFilterOpen(o => !o)} style={{
           display: 'flex', alignItems: 'center', gap: 6, padding: '12px 18px',
           border: `2px solid var(--c-primary)`,
           borderRadius: 999, background: activeFilters > 0 ? 'var(--c-primary)' : 'var(--c-surface)',

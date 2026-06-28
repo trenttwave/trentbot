@@ -29,6 +29,19 @@
       border-radius: 999px !important;
       min-width: 350px !important;
     }
+    @media (max-width: 600px) {
+      .catalog__search {
+        gap: 8px !important;
+        padding: 8px 12px !important;
+        min-width: 0 !important;
+      }
+      .catalog__search input { font-size: 13px !important; }
+      .catalog__filter-btn {
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+        gap: 4px !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -50,7 +63,7 @@
 
   <script src="data.js"></script>
   <script type="text/babel" src="tweaks-panel.jsx"></script>
-  <script type="text/babel" src="components.jsx?v=40"></script>
+  <script type="text/babel" src="components.jsx?v=41"></script>
   <script type="text/babel" src="app.jsx?v=9"></script>
 </body>
 </html>
