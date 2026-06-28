@@ -1110,6 +1110,8 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
             f"📤 Destino: {destino}\n\n"
             f"Usa /pendientes para ver los mensajes programados."
         )
+        # Solo ahora que se ha programado de verdad, publicamos el producto en la web
+        asyncio.create_task(_save_product_to_firestore(state))
 
 
 
@@ -1146,6 +1148,56 @@ async def _send_scheduled_message(context) -> None:
         await context.bot.send_message(chat_id=chat_id, text=f"❌ Error al enviar: {e}")
 
 
+async def _save_product_to_firestore(state: dict) -> None:
+    """Guarda el producto en Firestore (web) — se llama solo al programar el envío."""
+    try:
+        photos = state.get("photos", [])
+        price = state.get("price", "")
+        price_clean = price.replace(",", ".").split(".")[0].replace("€", "").strip()
+        try:
+            preu_str = f"{int(float(price_clean))}€"
+        except Exception:
+            preu_str = price
+
+        imatge = state.get("image_url", "")
+        imagenes = []
+
+        if photos:
+            bot = state.get("_bot")
+            for pid in photos:
+                try:
+                    file = await bot.get_file(pid)
+                    img_bytes = bytes(await file.download_as_bytearray())
+                    url = await _upload_product_image(img_bytes)
+                    if url:
+                        imagenes.append(url)
+                except Exception as e:
+                    logger.warning(f"Could not upload product image: {e}")
+
+        if not imatge:
+            imatge = imagenes[0] if imagenes else ""
+        elif not imagenes:
+            imagenes = [imatge]
+
+        raw_title = state.get("title", "")
+        titulo_ok, marca_ok, cat_ok = await asyncio.to_thread(_enrich_title, raw_title)
+        marca_final = state.get("marca") or marca_ok
+
+        save_to_firestore(
+            nom=titulo_ok,
+            preu=preu_str,
+            colors=state.get("colores", ""),
+            marca=marca_final,
+            link_afiliats=state.get("link", ""),
+            imatge=imatge,
+            imagenes=imagenes,
+            categoria=cat_ok or _detect_categoria(titulo_ok),
+        )
+        logger.info("Firestore save OK (al programar)")
+    except Exception as e:
+        logger.warning(f"Firestore save error (al programar): {e}")
+
+
 async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
     state = user_states.get(user_id, {})
     photos = state.get("photos", [])
@@ -1157,58 +1209,10 @@ async def _compose_and_send(chat_id: int, user_id: int, bot) -> None:
     else:
         await bot.send_message(chat_id=chat_id, text=message_text)
 
-    # Enviar el segundo mensaje inmediatamente, sin esperar Firestore
-    user_states[user_id] = {"state": "editing", "message_text": message_text, "photos": photos}
+    # Conservamos todos los datos del producto (título, precio, link, etc.) para
+    # poder guardarlo en la web más adelante, solo si se llega a programar.
+    user_states[user_id] = {**state, "state": "editing", "message_text": message_text, "photos": photos, "_bot": bot}
     await bot.send_message(chat_id=chat_id, text="¿Quieres modificar algo? Dímelo, usa /programar para enviarlo al grupo a una hora, o /cancelar para terminar.")
-
-    # Guardar en Firestore en background (no bloquea al usuario)
-    async def _save_bg():
-        try:
-            price = state.get("price", "")
-            price_clean = price.replace(",", ".").split(".")[0].replace("€", "").strip()
-            try:
-                preu_str = f"{int(float(price_clean))}€"
-            except Exception:
-                preu_str = price
-
-            imatge = state.get("image_url", "")
-            imagenes = []
-
-            if photos:
-                for pid in photos:
-                    try:
-                        file = await bot.get_file(pid)
-                        img_bytes = bytes(await file.download_as_bytearray())
-                        url = await _upload_product_image(img_bytes)
-                        if url:
-                            imagenes.append(url)
-                    except Exception as e:
-                        logger.warning(f"Could not upload product image: {e}")
-
-            if not imatge:
-                imatge = imagenes[0] if imagenes else ""
-            elif not imagenes:
-                imagenes = [imatge]
-
-            raw_title = state.get("title", "")
-            titulo_ok, marca_ok, cat_ok = await asyncio.to_thread(_enrich_title, raw_title)
-            marca_final = state.get("marca") or marca_ok
-
-            save_to_firestore(
-                nom=titulo_ok,
-                preu=preu_str,
-                colors=state.get("colores", ""),
-                marca=marca_final,
-                link_afiliats=state.get("link", ""),
-                imatge=imatge,
-                imagenes=imagenes,
-                categoria=cat_ok or _detect_categoria(titulo_ok),
-            )
-            logger.info("Firestore save OK (background)")
-        except Exception as e:
-            logger.warning(f"Firestore save error (background): {e}")
-
-    asyncio.create_task(_save_bg())
 
 
 async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
