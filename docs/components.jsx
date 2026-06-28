@@ -471,14 +471,14 @@ function Catalog({ density, palette }) {
         <p className="section__lead">{loading ? 'Cargando…' : `${filtered.length} prendas disponibles. Filtra por marca o en el buscador.`}</p>
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
-        <div className="catalog__search" style={{ flex: 1, minWidth: 350 }}>
+        <div className="catalog__search" style={{ flex: 1, minWidth: 0 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
           <input placeholder="Busca hoodie, sneaker…" value={q} onChange={(e) => { setQ(e.target.value); resetPagination(); }} />
           {q && <button className="catalog__clear" onClick={() => { setQ(''); resetPagination(); }}>×</button>}
         </div>
         <button className="catalog__filter-btn" onClick={() => setFilterOpen(o => !o)} style={{
-          display: 'flex', alignItems: 'center', gap: 6, padding: '12px 18px',
-          border: `2px solid var(--c-primary)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 18px',
+          border: `2px solid var(--c-primary)`, flex: 1,
           borderRadius: 999, background: activeFilters > 0 ? 'var(--c-primary)' : 'var(--c-surface)',
           color: activeFilters > 0 ? '#fff' : 'var(--c-primary)',
           fontFamily: 'inherit', fontSize: 14, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
