@@ -539,7 +539,67 @@
       p.price.toLowerCase().includes(q)
     ) : _allProducts;
     renderProductCards(filtered, 'prod-grid', 'Sin resultados.');
-    renderProductCards(_allProducts.filter(p => p.destacado), 'prod-featured-grid', 'Aún no has destacado ningún producto.');
+    renderFeaturedGrid();
+  }
+
+  function getOrderedFeatured() {
+    const featured = _allProducts.filter(p => p.destacado);
+    return featured.slice().sort((a, b) => {
+      const oa = typeof a.orden === 'number' ? a.orden : Infinity;
+      const ob = typeof b.orden === 'number' ? b.orden : Infinity;
+      if (oa !== ob) return oa - ob;
+      const ta = a.data && a.data.toMillis ? a.data.toMillis() : (a.data && a.data.seconds ? a.data.seconds * 1000 : 0);
+      const tb = b.data && b.data.toMillis ? b.data.toMillis() : (b.data && b.data.seconds ? b.data.seconds * 1000 : 0);
+      return tb - ta;
+    });
+  }
+
+  function renderFeaturedGrid() {
+    const list = getOrderedFeatured();
+    const grid = document.getElementById('prod-featured-grid');
+    if (!list.length) {
+      grid.innerHTML = `<div class="prod-empty">Aún no has destacado ningún producto.</div>`;
+      return;
+    }
+    grid.innerHTML = '';
+    list.forEach(({ id: safeId, name, price, brand, img, link }, idx) => {
+      const card = document.createElement('div');
+      card.className = 'prod-card';
+      card.innerHTML = `
+        ${img ? `<img src="${img}" alt="${name}" />` : `<div style="height:160px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa">Sin imagen</div>`}
+        <div class="prod-card__body">
+          <div class="prod-card__name" title="${name}">${name}</div>
+          <div class="prod-card__price">${price}</div>
+        </div>
+        <div style="position:absolute;top:8px;left:8px;display:flex;gap:4px;z-index:2">
+          <button class="prod-card__move-up" title="Subir" ${idx === 0 ? 'disabled' : ''} style="width:28px;height:28px;border-radius:50%;border:none;background:rgba(255,255,255,.92);cursor:${idx === 0 ? 'default' : 'pointer'};opacity:${idx === 0 ? '.4' : '1'}">⬆️</button>
+          <button class="prod-card__move-down" title="Bajar" ${idx === list.length - 1 ? 'disabled' : ''} style="width:28px;height:28px;border-radius:50%;border:none;background:rgba(255,255,255,.92);cursor:${idx === list.length - 1 ? 'default' : 'pointer'};opacity:${idx === list.length - 1 ? '.4' : '1'}">⬇️</button>
+        </div>
+        <button class="prod-card__star prod-card__star--on" title="Quitar de destacados">★</button>
+      `;
+      card.querySelector('.prod-card__move-up').addEventListener('click', () => moveFeatured(idx, idx - 1, list));
+      card.querySelector('.prod-card__move-down').addEventListener('click', () => moveFeatured(idx, idx + 1, list));
+      card.querySelector('.prod-card__star').addEventListener('click', () => {
+        db.collection('products').doc(safeId).update({ destacado: false });
+      });
+      grid.appendChild(card);
+    });
+  }
+
+  async function moveFeatured(fromIdx, toIdx, list) {
+    if (toIdx < 0 || toIdx >= list.length) return;
+    const reordered = list.slice();
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    const batch = db.batch();
+    reordered.forEach((p, i) => {
+      batch.update(db.collection('products').doc(p.id), { orden: i });
+    });
+    try {
+      await batch.commit();
+    } catch (e) {
+      alert('Error al reordenar: ' + e.message);
+    }
   }
 
   function loadProducts() {
@@ -562,6 +622,7 @@
           imagenes: Array.isArray(p.imagenes) ? p.imagenes : [],
           link: p.link_afiliats || p.link || '',
           destacado: !!p.destacado,
+          orden: typeof p.orden === 'number' ? p.orden : null,
           data: p.data || null,
         };
       });

@@ -432,6 +432,11 @@ function Catalog({ density, palette }) {
       const da = a.destacado ? 1 : 0;
       const db = b.destacado ? 1 : 0;
       if (db !== da) return db - da;
+      if (da && db) {
+        const oa = typeof a.orden === 'number' ? a.orden : Infinity;
+        const ob = typeof b.orden === 'number' ? b.orden : Infinity;
+        if (oa !== ob) return oa - ob;
+      }
       const ta = a.data && a.data.toMillis ? a.data.toMillis() : (a.data && a.data.seconds ? a.data.seconds * 1000 : 0);
       const tb = b.data && b.data.toMillis ? b.data.toMillis() : (b.data && b.data.seconds ? b.data.seconds * 1000 : 0);
       return tb - ta;
