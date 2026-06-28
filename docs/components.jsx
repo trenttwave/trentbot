@@ -212,7 +212,6 @@ function Navbar({ onScrollTo }) {
 function Hero({ onScrollTo, palette }) {
   const { editMode, cfg, onSave } = React.useContext(window.EditCtx);
   const E = window.EditableText;
-  const [copied, setCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   return (
     <header id="top" className="hero">
@@ -249,39 +248,6 @@ function Hero({ onScrollTo, palette }) {
             <span className="hero__code-strip-copy">{codeCopied ? '✓ Copiado' : 'Copiar'}</span>
           </button>
         </div>
-
-        <aside className="hero__right">
-          <div className="hero__card hero__card--big">
-            <div className="hero__card-label">— ÚLTIMO DROP</div>
-            <HeroImageSlider images={(cfg.heroCardImages && cfg.heroCardImages.length) ? cfg.heroCardImages : ["https://i.ibb.co/N6dBVffc/5834782908244234434.jpg","https://i.ibb.co/ZzBCgqm5/5834782908244234435.jpg"]} />
-            <div className="hero__product-meta">
-              <div>
-                <E className="hero__product-name" value={cfg.heroCardName} fieldKey="heroCardName" editMode={editMode} onSave={onSave} />
-                <E className="hero__product-cat" value={cfg.heroCardCat} fieldKey="heroCardCat" editMode={editMode} onSave={onSave} />
-              </div>
-              <E className="hero__product-price" value={cfg.heroCardPrice} fieldKey="heroCardPrice" editMode={editMode} onSave={onSave} />
-            </div>
-            {!editMode && (
-              <div className="card__actions" style={{ padding: '0 20px 20px' }}>
-                <a href={cfg.heroCardLink || cfg.telegramLink} target="_blank" rel="noreferrer" className="card__btn card__btn--primary">
-                  Comprar →
-                </a>
-                <button className="card__btn card__btn--ghost" onClick={() => { try { navigator.clipboard.writeText(cfg.heroCardLink || cfg.telegramLink); } catch {} setCopied(true); setTimeout(() => setCopied(false), 1800); }} title="Copiar link">
-                  {copied ? '✓' : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>}
-                </button>
-              </div>
-            )}
-            {editMode && (
-              <div className="card__actions" style={{ padding: '0 20px 20px' }}>
-                <span contentEditable suppressContentEditableWarning
-                  style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, padding: '1px 4px', fontSize: 12, flex: 1 }}
-                  onBlur={e => onSave('heroCardLink', e.currentTarget.textContent.trim())}
-                  title="Editar link"
-                >{cfg.heroCardLink || 'Pega aquí el link de afiliado'}</span>
-              </div>
-            )}
-          </div>
-        </aside>
       </div>
     </header>
   );

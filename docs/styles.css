@@ -183,12 +183,10 @@ img { display: block; max-width: 100%; }
 }
 .hero__grid {
   display: grid;
-  grid-template-columns: 1.3fr 0.95fr;
-  gap: 36px;
+  grid-template-columns: 1fr;
   align-items: stretch;
 }
 @media (max-width: 960px) {
-  .hero__grid { grid-template-columns: 1fr; }
   .hero { padding: 80px 20px 16px; }
 }
 @media (max-width: 760px) {
@@ -257,6 +255,10 @@ img { display: block; max-width: 100%; }
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 22px;
+}
+@media (max-width: 720px) {
+  .hero__ctas { flex-wrap: nowrap; gap: 8px; }
+  .hero__ctas .btn--lg { padding: 14px 14px; font-size: 13px; flex: 1; justify-content: center; }
 }
 
 .hero__code-strip {
@@ -836,7 +838,16 @@ img { display: block; max-width: 100%; }
 .density--comfy   .grid { grid-template-columns: repeat(3, 1fr); gap: 22px; }
 @media (max-width: 1100px) { .grid, .density--compact .grid, .density--comfy .grid { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 780px)  { .grid, .density--compact .grid, .density--comfy .grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 460px)  { .grid, .density--compact .grid, .density--comfy .grid { grid-template-columns: 1fr; } }
+@media (max-width: 460px)  {
+  .grid, .density--compact .grid, .density--comfy .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; justify-content: center; }
+  .card { font-size: 12px; }
+  .card__body { padding: 10px; gap: 5px; }
+  .card__row { font-size: 11px; margin-bottom: 6px !important; }
+  .card__name { font-size: 13px !important; margin-bottom: 10px !important; line-height: 1.25 !important; }
+  .card__price { font-size: 13px; }
+  .card__actions { gap: 4px; }
+  .card__btn { padding: 7px 8px; font-size: 11px; }
+}
 
 .card {
   background: var(--c-surface);
@@ -1379,7 +1390,7 @@ html[data-bg-mode="dark"] .footer__logo { background: var(--c-bg); }
 
 /* hide horizontal scroll on mobile from marquee */
 @media (max-width: 720px) {
-  .hero__title { font-size: clamp(36px, 11vw, 72px); }
+  .hero__title { font-size: clamp(42px, 13vw, 80px); }
   .hero__metrics { display: none; }
 }
 
