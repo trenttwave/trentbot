@@ -213,6 +213,7 @@ function Hero({ onScrollTo, palette }) {
   const { editMode, cfg, onSave } = React.useContext(window.EditCtx);
   const E = window.EditableText;
   const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
   return (
     <header id="top" className="hero">
       <div className="hero__grid">
@@ -236,20 +237,17 @@ function Hero({ onScrollTo, palette }) {
               <span className="btn__arrow">→</span>
             </button>
           </div>
-          <div className="hero__metrics">
-            <div className="metric">
-              <E className="metric__num" value={cfg.metric1Num} fieldKey="metric1Num" editMode={editMode} onSave={onSave} />
-              <E className="metric__lbl" value={cfg.metric1Lbl} fieldKey="metric1Lbl" editMode={editMode} onSave={onSave} />
-            </div>
-            <div className="metric metric--accent">
-              <E className="metric__num" value={cfg.metric2Num} fieldKey="metric2Num" editMode={editMode} onSave={onSave} />
-              <E className="metric__lbl" value={cfg.metric2Lbl} fieldKey="metric2Lbl" editMode={editMode} onSave={onSave} />
-            </div>
-            <div className="metric">
-              <E className="metric__num" value={cfg.metric3Num} fieldKey="metric3Num" editMode={editMode} onSave={onSave} />
-              <E className="metric__lbl" value={cfg.metric3Lbl} fieldKey="metric3Lbl" editMode={editMode} onSave={onSave} />
-            </div>
-          </div>
+          <button
+            className="hero__code-strip"
+            onClick={() => { try { navigator.clipboard.writeText(cfg.discountCode); } catch {} setCodeCopied(true); setTimeout(() => setCodeCopied(false), 1800); }}
+            title="Copiar código"
+          >
+            <span className="hero__code-strip-pct">−{cfg.discountPct}%</span>
+            <span className="hero__code-strip-sep" />
+            <span className="hero__code-strip-label">Código de descuento</span>
+            <span className="hero__code-strip-code">{cfg.discountCode}</span>
+            <span className="hero__code-strip-copy">{codeCopied ? '✓ Copiado' : 'Copiar'}</span>
+          </button>
         </div>
 
         <aside className="hero__right">
