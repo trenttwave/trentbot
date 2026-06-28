@@ -349,9 +349,10 @@ img { display: block; max-width: 100%; }
 }
 
 .hero__right {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: 8px;
+  display: flex;
+  max-width: 300px;
+  width: 100%;
+  margin-left: auto;
 }
 .hero__card {
   background: var(--c-surface);
@@ -403,11 +404,14 @@ img { display: block; max-width: 100%; }
 .hero__card--big {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  height: 100%;
 }
 .hero__product {
   border-radius: 10px;
   overflow: hidden;
-  aspect-ratio: 16 / 11;
+  flex: 1;
+  min-height: 0;
   margin: 4px 0 10px;
   background: var(--c-bg);
 }

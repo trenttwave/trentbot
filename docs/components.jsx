@@ -281,17 +281,6 @@ function Hero({ onScrollTo, palette }) {
               </div>
             )}
           </div>
-
-          <div className="hero__card hero__card--code">
-            <div className="hero__card-label">— CÓDIGO BIENVENIDA</div>
-            <div className="hero__code-row">
-              <span className="hero__code-gift">🎁</span>
-              <div className="hero__code-stack">
-                <E className="hero__code-val" value={cfg.discountCode} fieldKey="discountCode" editMode={editMode} onSave={onSave} />
-                <E className="hero__code-sub" value={`−${cfg.discountPct}% en tu 1ª compra`} fieldKey="discountPct" editMode={editMode} onSave={onSave} />
-              </div>
-            </div>
-          </div>
         </aside>
       </div>
     </header>
