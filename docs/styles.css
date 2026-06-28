@@ -190,7 +190,7 @@ img { display: block; max-width: 100%; }
   .hero { padding: 80px 20px 16px; }
 }
 @media (max-width: 760px) {
-  .hero { padding-top: 140px; }
+  .hero { padding-top: 100px; }
 }
 
 .hero__eyebrow {
