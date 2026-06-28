@@ -326,7 +326,12 @@ img { display: block; max-width: 100%; }
   flex-shrink: 0;
 }
 @media (max-width: 480px) {
-  .hero__code-strip-label { display: none; }
+  .hero__code-strip { gap: 6px; padding: 12px 12px; }
+  .hero__code-strip-pct { font-size: 18px; }
+  .hero__code-strip-sep { height: 22px; }
+  .hero__code-strip-label { font-size: 10px; white-space: normal; line-height: 1.15; }
+  .hero__code-strip-code { font-size: 12px; padding: 3px 7px; }
+  .hero__code-strip-copy { display: none; }
 }
 .hero__metrics {
   display: grid;
