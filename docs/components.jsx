@@ -243,7 +243,7 @@ function Hero({ onScrollTo, palette }) {
           >
             <span className="hero__code-strip-pct">−{cfg.discountPct}%</span>
             <span className="hero__code-strip-sep" />
-            <span className="hero__code-strip-label"><span className="hero__code-strip-fire">🔥</span> CÓDIGO DE DESCUENTO</span>
+            <span className="hero__code-strip-label">CÓDIGO DESCUENTO<span className="hero__code-strip-fire">🎁</span>:</span>
             <span className="hero__code-strip-code">{cfg.discountCode}</span>
             <span className="hero__code-strip-copy">{codeCopied ? '✓ Copiado' : 'Copiar'}</span>
           </button>
