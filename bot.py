@@ -1297,6 +1297,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Envíame una captura de Hacoo para generar un post.")
 
 
+PRODUCT_TTL_DAYS = 90
+
+
+async def _delete_expired_products(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Borra de Firestore los productos publicados hace más de PRODUCT_TTL_DAYS días."""
+    db = _get_firestore()
+    if db is None:
+        return
+    cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=PRODUCT_TTL_DAYS)
+    try:
+        deleted = 0
+        for doc in db.collection("products").stream():
+            p = doc.to_dict()
+            data_ts = p.get("data")
+            if data_ts is None:
+                continue
+            dt = data_ts if isinstance(data_ts, datetime.datetime) else None
+            if dt is None:
+                continue
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=datetime.timezone.utc)
+            if dt < cutoff:
+                doc.reference.delete()
+                deleted += 1
+        if deleted:
+            logger.info(f"Eliminados {deleted} productos con más de {PRODUCT_TTL_DAYS} días")
+    except Exception as e:
+        logger.warning(f"Error al limpiar productos caducados: {e}")
+
+
 async def _restore_scheduled_jobs(app):
     """Al arrancar, restaura los trabajos programados guardados en disco."""
     jobs = _load_scheduled_jobs()
@@ -1317,6 +1347,9 @@ async def _restore_scheduled_jobs(app):
             _remove_scheduled_job(job["name"])
     if restored:
         logger.info(f"Restaurados {restored} trabajos programados")
+
+    # Limpieza de productos caducados: una vez al arrancar y luego cada 24h
+    app.job_queue.run_repeating(_delete_expired_products, interval=86400, first=10, name="cleanup_expired_products")
 
     # Precalentar Playwright en background para que el primer link sea rápido
     async def _warm_playwright():
