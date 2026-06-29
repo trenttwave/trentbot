@@ -198,27 +198,52 @@ def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliat
 
 
 def _save_scheduled_job(job_name: str, target_ts: float, chat_id: int, message_text: str, photos: list):
+    job = {"name": job_name, "target_ts": target_ts, "chat_id": chat_id, "message_text": message_text, "photos": photos}
     try:
-        jobs = _load_scheduled_jobs()
-        jobs = [j for j in jobs if j.get("name") != job_name]  # evitar duplicados
-        jobs.append({"name": job_name, "target_ts": target_ts, "chat_id": chat_id, "message_text": message_text, "photos": photos})
+        db = _get_firestore()
+        if db is not None:
+            db.collection("scheduled_jobs").document(job_name).set(job)
+            return
+    except Exception as e:
+        logger.warning(f"Could not save job to Firestore: {e}")
+    # Fallback local (se pierde en cada deploy, pero sirve si Firestore no está disponible)
+    try:
+        jobs = _load_scheduled_jobs_local()
+        jobs = [j for j in jobs if j.get("name") != job_name]
+        jobs.append(job)
         with open(_JOBS_FILE, "w") as f:
             json.dump(jobs, f)
     except Exception as e:
-        logger.warning(f"Could not save job: {e}")
+        logger.warning(f"Could not save job locally: {e}")
 
 
 def _remove_scheduled_job(job_name: str):
     try:
-        jobs = _load_scheduled_jobs()
+        db = _get_firestore()
+        if db is not None:
+            db.collection("scheduled_jobs").document(job_name).delete()
+    except Exception as e:
+        logger.warning(f"Could not remove job from Firestore: {e}")
+    try:
+        jobs = _load_scheduled_jobs_local()
         jobs = [j for j in jobs if j.get("name") != job_name]
         with open(_JOBS_FILE, "w") as f:
             json.dump(jobs, f)
     except Exception as e:
-        logger.warning(f"Could not remove job: {e}")
+        logger.warning(f"Could not remove job locally: {e}")
 
 
 def _load_scheduled_jobs() -> list:
+    try:
+        db = _get_firestore()
+        if db is not None:
+            return [doc.to_dict() for doc in db.collection("scheduled_jobs").stream()]
+    except Exception as e:
+        logger.warning(f"Could not load jobs from Firestore: {e}")
+    return _load_scheduled_jobs_local()
+
+
+def _load_scheduled_jobs_local() -> list:
     try:
         if os.path.exists(_JOBS_FILE):
             with open(_JOBS_FILE) as f:
