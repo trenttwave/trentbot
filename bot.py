@@ -150,7 +150,9 @@ async def _upload_product_image(img_bytes: bytes) -> str:
             data={"key": IMGBB_API_KEY, "image": img_b64},
             timeout=20,
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            logger.warning(f"ImgBB upload failed ({resp.status_code}): {resp.text[:300]}")
+            return ""
         return resp.json()["data"]["url"]
     except Exception as e:
         logger.warning(f"ImgBB upload failed: {e}")
