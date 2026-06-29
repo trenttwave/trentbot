@@ -34,7 +34,6 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 FIREBASE_CREDENTIALS = os.environ.get("FIREBASE_CREDENTIALS", "").strip()
-IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
@@ -132,7 +131,8 @@ def _get_firestore():
         from firebase_admin import credentials, firestore as fb_firestore
         cred_dict = json.loads(FIREBASE_CREDENTIALS)
         if not firebase_admin._apps:
-            firebase_admin.initialize_app(credentials.Certificate(cred_dict))
+            bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET", "").strip() or f"{cred_dict.get('project_id', '')}.appspot.com"
+            firebase_admin.initialize_app(credentials.Certificate(cred_dict), {"storageBucket": bucket_name})
         _firestore_client = fb_firestore.client()
         return _firestore_client
     except Exception as e:
@@ -141,21 +141,18 @@ def _get_firestore():
 
 
 async def _upload_product_image(img_bytes: bytes) -> str:
-    if not IMGBB_API_KEY:
+    if _get_firestore() is None:
         return ""
     try:
-        img_b64 = base64.b64encode(img_bytes).decode()
-        resp = requests.post(
-            "https://api.imgbb.com/1/upload",
-            data={"key": IMGBB_API_KEY, "image": img_b64},
-            timeout=20,
-        )
-        if resp.status_code != 200:
-            logger.warning(f"ImgBB upload failed ({resp.status_code}): {resp.text[:300]}")
-            return ""
-        return resp.json()["data"]["url"]
+        import uuid
+        from firebase_admin import storage as fb_storage
+        bucket = fb_storage.bucket()
+        blob = bucket.blob(f"product_images/{uuid.uuid4().hex}.jpg")
+        blob.upload_from_string(img_bytes, content_type="image/jpeg")
+        blob.make_public()
+        return blob.public_url
     except Exception as e:
-        logger.warning(f"ImgBB upload failed: {e}")
+        logger.warning(f"Firebase Storage upload failed: {e}")
         return ""
 
 
