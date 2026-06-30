@@ -166,7 +166,7 @@ def _detect_categoria(nom: str) -> str:
     if re.search(r'hoodie|sudadera|sweat|jersey|crewneck', n): return 'Sudaderas'
     if re.search(r'pantalon|jean|denim|cargo|jogger|short|bermuda|vaquero', n): return 'Pantalones'
     if re.search(r'puffer|chaqueton|parka|trench|abrigo largo|abrigo de plumas|plumifero|plumon', n): return 'Puffer/Chaquetón'
-    if re.search(r'chaqueta|jacket|abrigo|coat|blazer|chaleco', n): return 'Chaquetas'
+    if re.search(r'chaqueta|jacket|abrigo|coat|blazer|chaleco|cortavientos|chubasquero|windbreaker|raincoat|impermeable', n): return 'Chaquetas'
     if re.search(r'mochila|rinonera|fanny pack|fanny bag|waist bag|belt bag|backpack|cangurera|sling bag', n): return 'Mochilas/Riñoneras'
     if re.search(r'bolso|bolsa|bag|tote|clutch|cartera', n): return 'Bolsos/Bolsas'
     if re.search(r'vestido|dress|falda|skirt', n): return 'Vestidos'

@@ -364,7 +364,7 @@ function detectCat(name, savedCat, isManual) {
   if (/hoodie|sudadera|sweat|jersey|crewneck/.test(n)) return 'Sudaderas';
   if (/pantalon|jean|denim|cargo|jogger|short|bermuda|vaquero/.test(n)) return 'Pantalones';
   if (/puffer|chaqueton|parka|trench|abrigo largo|abrigo de plumas|plumifero|plumon/.test(n)) return 'Puffer/Chaquetón';
-  if (/chaqueta|jacket|abrigo|coat|blazer|chaleco/.test(n)) return 'Chaquetas';
+  if (/chaqueta|jacket|abrigo|coat|blazer|chaleco|cortavientos|chubasquero|windbreaker|raincoat|impermeable/.test(n)) return 'Chaquetas';
   if (/mochila|rinonera|fanny pack|fanny bag|waist bag|belt bag|backpack|cangurera|sling bag/.test(n)) return 'Mochilas/Riñoneras';
   if (/bolso|bolsa|bag|tote|clutch|cartera/.test(n)) return 'Bolsos/Bolsas';
   if (/vestido|dress|falda|skirt/.test(n)) return 'Vestidos';
