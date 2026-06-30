@@ -119,7 +119,7 @@
     .edit-modal-img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 12px; background: #eee; display: block; }
     .edit-modal-box .field { margin-bottom: 10px; }
     .edit-modal-box .field label { font-size: 10px; }
-    .edit-modal-box .field input { padding: 7px 10px; font-size: 13px; }
+    .edit-modal-box .field input, .edit-modal-box .field select { padding: 7px 10px; font-size: 13px; }
     .edit-modal-actions { display: flex; gap: 10px; margin-top: 20px; }
     .btn-edit-save { flex: 1; padding: 11px; background: #1E3FBE; color: #fff; border: none; border-radius: 8px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
     .btn-edit-cancel { padding: 11px 18px; border: 1.5px solid #D6D5D0; border-radius: 8px; font: inherit; font-size: 14px; cursor: pointer; background: #fff; }
@@ -435,6 +435,25 @@
       </div>
     </div>
     <div class="field">
+      <label>Tipo de prenda</label>
+      <select id="edit-cat">
+        <option value="">Auto (según el nombre)</option>
+        <option value="Accesorios">Accesorios</option>
+        <option value="Bolsos">Bolsos</option>
+        <option value="Camisetas">Camisetas</option>
+        <option value="Chaquetas">Chaquetas</option>
+        <option value="Electrónica">Electrónica</option>
+        <option value="Fútbol ⚽">Fútbol ⚽</option>
+        <option value="Maquillaje 💄">Maquillaje 💄</option>
+        <option value="Otros">Otros</option>
+        <option value="Pantalones">Pantalones</option>
+        <option value="Puffer/Chaquetón">Puffer/Chaquetón</option>
+        <option value="Sudaderas">Sudaderas</option>
+        <option value="Vestidos">Vestidos</option>
+        <option value="Zapatos">Zapatos</option>
+      </select>
+    </div>
+    <div class="field">
       <label>Link de afiliado</label>
       <input type="text" id="edit-link" />
     </div>
@@ -526,7 +545,7 @@
         <button class="prod-card__del" title="Eliminar" onclick="deleteProduct('${safeId}', '${name.replace(/'/g,"\\'")}')">✕</button>
       `;
       card.querySelector('.prod-card__edit').addEventListener('click', () => {
-        openEditModal(safeId, { nom: name, preu: price, marca: brand, imatge: img, link_afiliats: link });
+        openEditModal(safeId, { nom: name, preu: price, marca: brand, imatge: img, link_afiliats: link, categoria });
       });
       card.querySelector('.prod-card__star').addEventListener('click', () => {
         db.collection('products').doc(safeId).update({ destacado: !destacado });
@@ -578,6 +597,7 @@
     return raw.split(/\s*,\s*|\s+x\s+/i).map(normalizeBrand).filter(Boolean);
   }
   function detectCat(name, savedCat) {
+    if (savedCat) return savedCat;
     const n = (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
     if (/futbol|football|soccer|balon|equipacion|champions|copa|liga\b|mundial|seleccion|titular|visitante|retro shirt|camiseta retro|jersey club|kit de futbol|camiseta del|camiseta de futbol|real madrid|barcelona|barca\b|atletico de madrid|atletico madrid|psg|paris saint|manchester|man city|man united|liverpool|chelsea|arsenal|tottenham|bayern|dortmund|juventus|inter de milan|ac milan|napoli|roma\b|brasil|argentina|francia\b|alemania\b|italia\b|portugal\b|espana\b|holanda\b|inglaterra\b|croacia\b|nike futbol|adidas futbol/.test(n)) return 'Fútbol ⚽';
     if (/zapati|sneaker|zapatill|boot|bota|shoe|calzad/.test(n)) return 'Zapatos';
@@ -823,6 +843,7 @@
     document.getElementById('edit-name').value = data.nom || '';
     document.getElementById('edit-price').value = data.preu || '';
     document.getElementById('edit-brand').value = data.marca || '';
+    document.getElementById('edit-cat').value = data.categoria || '';
     document.getElementById('edit-link').value = data.link_afiliats || '';
     document.getElementById('edit-modal').classList.add('open');
   }
@@ -839,6 +860,7 @@
       nom:    document.getElementById('edit-name').value.trim(),
       preu:   document.getElementById('edit-price').value.trim(),
       marca:  document.getElementById('edit-brand').value.trim(),
+      categoria: document.getElementById('edit-cat').value.trim(),
       link_afiliats: document.getElementById('edit-link').value.trim(),
     };
     try {

@@ -343,8 +343,9 @@ function splitBrands(raw) {
 
 // Detecta categoría desde el nombre del producto
 function detectCat(name, savedCat) {
-  // Recalcula siempre por nombre (las reglas de detección se afinan con el tiempo,
-  // así que una categoria guardada de hace tiempo puede haber quedado obsoleta)
+  // Si se ha fijado manualmente desde el admin, se respeta
+  if (savedCat) return savedCat;
+  // Si no, se detecta automáticamente por el nombre
   // Normalize accents: á→a, é→e, í→i, ó→o, ú→u
   const n = (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   if (/futbol|football|soccer|balon|equipacion|champions|copa|liga\b|mundial|seleccion|titular|visitante|retro shirt|camiseta retro|jersey club|kit de futbol|camiseta del|camiseta de futbol|real madrid|barcelona|barca\b|atletico de madrid|atletico madrid|psg|paris saint|manchester|man city|man united|liverpool|chelsea|arsenal|tottenham|bayern|dortmund|juventus|inter de milan|ac milan|napoli|roma\b|brasil|argentina|francia\b|alemania\b|italia\b|portugal\b|espana\b|holanda\b|inglaterra\b|croacia\b|nike futbol|adidas futbol/.test(n)) return 'Fútbol ⚽';
