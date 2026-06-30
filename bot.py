@@ -131,7 +131,7 @@ def _get_firestore():
         from firebase_admin import credentials, firestore as fb_firestore
         cred_dict = json.loads(FIREBASE_CREDENTIALS)
         if not firebase_admin._apps:
-            bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET", "").strip() or f"{cred_dict.get('project_id', '')}.appspot.com"
+            bucket_name = os.environ.get("FIREBASE_STORAGE_BUCKET", "").strip() or f"{cred_dict.get('project_id', '')}.firebasestorage.app"
             firebase_admin.initialize_app(credentials.Certificate(cred_dict), {"storageBucket": bucket_name})
         _firestore_client = fb_firestore.client()
         return _firestore_client
