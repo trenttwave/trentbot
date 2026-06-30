@@ -298,7 +298,7 @@ def _enrich_title(titulo: str) -> tuple[str, str, str]:
             "Devuelve exactamente tres líneas:\n"
             "Titulo: [título corregido en español, con mayúscula inicial, ortografía correcta]\n"
             "Marca: [nombre de la marca detectada, o vacío si no hay]\n"
-            "Categoria: [una de estas opciones exactas: Zapatos, Camisetas, Sudaderas, Pantalones, Chaquetas, Bolsos, Vestidos, Accesorios, Otros]\n"
+            "Categoria: [una de estas opciones exactas: Zapatillas/Zapatos, Camisetas, Sudaderas, Pantalones, Chaquetas, Bolsos, Vestidos, Accesorios, Otros]\n"
             "Solo esas tres líneas, sin explicaciones adicionales."
         ).strip()
         titulo_ok, marca_ok, cat_ok = titulo, "", ""
