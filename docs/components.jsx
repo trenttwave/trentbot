@@ -308,11 +308,14 @@ function HowToBuy() {
    ============================================================ */
 // Unifica variantes de la misma marca (mayúsculas, abreviaturas, acentos...)
 const BRAND_ALIASES = {
-  'a bathing ape': 'BAPE',
-  'bape': 'BAPE',
+  'a bathing ape': 'Bape',
+  'bape': 'Bape',
   'cp company': 'C.P. Company',
   'c.p. company': 'C.P. Company',
   'c. p. company': 'C.P. Company',
+  'co company': 'C.P. Company',
+  'ami': 'Ami Paris',
+  'ami paris': 'Ami Paris',
   'longchamp': 'Longchamp',
   'on': 'On Cloud',
   'on cloud': 'On Cloud',
