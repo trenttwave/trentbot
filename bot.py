@@ -174,7 +174,7 @@ def _detect_categoria(nom: str) -> str:
     if re.search(r'gorro|hat|cap|gorra|beanie|bucket|sombrero', n): return 'Gorras/Gorros'
     if re.search(r'scrunchie', n): return 'Accesorios'
     if re.search(r'cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf|reloj|(?<!apple )(?<!smart)watch', n): return 'Accesorios'
-    if re.search(r'auricular|airpod|earbud|earphone|headphone|altavoz|speaker|iphone|ipad|macbook|apple watch|smartwatch|airtag|cargador|charger|powerbank|electronic', n): return 'Electrónica'
+    if re.search(r'auricular|airpod|earbud|earphone|headphone|altavoz|speaker|iphone|ipad|macbook|apple watch|smartwatch|airtag|cargador|charger|powerbank|electronic|dyson|proyector|projector|microfono|microphone|\bmic\b', n): return 'Electrónica'
     if re.search(r'maquillaje|makeup|make up|labial|lipstick|gloss|pintalabios|base de maquillaje|foundation|corrector|concealer|rimel|rimmel|mascara de pestanas|sombra de ojos|eyeshadow|delineador|eyeliner|colorete|blush|bronceador|bronzer|iluminador|highlighter|polvos compactos|prebase|primer|paleta de maquillaje|brocha de maquillaje|beauty blender|cosmetic', n): return 'Maquillaje 💄'
     if re.search(r'birkenstock|golden goose|\bhoka\b|onitsuka|mizuno|saucony|\basics\b|\bautry\b|yeezy|\bveja\b|\bcrocs\b|new balance|\bvans\b|\breebok\b|salomon|dr martens|\bmartens\b|\bconverse\b|havaianas|\bugg\b|on cloud|adidas spezial|adidas samba|adidas gazelle|adidas campus', n): return 'Zapatillas/Zapatos'
     return 'Otros'
