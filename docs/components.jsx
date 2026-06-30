@@ -335,6 +335,10 @@ const BRAND_ALIASES = {
   'acne studio': 'Acne Studios',
   'acne studios': 'Acne Studios',
   'aimana': 'Aimana',
+  'fear of god': 'Essentials FOG',
+  'essentials fog': 'Essentials FOG',
+  'fenty': 'Fenty Beauty',
+  'fenty beauty': 'Fenty Beauty',
 };
 // Une variantes de la misma marca y separa campos con varias marcas ("Adidas, Gucci", "Bape x Nike")
 function normalizeBrand(brand) {
