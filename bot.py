@@ -161,6 +161,7 @@ def _detect_categoria(nom: str) -> str:
     n = unicodedata.normalize('NFD', (nom or '').lower())
     n = ''.join(c for c in n if unicodedata.category(c) != 'Mn')
     if re.search(r'futbol|football|soccer|balon|equipacion|champions|copa|liga\b|mundial|seleccion|titular|visitante|retro shirt|camiseta retro|jersey club|kit de futbol|camiseta del|camiseta de futbol|real madrid|barcelona|barca\b|atletico de madrid|atletico madrid|psg|paris saint|manchester|man city|man united|liverpool|chelsea|arsenal|tottenham|bayern|dortmund|juventus|inter de milan|ac milan|napoli|roma\b|brasil|argentina|francia\b|alemania\b|italia\b|portugal\b|espana\b|holanda\b|inglaterra\b|croacia\b|nike futbol|adidas futbol', n): return 'Fútbol ⚽'
+    if re.search(r'conjunto|tracksuit|(?<!pantalon )chandal|two piece|two-piece|set de\b|outfit set', n): return 'Conjuntos'
     if re.search(r'zapati|zapato|sneaker|zapatill|boot|bota|shoe|calzad|sandalia|chancla|zueco|mocasin', n): return 'Zapatillas/Zapatos'
     if re.search(r'camiseta|tee|tshirt|polo|shirt|camisa|top\b', n): return 'Camisetas'
     if re.search(r'hoodie|sudadera|sweat|jersey|crewneck', n): return 'Sudaderas'
@@ -300,7 +301,7 @@ def _enrich_title(titulo: str) -> tuple[str, str, str]:
             "Devuelve exactamente tres líneas:\n"
             "Titulo: [título corregido en español, con mayúscula inicial, ortografía correcta]\n"
             "Marca: [nombre de la marca detectada, o vacío si no hay]\n"
-            "Categoria: [una de estas opciones exactas: Zapatillas/Zapatos, Camisetas, Sudaderas, Pantalones, Chaquetas, Bolsos/Bolsas, Mochilas/Riñoneras, Gorras/Gorros, Vestidos, Accesorios, Otros]\n"
+            "Categoria: [una de estas opciones exactas: Zapatillas/Zapatos, Camisetas, Sudaderas, Pantalones, Chaquetas, Conjuntos, Bolsos/Bolsas, Mochilas/Riñoneras, Gorras/Gorros, Vestidos, Accesorios, Otros]\n"
             "Solo esas tres líneas, sin explicaciones adicionales."
         ).strip()
         titulo_ok, marca_ok, cat_ok = titulo, "", ""
