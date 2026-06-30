@@ -444,6 +444,7 @@
         <option value="Chaquetas">Chaquetas</option>
         <option value="Electrónica">Electrónica</option>
         <option value="Fútbol ⚽">Fútbol ⚽</option>
+        <option value="Gorras/Gorros">Gorras/Gorros</option>
         <option value="Maquillaje 💄">Maquillaje 💄</option>
         <option value="Mochilas/Riñoneras">Mochilas/Riñoneras</option>
         <option value="Otros">Otros</option>
@@ -636,7 +637,8 @@
     if (/mochila|rinonera|fanny pack|fanny bag|waist bag|belt bag|backpack|cangurera|sling bag/.test(n)) return 'Mochilas/Riñoneras';
     if (/bolso|bolsa|bag|tote|clutch|cartera/.test(n)) return 'Bolsos/Bolsas';
     if (/vestido|dress|falda|skirt/.test(n)) return 'Vestidos';
-    if (/gorro|hat|cap|gorra|beanie|bucket|scrunchie/.test(n)) return 'Accesorios';
+    if (/gorro|hat|cap|gorra|beanie|bucket/.test(n)) return 'Gorras/Gorros';
+    if (/scrunchie/.test(n)) return 'Accesorios';
     if (/cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf/.test(n)) return 'Accesorios';
     if (/auricular|airpod|earbud|earphone|headphone|altavoz|speaker|iphone|ipad|macbook|apple watch|smartwatch|airtag|cargador|charger|powerbank|electronic/.test(n)) return 'Electrónica';
     if (/maquillaje|makeup|make up|labial|lipstick|gloss|pintalabios|base de maquillaje|foundation|corrector|concealer|rimel|rimmel|mascara de pestanas|sombra de ojos|eyeshadow|delineador|eyeliner|colorete|blush|bronceador|bronzer|iluminador|highlighter|polvos compactos|prebase|primer|paleta de maquillaje|brocha de maquillaje|beauty blender|cosmetic/.test(n)) return 'Maquillaje 💄';

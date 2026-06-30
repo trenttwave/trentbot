@@ -170,7 +170,8 @@ def _detect_categoria(nom: str) -> str:
     if re.search(r'mochila|rinonera|fanny pack|fanny bag|waist bag|belt bag|backpack|cangurera|sling bag', n): return 'Mochilas/Riñoneras'
     if re.search(r'bolso|bolsa|bag|tote|clutch|cartera', n): return 'Bolsos/Bolsas'
     if re.search(r'vestido|dress|falda|skirt', n): return 'Vestidos'
-    if re.search(r'gorro|hat|cap|gorra|beanie|bucket|scrunchie', n): return 'Accesorios'
+    if re.search(r'gorro|hat|cap|gorra|beanie|bucket', n): return 'Gorras/Gorros'
+    if re.search(r'scrunchie', n): return 'Accesorios'
     if re.search(r'cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf', n): return 'Accesorios'
     if re.search(r'auricular|airpod|earbud|earphone|headphone|altavoz|speaker|iphone|ipad|macbook|apple watch|smartwatch|airtag|cargador|charger|powerbank|electronic', n): return 'Electrónica'
     if re.search(r'maquillaje|makeup|make up|labial|lipstick|gloss|pintalabios|base de maquillaje|foundation|corrector|concealer|rimel|rimmel|mascara de pestanas|sombra de ojos|eyeshadow|delineador|eyeliner|colorete|blush|bronceador|bronzer|iluminador|highlighter|polvos compactos|prebase|primer|paleta de maquillaje|brocha de maquillaje|beauty blender|cosmetic', n): return 'Maquillaje 💄'
@@ -299,7 +300,7 @@ def _enrich_title(titulo: str) -> tuple[str, str, str]:
             "Devuelve exactamente tres líneas:\n"
             "Titulo: [título corregido en español, con mayúscula inicial, ortografía correcta]\n"
             "Marca: [nombre de la marca detectada, o vacío si no hay]\n"
-            "Categoria: [una de estas opciones exactas: Zapatillas/Zapatos, Camisetas, Sudaderas, Pantalones, Chaquetas, Bolsos/Bolsas, Mochilas/Riñoneras, Vestidos, Accesorios, Otros]\n"
+            "Categoria: [una de estas opciones exactas: Zapatillas/Zapatos, Camisetas, Sudaderas, Pantalones, Chaquetas, Bolsos/Bolsas, Mochilas/Riñoneras, Gorras/Gorros, Vestidos, Accesorios, Otros]\n"
             "Solo esas tres líneas, sin explicaciones adicionales."
         ).strip()
         titulo_ok, marca_ok, cat_ok = titulo, "", ""
