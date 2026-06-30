@@ -162,7 +162,7 @@ def _detect_categoria(nom: str) -> str:
     n = ''.join(c for c in n if unicodedata.category(c) != 'Mn')
     if re.search(r'futbol|football|soccer|balon|equipacion|champions|copa|liga\b|mundial|seleccion|titular|visitante|retro shirt|camiseta retro|jersey club|kit de futbol|camiseta del|camiseta de futbol|real madrid|barcelona|barca\b|atletico de madrid|atletico madrid|psg|paris saint|manchester|man city|man united|liverpool|chelsea|arsenal|tottenham|bayern|dortmund|juventus|inter de milan|ac milan|napoli|roma\b|brasil|argentina|francia\b|alemania\b|italia\b|portugal\b|espana\b|holanda\b|inglaterra\b|croacia\b|nike futbol|adidas futbol', n): return 'Fútbol ⚽'
     if re.search(r'conjunto|tracksuit|(?<!pantalon )chandal|two piece|two-piece|set de\b|outfit set', n): return 'Conjuntos'
-    if re.search(r'zapati|zapato|sneaker|zapatill|boot|bota|shoe|calzad|sandalia|chancla|zueco|mocasin', n): return 'Zapatillas/Zapatos'
+    if re.search(r'zapati|zapato|sneaker|zapatill|boot|bota|shoe|calzad|sandalia|chancla|zueco|mocasin|bailarina', n): return 'Zapatillas/Zapatos'
     if re.search(r'camiseta|tee|tshirt|polo|shirt|camisa|top\b', n): return 'Camisetas'
     if re.search(r'hoodie|sudadera|sweat|jersey|crewneck', n): return 'Sudaderas'
     if re.search(r'pantalon|jean|denim|cargo|jogger|short|bermuda|vaquero', n): return 'Pantalones'
