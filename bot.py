@@ -171,7 +171,7 @@ def _detect_categoria(nom: str) -> str:
     if re.search(r'mochila|rinonera|fanny pack|fanny bag|waist bag|belt bag|backpack|cangurera|sling bag', n): return 'Mochilas/Riñoneras'
     if re.search(r'bolso|bolsa|bag|tote|clutch|cartera', n): return 'Bolsos/Bolsas'
     if re.search(r'vestido|dress|falda|skirt', n): return 'Vestidos'
-    if re.search(r'gorro|hat|cap|gorra|beanie|bucket', n): return 'Gorras/Gorros'
+    if re.search(r'gorro|hat|cap|gorra|beanie|bucket|sombrero', n): return 'Gorras/Gorros'
     if re.search(r'scrunchie', n): return 'Accesorios'
     if re.search(r'cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf', n): return 'Accesorios'
     if re.search(r'auricular|airpod|earbud|earphone|headphone|altavoz|speaker|iphone|ipad|macbook|apple watch|smartwatch|airtag|cargador|charger|powerbank|electronic', n): return 'Electrónica'
