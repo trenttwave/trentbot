@@ -359,6 +359,7 @@ function detectCat(name, savedCat) {
   if (/gorro|hat|cap|gorra|beanie|bucket|scrunchie/.test(n)) return 'Accesorios';
   if (/cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf/.test(n)) return 'Accesorios';
   if (/auricular|airpod|earbud|earphone|headphone|altavoz|speaker|iphone|ipad|macbook|apple watch|smartwatch|airtag|cargador|charger|powerbank|electronic/.test(n)) return 'Electrónica';
+  if (/maquillaje|makeup|make up|labial|lipstick|gloss|pintalabios|base de maquillaje|foundation|corrector|concealer|rimel|rimmel|mascara de pestanas|sombra de ojos|eyeshadow|delineador|eyeliner|colorete|blush|bronceador|bronzer|iluminador|highlighter|polvos compactos|prebase|primer|paleta de maquillaje|brocha de maquillaje|beauty blender|cosmetic/.test(n)) return 'Maquillaje 💄';
   return 'Otros';
 }
 
