@@ -329,6 +329,9 @@ const BRAND_ALIASES = {
   'poedegar': 'Poedegar',
   'miu mui': 'Miu Miu',
   'miu miu': 'Miu Miu',
+  'acne studio': 'Acne Studios',
+  'acne studios': 'Acne Studios',
+  'aimana': 'Aimana',
 };
 // Une variantes de la misma marca y separa campos con varias marcas ("Adidas, Gucci", "Bape x Nike")
 function normalizeBrand(brand) {
