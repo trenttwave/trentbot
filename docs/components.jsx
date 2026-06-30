@@ -359,7 +359,7 @@ function detectCat(name, savedCat, isManual) {
   // Normalize accents: á→a, é→e, í→i, ó→o, ú→u
   const n = (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   if (/futbol|football|soccer|balon|equipacion|champions|copa|liga\b|mundial|seleccion|titular|visitante|retro shirt|camiseta retro|jersey club|kit de futbol|camiseta del|camiseta de futbol|real madrid|barcelona|barca\b|atletico de madrid|atletico madrid|psg|paris saint|manchester|man city|man united|liverpool|chelsea|arsenal|tottenham|bayern|dortmund|juventus|inter de milan|ac milan|napoli|roma\b|brasil|argentina|francia\b|alemania\b|italia\b|portugal\b|espana\b|holanda\b|inglaterra\b|croacia\b|nike futbol|adidas futbol/.test(n)) return 'Fútbol ⚽';
-  if (/zapati|sneaker|zapatill|boot|bota|shoe|calzad/.test(n)) return 'Zapatos';
+  if (/zapati|zapato|sneaker|zapatill|boot|bota|shoe|calzad|sandalia|chancla|zueco|mocasin/.test(n)) return 'Zapatillas/Zapatos';
   if (/camiseta|tee|tshirt|polo|shirt|camisa|top\b/.test(n)) return 'Camisetas';
   if (/hoodie|sudadera|sweat|jersey|crewneck/.test(n)) return 'Sudaderas';
   if (/pantalon|jean|denim|cargo|jogger|short|bermuda|vaquero/.test(n)) return 'Pantalones';
@@ -371,6 +371,7 @@ function detectCat(name, savedCat, isManual) {
   if (/cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf/.test(n)) return 'Accesorios';
   if (/auricular|airpod|earbud|earphone|headphone|altavoz|speaker|iphone|ipad|macbook|apple watch|smartwatch|airtag|cargador|charger|powerbank|electronic/.test(n)) return 'Electrónica';
   if (/maquillaje|makeup|make up|labial|lipstick|gloss|pintalabios|base de maquillaje|foundation|corrector|concealer|rimel|rimmel|mascara de pestanas|sombra de ojos|eyeshadow|delineador|eyeliner|colorete|blush|bronceador|bronzer|iluminador|highlighter|polvos compactos|prebase|primer|paleta de maquillaje|brocha de maquillaje|beauty blender|cosmetic/.test(n)) return 'Maquillaje 💄';
+  if (/birkenstock|golden goose|\bhoka\b|onitsuka|mizuno|saucony|\basics\b|\bautry\b|yeezy|\bveja\b|\bcrocs\b|new balance|\bvans\b|\breebok\b|salomon|dr martens|\bmartens\b|\bconverse\b|havaianas|\bugg\b|on cloud|adidas spezial|adidas samba|adidas gazelle|adidas campus/.test(n)) return 'Zapatillas/Zapatos';
   return 'Otros';
 }
 
