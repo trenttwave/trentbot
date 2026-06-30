@@ -342,9 +342,9 @@ function splitBrands(raw) {
 }
 
 // Detecta categoría desde el nombre del producto
-function detectCat(name, savedCat) {
+function detectCat(name, savedCat, isManual) {
   // Si se ha fijado manualmente desde el admin, se respeta
-  if (savedCat) return savedCat;
+  if (isManual && savedCat) return savedCat;
   // Si no, se detecta automáticamente por el nombre
   // Normalize accents: á→a, é→e, í→i, ó→o, ú→u
   const n = (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -417,7 +417,7 @@ function Catalog({ density, palette }) {
   }, [brands, letterRange]);
 
   const cats = useMemo(() => {
-    const set = new Set(products.map(p => detectCat(p.nom || p.name || '', p.categoria)));
+    const set = new Set(products.map(p => detectCat(p.nom || p.name || '', p.categoria, p.categoriaManual)));
     return ['Todo', ...Array.from(set).sort()];
   }, [products]);
 
@@ -427,7 +427,7 @@ function Catalog({ density, palette }) {
       const brandVals = splitBrands(p.marca || p.brand || '');
       if (showWishlistOnly && !wishlist.includes(p.id)) return false;
       if (brand.length > 0 && !brand.some(b => brandVals.includes(b))) return false;
-      if (cat.length > 0 && !cat.includes(detectCat(name, p.categoria))) return false;
+      if (cat.length > 0 && !cat.includes(detectCat(name, p.categoria, p.categoriaManual))) return false;
       if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     }).sort((a, b) => {

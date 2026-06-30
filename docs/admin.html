@@ -529,7 +529,7 @@
     }
     if (count) count.textContent = `${docs.length} producto${docs.length !== 1 ? 's' : ''}`;
     grid.innerHTML = '';
-    docs.forEach(({ id: safeId, name, price, brand, categoria, img, imagenes, link, destacado }) => {
+    docs.forEach(({ id: safeId, name, price, brand, categoria, categoriaManual, img, imagenes, link, destacado }) => {
       const card = document.createElement('div');
       card.className = 'prod-card';
       const isDrop = _currentDropName && name === _currentDropName && price === _currentDropPrice;
@@ -545,7 +545,7 @@
         <button class="prod-card__del" title="Eliminar" onclick="deleteProduct('${safeId}', '${name.replace(/'/g,"\\'")}')">✕</button>
       `;
       card.querySelector('.prod-card__edit').addEventListener('click', () => {
-        openEditModal(safeId, { nom: name, preu: price, marca: brand, imatge: img, link_afiliats: link, categoria });
+        openEditModal(safeId, { nom: name, preu: price, marca: brand, imatge: img, link_afiliats: link, categoria: categoriaManual ? categoria : '' });
       });
       card.querySelector('.prod-card__star').addEventListener('click', () => {
         db.collection('products').doc(safeId).update({ destacado: !destacado });
@@ -596,8 +596,8 @@
     if (!raw) return [];
     return raw.split(/\s*,\s*|\s+x\s+/i).map(normalizeBrand).filter(Boolean);
   }
-  function detectCat(name, savedCat) {
-    if (savedCat) return savedCat;
+  function detectCat(name, savedCat, isManual) {
+    if (isManual && savedCat) return savedCat;
     const n = (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
     if (/futbol|football|soccer|balon|equipacion|champions|copa|liga\b|mundial|seleccion|titular|visitante|retro shirt|camiseta retro|jersey club|kit de futbol|camiseta del|camiseta de futbol|real madrid|barcelona|barca\b|atletico de madrid|atletico madrid|psg|paris saint|manchester|man city|man united|liverpool|chelsea|arsenal|tottenham|bayern|dortmund|juventus|inter de milan|ac milan|napoli|roma\b|brasil|argentina|francia\b|alemania\b|italia\b|portugal\b|espana\b|holanda\b|inglaterra\b|croacia\b|nike futbol|adidas futbol/.test(n)) return 'Fútbol ⚽';
     if (/zapati|sneaker|zapatill|boot|bota|shoe|calzad/.test(n)) return 'Zapatos';
@@ -646,7 +646,7 @@
   }
 
   function renderProdFilterChips() {
-    const cats = ['Todo', ...Array.from(new Set(_allProducts.map(p => detectCat(p.name, p.categoria)))).sort()];
+    const cats = ['Todo', ...Array.from(new Set(_allProducts.map(p => detectCat(p.name, p.categoria, p.categoriaManual)))).sort()];
     const allBrands = ['Todas', ...Array.from(new Set(_allProducts.flatMap(p => splitBrands(p.brand)))).sort()];
     const visibleBrands = _prodLetterRange === 'Todas' ? allBrands : allBrands.filter(b => {
       if (b === 'Todas') return true;
@@ -686,7 +686,7 @@
       p.price.toLowerCase().includes(q)
     ) : _allProducts;
     if (_prodBrand.length) filtered = filtered.filter(p => splitBrands(p.brand).some(b => _prodBrand.includes(b)));
-    if (_prodCat.length) filtered = filtered.filter(p => _prodCat.includes(detectCat(p.name, p.categoria)));
+    if (_prodCat.length) filtered = filtered.filter(p => _prodCat.includes(detectCat(p.name, p.categoria, p.categoriaManual)));
     const btn = document.getElementById('prod-filter-btn');
     const activeFilters = _prodCat.length + _prodBrand.length;
     if (btn) {
@@ -776,6 +776,7 @@
           price: p.preu || p.price || '',
           brand: p.marca || p.brand || '',
           categoria: p.categoria || '',
+          categoriaManual: !!p.categoriaManual,
           img: p.imatge || p.image_url || '',
           imagenes: Array.isArray(p.imagenes) ? p.imagenes : [],
           link: p.link_afiliats || p.link || '',
@@ -861,6 +862,7 @@
       preu:   document.getElementById('edit-price').value.trim(),
       marca:  document.getElementById('edit-brand').value.trim(),
       categoria: document.getElementById('edit-cat').value.trim(),
+      categoriaManual: !!document.getElementById('edit-cat').value.trim(),
       link_afiliats: document.getElementById('edit-link').value.trim(),
     };
     try {
