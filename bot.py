@@ -167,7 +167,8 @@ def _detect_categoria(nom: str) -> str:
     if re.search(r'pantalon|jean|denim|cargo|jogger|short|bermuda|vaquero', n): return 'Pantalones'
     if re.search(r'puffer|chaqueton|parka|trench|abrigo largo|abrigo de plumas|plumifero|plumon', n): return 'Puffer/Chaquetón'
     if re.search(r'chaqueta|jacket|abrigo|coat|blazer|chaleco', n): return 'Chaquetas'
-    if re.search(r'bolso|bag|mochila|tote|clutch|cartera', n): return 'Bolsos'
+    if re.search(r'mochila|rinonera|fanny pack|fanny bag|waist bag|belt bag|backpack|cangurera|sling bag', n): return 'Mochilas/Riñoneras'
+    if re.search(r'bolso|bag|tote|clutch|cartera', n): return 'Bolsos'
     if re.search(r'vestido|dress|falda|skirt', n): return 'Vestidos'
     if re.search(r'gorro|hat|cap|gorra|beanie|bucket|scrunchie', n): return 'Accesorios'
     if re.search(r'cinturon|belt|collar|pulsera|anillo|ring|joya|jewel|bufanda|scarf', n): return 'Accesorios'
@@ -298,7 +299,7 @@ def _enrich_title(titulo: str) -> tuple[str, str, str]:
             "Devuelve exactamente tres líneas:\n"
             "Titulo: [título corregido en español, con mayúscula inicial, ortografía correcta]\n"
             "Marca: [nombre de la marca detectada, o vacío si no hay]\n"
-            "Categoria: [una de estas opciones exactas: Zapatillas/Zapatos, Camisetas, Sudaderas, Pantalones, Chaquetas, Bolsos, Vestidos, Accesorios, Otros]\n"
+            "Categoria: [una de estas opciones exactas: Zapatillas/Zapatos, Camisetas, Sudaderas, Pantalones, Chaquetas, Bolsos, Mochilas/Riñoneras, Vestidos, Accesorios, Otros]\n"
             "Solo esas tres líneas, sin explicaciones adicionales."
         ).strip()
         titulo_ok, marca_ok, cat_ok = titulo, "", ""
