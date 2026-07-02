@@ -211,6 +211,7 @@ function LangSelector() {
   const active = LANGS.find(l => l.code === activeLang) || LANGS[0];
 
   const pick = (lang) => {
+    setOpen(false);
     const expires = new Date();
     expires.setFullYear(expires.getFullYear() + 1);
     if (lang === 'es') {
@@ -220,7 +221,21 @@ function LangSelector() {
       document.cookie = 'googtrans=/es/' + lang + '; expires=' + expires.toUTCString() + '; path=/';
       document.cookie = 'googtrans=/es/' + lang + '; expires=' + expires.toUTCString() + '; path=/; domain=.' + location.hostname;
     }
-    location.reload();
+    // Intentar traducción sin recarga usando la API interna de Google Translate
+    const tryTranslate = () => {
+      if (window.doGTranslate) {
+        window.doGTranslate('es|' + lang);
+        return;
+      }
+      const sel = document.querySelector('.goog-te-combo');
+      if (sel) {
+        sel.value = lang;
+        sel.dispatchEvent(new Event('change'));
+        return;
+      }
+      location.reload();
+    };
+    tryTranslate();
   };
 
   useEffect(() => {
