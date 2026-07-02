@@ -444,7 +444,7 @@ function detectCat(name, savedCat, isManual) {
   const n = (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   if (/futbol|football|soccer|balon|equipacion|champions|copa|liga\b|mundial|seleccion|titular|visitante|retro shirt|camiseta retro|jersey club|kit de futbol|camiseta del|camiseta de futbol|real madrid|barcelona|barca\b|atletico de madrid|atletico madrid|psg|paris saint|manchester|man city|man united|liverpool|chelsea|arsenal|tottenham|bayern|dortmund|juventus|inter de milan|ac milan|napoli|roma\b|brasil|argentina|francia\b|alemania\b|italia\b|portugal\b|espana\b|holanda\b|inglaterra\b|croacia\b|nike futbol|adidas futbol/.test(n)) return 'Fútbol ⚽';
   if (/conjunto|tracksuit|(?<!pantalon )chandal|two piece|two-piece|set de\b|outfit set/.test(n)) return 'Conjuntos';
-  if (/zapati|zapato|sneaker|zapatill|boot|bota|shoe|calzad|sandalia|chancla|zueco|mocasin|bailarina/.test(n)) return 'Zapatillas/Zapatos';
+  if (/zapati|zapato|sneaker|zapatill|boot|bota|shoe|calzad|sandalia|chancla|zueco|mocasin|bailarina|\bshox\b|\bair max\b|\bair force\b|\bdunk\b|\bjordan\b|\baf1\b|\bnmd\b|\bultraboost\b|\bboost\b|\bforum\b|\bstan smith\b|\bsuperstar\b|\bclassic leather\b/.test(n)) return 'Zapatillas/Zapatos';
   if (/camiseta|tee|tshirt|polo|shirt|camisa|top\b/.test(n)) return 'Camisetas';
   if (/hoodie|sudadera|sweat|jersey|crewneck/.test(n)) return 'Sudaderas';
   if (/pantalon|jean|denim|cargo|jogger|short|bermuda|vaquero/.test(n)) return 'Pantalones';
