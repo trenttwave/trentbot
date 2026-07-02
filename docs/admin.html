@@ -582,8 +582,11 @@
         ${img ? `<img src="${img}" alt="${name}" />` : `<div style="height:160px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa">Sin imagen</div>`}
         <span style="position:absolute;top:36px;left:8px;z-index:2;background:${fuenteColor};color:#fff;font-size:8px;font-weight:700;letter-spacing:.5px;padding:2px 5px;border-radius:999px;pointer-events:none">${fuenteLabel}</span>
         <div class="prod-card__body">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <div style="font-size:11px;color:var(--mute);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${brand || '—'}</div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap">${price}</div>
+          </div>
           <div class="prod-card__name" title="${name}">${name}</div>
-          <div class="prod-card__price">${price}</div>
         </div>
         <button class="prod-card__edit" title="Editar">✏️ Editar</button>
         <button class="prod-card__star ${destacado ? 'prod-card__star--on' : ''}" title="${destacado ? 'Quitar de destacados' : 'Destacar (mostrar primero)'}">${destacado ? '★' : '☆'}</button>
@@ -814,8 +817,11 @@
       card.innerHTML = `
         ${img ? `<img src="${img}" alt="${name}" />` : `<div style="height:160px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa">Sin imagen</div>`}
         <div class="prod-card__body">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <div style="font-size:11px;color:var(--mute);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%">${brand || '—'}</div>
+            <div style="font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap">${price}</div>
+          </div>
           <div class="prod-card__name" title="${name}">${name}</div>
-          <div class="prod-card__price">${price}</div>
         </div>
         <div style="position:absolute;top:8px;left:8px;display:flex;gap:4px;z-index:2">
           <button class="prod-card__move-up" title="Subir" ${idx === 0 ? 'disabled' : ''} style="width:28px;height:28px;border-radius:50%;border:none;background:rgba(255,255,255,.92);cursor:${idx === 0 ? 'default' : 'pointer'};opacity:${idx === 0 ? '.4' : '1'}">⬆️</button>
