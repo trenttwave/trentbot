@@ -765,6 +765,22 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     user_id = update.effective_user.id
 
+    # Detectar mensaje de Yepexpress reenviado con foto
+    caption = update.message.caption or ""
+    if "(yepex)" in caption.lower():
+        # Descargar la foto y subirla
+        file_id = update.message.photo[-1].file_id
+        imatge = ""
+        try:
+            file = await context.bot.get_file(file_id)
+            img_bytes = bytes(await file.download_as_bytearray())
+            imatge = await _upload_product_image(img_bytes) or ""
+        except Exception as e:
+            logger.warning(f"Yepexpress photo upload error: {e}")
+
+        await _handle_yepexpress_message(update, context, caption, imatge=imatge)
+        return
+
     state = user_states.get(user_id, {}).get("state")
     if state in ("waiting_title", "waiting_photos"):
         mg_id = update.message.media_group_id
@@ -1255,7 +1271,7 @@ async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _compose_and_send(update.effective_chat.id, user_id, context.bot)
 
 
-async def _handle_yepexpress_message(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+async def _handle_yepexpress_message(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, imatge: str = "") -> None:
     """Parsea un mensaje de Yepexpress y lo guarda en Firestore."""
     try:
         # Formato: "Nike Shox r4 (yepex) —> 35€💎\nMás colores 🎨\nhttps://..."
@@ -1302,8 +1318,8 @@ async def _handle_yepexpress_message(update: Update, context: ContextTypes.DEFAU
             colors=colors,
             marca=marca,
             link_afiliats=link,
-            imatge="",
-            imagenes=[],
+            imatge=imatge,
+            imagenes=[imatge] if imatge else [],
             categoria=categoria,
             fuente="Yepexpress",
         )
