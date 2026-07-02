@@ -990,9 +990,20 @@ function GuideModal({ guide, onClose }) {
         <div className="guide-modal__tag">{guide.tag}</div>
         <h2 className="guide-modal__title">{guide.title}</h2>
         <p className="guide-modal__read">{guide.read} lectura</p>
-        <div className="guide-modal__body">{guide.body.split('\n\n').map((para, i) => (
-          <p key={i} style={{marginBottom: '12px', whiteSpace: 'pre-line'}}>{para}</p>
-        ))}</div>
+        <div className="guide-modal__body">{guide.body.split('\n\n').map((para, i) => {
+          const lines = para.split('\n');
+          const firstLine = lines[0];
+          const isHeading = firstLine.startsWith('¿') || /^[A-ZÁÉÍÓÚ][^a-záéíóú]{2,}/.test(firstLine);
+          if (isHeading && lines.length > 1) {
+            return (
+              <div key={i} style={{marginBottom: '16px'}}>
+                <p style={{fontWeight: '700', fontSize: '15px', marginBottom: '4px'}}>{firstLine}</p>
+                <p style={{whiteSpace: 'pre-line'}}>{lines.slice(1).join('\n')}</p>
+              </div>
+            );
+          }
+          return <p key={i} style={{marginBottom: '14px', whiteSpace: 'pre-line', fontWeight: isHeading ? '700' : undefined}}>{para}</p>;
+        })}</div>
         <button className="guide-modal__close" onClick={onClose} aria-label="Cerrar">✕</button>
       </div>
     </div>
