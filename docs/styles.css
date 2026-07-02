@@ -153,9 +153,14 @@ img { display: block; max-width: 100%; }
     width: 48px;
     height: 24px;
   }
-  .nav__cta {
+  .nav__actions {
     order: 2;
     margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .nav__cta {
     padding: 8px 14px;
     font-size: 13px;
   }
