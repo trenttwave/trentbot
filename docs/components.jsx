@@ -916,13 +916,21 @@ function TelegramBlock() {
           <div className="section__eyebrow section__eyebrow--light">[ 03 ] EL CANAL</div>
           <E tag="h2" className="section__title section__title--light" style={{fontSize:'clamp(22px,5vw,36px)', lineHeight:1.15, marginBottom:8}} value={cfg.telegramTitle} fieldKey="telegramTitle" editMode={editMode} onSave={onSave} />
           <E tag="p" className="section__lead section__lead--light" style={{fontSize:'clamp(13px,3vw,15px)', marginBottom:16}} value={cfg.telegramLead} fieldKey="telegramLead" editMode={editMode} onSave={onSave} />
-          <a href={cfg.telegramLink} target="_blank" rel="noreferrer" className="btn btn--invert btn--lg">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
-            <E tag="span" value={cfg.telegramLink} fieldKey="telegramLink" editMode={editMode} onSave={onSave} />
+          <a href={cfg.telegramLink} target="_blank" rel="noreferrer" style={{
+            display:'inline-flex', alignItems:'center', gap:10,
+            background:'#fff', color:'#0A0A12', borderRadius:14,
+            padding:'14px 22px', fontWeight:700, fontSize:15,
+            textDecoration:'none', marginTop:0, boxShadow:'0 4px 20px rgba(0,0,0,0.25)',
+            transition:'transform 0.15s, box-shadow 0.15s',
+          }}
+          onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-2px)';e.currentTarget.style.boxShadow='0 8px 28px rgba(0,0,0,0.35)'}}
+          onMouseLeave={e=>{e.currentTarget.style.transform='';e.currentTarget.style.boxShadow='0 4px 20px rgba(0,0,0,0.25)'}}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0, marginTop:'-1px'}}><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
+            <span>¡Únete gratis al canal →</span>
           </a>
-          <E tag="div" className="telegram__handle" style={{marginBottom:0}} value={cfg.telegramMembers} fieldKey="telegramMembers" editMode={editMode} onSave={onSave} />
+          <E tag="div" className="telegram__handle" style={{marginBottom:0, marginTop:8}} value={cfg.telegramMembers} fieldKey="telegramMembers" editMode={editMode} onSave={onSave} />
         </div>
-        <div className="telegram__right" style={{marginTop:0}}>
+        <div className="telegram__right" style={{marginTop:4}}>
           {benefits.map((b, i) => (
             <div key={i} className="benefit" style={{flexDirection:'row', alignItems:'center', padding:'10px 14px', gap:'12px', minHeight:0}}>
               <div className="benefit__ic" style={{fontSize:'22px', flexShrink:0}}>{b.ic}</div>
