@@ -319,17 +319,20 @@ function Hero({ onScrollTo, palette }) {
               <span className="btn__arrow">→</span>
             </button>
           </div>
-          <button
+          <div
             className="hero__code-strip"
-            onClick={() => { try { navigator.clipboard.writeText(cfg.discountCode); } catch {} setCodeCopied(true); setTimeout(() => setCodeCopied(false), 1800); }}
+            role="button" tabIndex={0}
+            onClick={() => { try { navigator.clipboard.writeText(cfg.discountCode || 'TRENT14'); } catch {} setCodeCopied(true); setTimeout(() => setCodeCopied(false), 1800); }}
+            onKeyDown={e => e.key === 'Enter' && e.currentTarget.click()}
             title="Copiar código"
+            autoComplete="off"
           >
-            <span className="hero__code-strip-pct">−{cfg.discountPct || '14'}%</span>
+            <span className="hero__code-strip-pct" translate="no">−{cfg.discountPct || '14'}%</span>
             <span className="hero__code-strip-sep" />
             <span className="hero__code-strip-label">CÓDIGO DESCUENTO<span className="hero__code-strip-fire">🎁</span>:</span>
-            <span className="hero__code-strip-code">{cfg.discountCode || 'TRENT14'}</span>
+            <span className="hero__code-strip-code" translate="no" data-code="TRENT14">{cfg.discountCode || 'TRENT14'}</span>
             <span className="hero__code-strip-copy">{codeCopied ? '✓ Copiado' : 'Copiar'}</span>
-          </button>
+          </div>
         </div>
       </div>
     </header>
