@@ -219,6 +219,10 @@
             <span class="pfilter-label">Tipo de prenda</span>
             <div id="prod-filter-cats" class="pchips"></div>
           </div>
+          <div class="pfilter-group">
+            <span class="pfilter-label">Plataforma</span>
+            <div id="prod-filter-fuente" class="pchips"></div>
+          </div>
           <div class="pfilter-group" style="margin-bottom:0">
             <span class="pfilter-label">Marca</span>
             <div id="prod-filter-letters" class="pchips" style="margin-bottom:10px"></div>
@@ -652,6 +656,7 @@
   let _prodCat = [];
   let _prodBrand = [];
   let _prodLetterRange = 'Todas';
+  let _prodFuente = 'Todas';
 
   function toggleProdFilterPanel() {
     const panel = document.getElementById('prod-filter-panel');
@@ -689,6 +694,10 @@
       return ch >= from && ch <= to;
     });
 
+    document.getElementById('prod-filter-fuente').innerHTML = ['Todas','Hacoo','Yepexpress'].map(f =>
+      `<button class="pchip ${_prodFuente === f ? 'pchip--active' : ''}" onclick="setProdFuente('${f}')">${f}</button>`
+    ).join('');
+
     document.getElementById('prod-filter-cats').innerHTML = cats.map(c =>
       `<button class="pchip ${(c === 'Todo' ? _prodCat.length === 0 : _prodCat.includes(c)) ? 'pchip--active' : ''}" onclick="toggleProdCat('${c.replace(/'/g, "\\'")}')">${c}</button>`
     ).join('');
@@ -701,13 +710,20 @@
       `<button class="pchip ${(b === 'Todas' ? _prodBrand.length === 0 : _prodBrand.includes(b)) ? 'pchip--active' : ''}" onclick="toggleProdBrand('${b.replace(/'/g, "\\'")}')">${b}</button>`
     ).join('');
 
-    const activeFilters = _prodCat.length + _prodBrand.length;
+    const activeFilters = _prodCat.length + _prodBrand.length + (_prodFuente !== 'Todas' ? 1 : 0);
     document.getElementById('prod-clear-filters').style.display = activeFilters > 0 ? 'inline' : 'none';
+  }
+
+  function setProdFuente(f) {
+    _prodFuente = f;
+    renderProdFilterChips();
+    filterProducts();
   }
 
   function clearProdFilters() {
     _prodCat = [];
     _prodBrand = [];
+    _prodFuente = 'Todas';
     renderProdFilterChips();
     filterProducts();
   }
@@ -721,8 +737,9 @@
     ) : _allProducts;
     if (_prodBrand.length) filtered = filtered.filter(p => splitBrands(p.brand).some(b => _prodBrand.includes(b)));
     if (_prodCat.length) filtered = filtered.filter(p => _prodCat.includes(detectCat(p.name, p.categoria, p.categoriaManual)));
+    if (_prodFuente !== 'Todas') filtered = filtered.filter(p => (p.fuente || 'Hacoo') === _prodFuente);
     const btn = document.getElementById('prod-filter-btn');
-    const activeFilters = _prodCat.length + _prodBrand.length;
+    const activeFilters = _prodCat.length + _prodBrand.length + (_prodFuente !== 'Todas' ? 1 : 0);
     if (btn) {
       btn.innerHTML = (activeFilters > 0
         ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg> Filtrar (${activeFilters})`
@@ -817,6 +834,7 @@
           destacado: !!p.destacado,
           orden: typeof p.orden === 'number' ? p.orden : null,
           data: p.data || null,
+          fuente: p.fuente || 'Hacoo',
         };
       });
       _allProducts.sort((a, b) => {
