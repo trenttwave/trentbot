@@ -189,11 +189,11 @@ const LANGS = [
   { code: 'de', fc: 'de', label: 'Deutsch' },
 ];
 
-function FlagImg({ fc, size = 20 }) {
+function FlagImg({ fc }) {
   return (
     <img
-      src={`https://flagcdn.com/${size}x15/${fc}.png`}
-      width={size} height={15}
+      src={`https://flagcdn.com/20x15/${fc}.png`}
+      width={20} height={15}
       alt={fc}
       style={{borderRadius:2, objectFit:'cover', flexShrink:0}}
     />
@@ -237,7 +237,7 @@ function LangSelector() {
         borderRadius:'999px', padding:'5px 10px', cursor:'pointer',
         color:'inherit', opacity:0.85, whiteSpace:'nowrap'
       }}>
-        <FlagImg fc={active.fc} size={22} />
+        <FlagImg fc={active.fc} />
         <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{opacity:0.6, transform: open ? 'rotate(180deg)' : 'none', transition:'transform 0.2s'}}>
           <path d="M1 3l4 4 4-4"/>
         </svg>
@@ -258,7 +258,7 @@ function LangSelector() {
               cursor:'pointer', fontSize:'14px', fontWeight: l.code === activeLang ? 700 : 400,
               textAlign:'left'
             }}>
-              <FlagImg fc={l.fc} size={22} />
+              <FlagImg fc={l.fc} />
               <span>{l.label}</span>
             </button>
           ))}
