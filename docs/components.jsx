@@ -990,7 +990,9 @@ function GuideModal({ guide, onClose }) {
         <div className="guide-modal__tag">{guide.tag}</div>
         <h2 className="guide-modal__title">{guide.title}</h2>
         <p className="guide-modal__read">{guide.read} lectura</p>
-        <p className="guide-modal__body">{guide.body}</p>
+        <div className="guide-modal__body">{guide.body.split('\n\n').map((para, i) => (
+          <p key={i} style={{marginBottom: '12px', whiteSpace: 'pre-line'}}>{para}</p>
+        ))}</div>
         <button className="guide-modal__close" onClick={onClose} aria-label="Cerrar">✕</button>
       </div>
     </div>
