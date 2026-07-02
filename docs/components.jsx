@@ -670,6 +670,7 @@ function Catalog({ density, palette }) {
           const imgUrl = p.imatge || p.image_url || '';
           const imgList = (Array.isArray(p.imagenes) && p.imagenes.length > 0) ? p.imagenes : (imgUrl ? [imgUrl] : []);
           const link = p.link_afiliats || p.link || 'https://t.me/trentthacoo';
+          const fuente = p.fuente || 'Hacoo';
 
           const saveProduct = async (field, value) => {
             if (!window._db) return;
@@ -689,6 +690,12 @@ function Catalog({ density, palette }) {
                   ? <CardImageSlider images={imgList} alt={name} />
                   : <ProductPlaceholder stripe="#1E3FBE" bg="#ECECEC" label={name} />
                 }
+                <span style={{
+                  position: 'absolute', top: 8, right: 8, zIndex: 2,
+                  background: fuente === 'Yepexpress' ? '#FF6B00' : '#1E3FBE',
+                  color: '#fff', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px',
+                  padding: '3px 7px', borderRadius: 999, pointerEvents: 'none',
+                }}>{fuente}</span>
                 {editMode && (
                   <button onClick={(e) => { e.stopPropagation(); changeImage(); }} style={{
                     position: 'absolute', inset: 0, width: '100%', height: '100%',
