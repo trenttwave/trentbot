@@ -179,15 +179,26 @@ function Marquee({ items = [], speed = 30 }) {
    NAVBAR
    ============================================================ */
 const LANGS = [
-  { code: 'es', flag: '🇪🇸', label: 'Español' },
-  { code: 'en', flag: '🇬🇧', label: 'English' },
-  { code: 'fr', flag: '🇫🇷', label: 'Français' },
-  { code: 'it', flag: '🇮🇹', label: 'Italiano' },
-  { code: 'pt', flag: '🇵🇹', label: 'Português' },
-  { code: 'nl', flag: '🇳🇱', label: 'Nederlands' },
-  { code: 'hu', flag: '🇭🇺', label: 'Magyar' },
-  { code: 'de', flag: '🇩🇪', label: 'Deutsch' },
+  { code: 'es', fc: 'es', label: 'Español' },
+  { code: 'en', fc: 'gb', label: 'English' },
+  { code: 'fr', fc: 'fr', label: 'Français' },
+  { code: 'it', fc: 'it', label: 'Italiano' },
+  { code: 'pt', fc: 'pt', label: 'Português' },
+  { code: 'nl', fc: 'nl', label: 'Nederlands' },
+  { code: 'hu', fc: 'hu', label: 'Magyar' },
+  { code: 'de', fc: 'de', label: 'Deutsch' },
 ];
+
+function FlagImg({ fc, size = 20 }) {
+  return (
+    <img
+      src={`https://flagcdn.com/${size}x15/${fc}.png`}
+      width={size} height={15}
+      alt={fc}
+      style={{borderRadius:2, objectFit:'cover', flexShrink:0}}
+    />
+  );
+}
 
 function LangSelector() {
   const [open, setOpen] = useState(false);
@@ -223,11 +234,10 @@ function LangSelector() {
       <button onClick={() => setOpen(o => !o)} style={{
         display:'flex', alignItems:'center', gap:'6px',
         background:'transparent', border:'1.5px solid currentColor',
-        borderRadius:'999px', padding:'4px 8px', cursor:'pointer',
-        fontSize:'11px', fontWeight:600, color:'inherit', opacity:0.85,
-        whiteSpace:'nowrap'
+        borderRadius:'999px', padding:'5px 10px', cursor:'pointer',
+        color:'inherit', opacity:0.85, whiteSpace:'nowrap'
       }}>
-        <span style={{fontSize:'18px', lineHeight:1}} translate="no">{active.flag}</span>
+        <FlagImg fc={active.fc} size={22} />
         <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{opacity:0.6, transform: open ? 'rotate(180deg)' : 'none', transition:'transform 0.2s'}}>
           <path d="M1 3l4 4 4-4"/>
         </svg>
@@ -237,7 +247,7 @@ function LangSelector() {
           position:'absolute', right:0, top:'calc(100% + 8px)',
           background:'var(--c-surface, #fff)', border:'1.5px solid var(--c-border, #e5e7eb)',
           borderRadius:'14px', boxShadow:'0 8px 24px rgba(0,0,0,0.12)',
-          overflow:'hidden', zIndex:9999, minWidth:'150px'
+          overflow:'hidden', zIndex:9999, minWidth:'160px'
         }}>
           {LANGS.map(l => (
             <button key={l.code} onClick={() => pick(l.code)} style={{
@@ -248,7 +258,7 @@ function LangSelector() {
               cursor:'pointer', fontSize:'14px', fontWeight: l.code === activeLang ? 700 : 400,
               textAlign:'left'
             }}>
-              <span style={{fontSize:'16px'}}>{l.flag}</span>
+              <FlagImg fc={l.fc} size={22} />
               <span>{l.label}</span>
             </button>
           ))}
