@@ -221,7 +221,8 @@ function LangSelector() {
       document.cookie = 'googtrans=/es/' + lang + '; expires=' + expires.toUTCString() + '; path=/';
       document.cookie = 'googtrans=/es/' + lang + '; expires=' + expires.toUTCString() + '; path=/; domain=.' + location.hostname;
     }
-    // Intentar traducción sin recarga usando la API interna de Google Translate
+    // Esperar a que GT esté listo y traducir, con reintentos
+    let attempts = 0;
     const tryTranslate = () => {
       if (window.doGTranslate) {
         window.doGTranslate('es|' + lang);
@@ -233,7 +234,12 @@ function LangSelector() {
         sel.dispatchEvent(new Event('change'));
         return;
       }
-      location.reload();
+      attempts++;
+      if (attempts < 10) {
+        setTimeout(tryTranslate, 300);
+      } else {
+        location.reload();
+      }
     };
     tryTranslate();
   };
