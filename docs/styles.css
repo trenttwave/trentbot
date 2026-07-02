@@ -1446,7 +1446,7 @@ html[data-bg-mode="dark"] .footer__logo { background: var(--c-bg); }
 }
 
 .guide-modal {
-  background: var(--c-bg);
+  background: #fff;
   border-radius: 20px;
   padding: 48px;
   max-width: 600px;
