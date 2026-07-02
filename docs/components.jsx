@@ -592,7 +592,7 @@ function Catalog({ density, palette }) {
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
         <div className="catalog__search" style={{ flex: 1, minWidth: 0 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
-          <input placeholder="Busca hoodie, sneaker…" value={q} onChange={(e) => { setQ(e.target.value); resetPagination(); }} type="text" autoComplete="off" translate="no" />
+          <input placeholder="Busca hoodie, sneaker…" value={q} onChange={(e) => { setQ(e.target.value); resetPagination(); }} type="text" autoComplete="off" />
           {q && <button className="catalog__clear" onClick={() => { setQ(''); resetPagination(); }}>×</button>}
         </div>
         <button className="catalog__filter-btn" onClick={() => setFilterOpen(o => !o)} style={{
