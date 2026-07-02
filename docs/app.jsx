@@ -148,7 +148,7 @@ function App() {
 
   return (
     <EditCtx.Provider value={{ editMode, cfg, onSave }}>
-      <div className="page" translate="no">
+      <div className="page">
         <Navbar onScrollTo={scrollTo} />
         <Hero onScrollTo={scrollTo} palette={palette} />
         <Marquee items={marqueeItems} />
