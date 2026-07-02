@@ -727,7 +727,7 @@
   function renderProdFilterChips() {
     const cats = ['Todo', ...Array.from(new Set(_allProducts.map(p => detectCat(p.name, p.categoria, p.categoriaManual)))).sort()];
     const allBrands = ['Todas', ...Array.from(new Set(_allProducts.flatMap(p => splitBrands(p.brand)))).sort()];
-    const visibleBrands = _prodLetterRange === 'Todas' ? allBrands : allBrands.filter(b => {
+    const visibleBrands = _prodLetterRange === 'Todas' ? [] : allBrands.filter(b => {
       if (b === 'Todas') return true;
       const [from, to] = _prodLetterRange.split('-');
       const ch = b[0].toUpperCase();
