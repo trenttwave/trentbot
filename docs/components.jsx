@@ -223,11 +223,11 @@ function LangSelector() {
       <button onClick={() => setOpen(o => !o)} style={{
         display:'flex', alignItems:'center', gap:'6px',
         background:'transparent', border:'1.5px solid currentColor',
-        borderRadius:'999px', padding:'6px 12px', cursor:'pointer',
-        fontSize:'13px', fontWeight:600, color:'inherit', opacity:0.85,
+        borderRadius:'999px', padding:'4px 8px', cursor:'pointer',
+        fontSize:'11px', fontWeight:600, color:'inherit', opacity:0.85,
         whiteSpace:'nowrap'
       }}>
-        <span style={{fontSize:'18px'}}>{active.flag}</span>
+        <span style={{fontSize:'14px'}}>{active.flag}</span>
         <span style={{display:'none'}} className="lang-label">{active.label}</span>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{opacity:0.6, transform: open ? 'rotate(180deg)' : 'none', transition:'transform 0.2s'}}>
           <path d="M1 3l4 4 4-4"/>
@@ -249,7 +249,7 @@ function LangSelector() {
               cursor:'pointer', fontSize:'14px', fontWeight: l.code === activeLang ? 700 : 400,
               textAlign:'left'
             }}>
-              <span style={{fontSize:'20px'}}>{l.flag}</span>
+              <span style={{fontSize:'16px'}}>{l.flag}</span>
               <span>{l.label}</span>
             </button>
           ))}
