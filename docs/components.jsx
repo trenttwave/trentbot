@@ -685,7 +685,7 @@ function Catalog({ density, palette }) {
           return (
             <article key={p.id} className="card">
               <div className="card__img" style={{ position: 'relative', cursor: !editMode ? 'pointer' : 'default' }}
-                onClick={() => { if (!editMode) setQuickView({ id: p.id, name, price, brand, imgList, link }); }}>
+                onClick={() => { if (!editMode) setQuickView({ id: p.id, name, price, brand, imgList, link, fuente }); }}>
                 {imgList.length > 0
                   ? <CardImageSlider images={imgList} alt={name} />
                   : <ProductPlaceholder stripe="#1E3FBE" bg="#ECECEC" label={name} />
@@ -752,7 +752,7 @@ function Catalog({ density, palette }) {
                       style={{ outline: '2px dashed #1E3FBE', borderRadius: 4, cursor: 'text' }}
                       onBlur={e => saveProduct('nom', e.currentTarget.textContent.trim())}
                     >{name}</h3>
-                  : <h3 className="card__name" style={{ cursor: 'pointer', display: 'block', fontSize: 17, lineHeight: 1.3, marginBottom: 16 }} onClick={() => setQuickView({ id: p.id, name, price, brand, imgList, link })}>{name}</h3>
+                  : <h3 className="card__name" style={{ cursor: 'pointer', display: 'block', fontSize: 17, lineHeight: 1.3, marginBottom: 16 }} onClick={() => setQuickView({ id: p.id, name, price, brand, imgList, link, fuente })}>{name}</h3>
                 }
                 {!editMode && (
                   <div className="card__actions">
@@ -829,7 +829,14 @@ function Catalog({ density, palette }) {
               }
             </div>
             <div style={{ padding: '20px 22px 24px' }}>
-              <div className="card__cat" style={{ marginBottom: 8 }}>{splitBrands(quickView.brand).join(' · ') || quickView.brand}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div className="card__cat">{splitBrands(quickView.brand).join(' · ') || quickView.brand}</div>
+                <span style={{
+                  background: quickView.fuente === 'Yepexpress' ? '#FF6B00' : '#1E3FBE',
+                  color: '#fff', fontSize: 9, fontWeight: 700, letterSpacing: '0.5px',
+                  padding: '3px 7px', borderRadius: 999,
+                }}>{quickView.fuente || 'Hacoo'}</span>
+              </div>
               <h3 className="card__name" style={{ fontSize: 21, lineHeight: 1.25, marginBottom: 10 }}>{quickView.name}</h3>
               <div className="card__price" style={{ fontSize: 22, marginBottom: 20 }}>{quickView.price}</div>
               <div className="card__actions">
