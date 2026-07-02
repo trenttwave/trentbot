@@ -227,8 +227,8 @@ function LangSelector() {
         fontSize:'11px', fontWeight:600, color:'inherit', opacity:0.85,
         whiteSpace:'nowrap'
       }}>
-        <span style={{fontSize:'14px'}}>{active.flag}</span>
-        <span style={{display:'none'}} className="lang-label">{active.label}</span>
+        <span style={{fontSize:'14px'}} translate="no">{active.flag}</span>
+        <span style={{fontSize:'12px', fontWeight:700}} translate="no">{active.code.toUpperCase()}</span>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{opacity:0.6, transform: open ? 'rotate(180deg)' : 'none', transition:'transform 0.2s'}}>
           <path d="M1 3l4 4 4-4"/>
         </svg>
