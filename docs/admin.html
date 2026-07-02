@@ -130,6 +130,33 @@
     .btn-save-main{padding:11px 32px;background:var(--primary);color:#fff;border:none;border-radius:var(--r);font:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
     .btn-save-main:hover{opacity:.9}
     .btn-save-main:disabled{opacity:.5;cursor:not-allowed}
+
+    /* MOBILE NAV */
+    .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--surface);border-top:1px solid var(--border);padding:6px 0 env(safe-area-inset-bottom)}
+    .mobile-nav__inner{display:flex;justify-content:space-around;align-items:center}
+    .mobile-nav__item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 12px;border:none;background:none;cursor:pointer;font:inherit;color:var(--mute);font-size:10px;font-weight:600;letter-spacing:.02em;text-decoration:none;transition:color .15s}
+    .mobile-nav__item.active{color:var(--primary)}
+    .mobile-nav__item span:first-child{font-size:20px;line-height:1}
+
+    @media(max-width:600px){
+      .mobile-nav{display:block}
+      .save-footer{bottom:56px;padding:10px 16px}
+      .admin-bar{padding:10px 16px}
+      .admin-bar .btn-preview{font-size:12px;padding:6px 10px}
+      .admin-content{padding:16px 16px 140px}
+      /* product card buttons always visible on touch */
+      .prod-card__del,.prod-card__star,.prod-card__drop,.prod-card__edit{opacity:1}
+      /* chips smaller */
+      .pchip{padding:6px 10px;font-size:12px}
+      /* editor iframe shorter */
+      .editor-wrap iframe{height:50vh}
+      /* grid 2 cols on small screens */
+      .prod-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+      .prod-card img{height:130px}
+      /* hide editor section on mobile, show shortcut */
+      .editor-wrap{display:none}
+      .btn-fullscreen{width:100%}
+    }
   </style>
 </head>
 <body>
@@ -405,6 +432,17 @@
     <span id="save-status"></span>
     <button class="btn-save-main" id="save-btn" onclick="saveConfig()">💾 Guardar canvis</button>
   </div>
+
+  <!-- MOBILE BOTTOM NAV -->
+  <nav class="mobile-nav">
+    <div class="mobile-nav__inner">
+      <a href="#editor" class="mobile-nav__item active" onclick="setMobileNav(this)"><span>🖊️</span><span>Editar</span></a>
+      <a href="#productos" class="mobile-nav__item" onclick="setMobileNav(this)"><span>🛍️</span><span>Productos</span></a>
+      <a href="#aparenca" class="mobile-nav__item" onclick="setMobileNav(this)"><span>🎨</span><span>Diseño</span></a>
+      <a href="#descompte" class="mobile-nav__item" onclick="setMobileNav(this)"><span>🎁</span><span>Código</span></a>
+      <a href="#metriques" class="mobile-nav__item" onclick="setMobileNav(this)"><span>📊</span><span>Métricas</span></a>
+    </div>
+  </nav>
 </div>
 
 <!-- MODAL EDITAR PRODUCTO -->
@@ -1030,6 +1068,11 @@
     if (/^#[0-9A-Fa-f]{6}$/.test(this.value))
       document.getElementById('primaryColor').value = this.value;
   });
+
+  function setMobileNav(el) {
+    document.querySelectorAll('.mobile-nav__item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+  }
 
   function openFullEditor() {
     document.getElementById('editor-overlay').classList.add('open');
