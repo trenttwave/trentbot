@@ -1106,8 +1106,8 @@ img { display: block; max-width: 100%; }
   .guide--big, .guide--calc { grid-column: span 1; grid-row: span 1; }
   .guide { padding: 12px; }
   .guide__tag { font-size: 9px; padding: 3px 8px; }
-  .guide__title { margin-top: 8px; font-size: 14px; line-height: 1.2; }
-  .guide--big .guide__title { font-size: 16px; }
+  .guide__title { margin-top: 8px; font-size: 12px; line-height: 1.25; word-break: break-word; overflow-wrap: break-word; hyphens: auto; }
+  .guide--big .guide__title { font-size: 13px; }
   .guide__foot { margin-top: 12px; font-size: 10px; }
 }
 
