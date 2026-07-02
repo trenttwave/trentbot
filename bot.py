@@ -179,7 +179,7 @@ def _detect_categoria(nom: str) -> str:
     if re.search(r'birkenstock|golden goose|\bhoka\b|onitsuka|mizuno|saucony|\basics\b|\bautry\b|yeezy|\bveja\b|\bcrocs\b|new balance|\bvans\b|\breebok\b|salomon|dr martens|\bmartens\b|\bconverse\b|havaianas|\bugg\b|on cloud|adidas spezial|adidas samba|adidas gazelle|adidas campus', n): return 'Zapatillas/Zapatos'
     return 'Otros'
 
-def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliats: str, imatge: str, categoria: str = "", imagenes: list = None):
+def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliats: str, imatge: str, categoria: str = "", imagenes: list = None, fuente: str = "Hacoo"):
     db = _get_firestore()
     if not db:
         return
@@ -194,6 +194,7 @@ def save_to_firestore(nom: str, preu: str, colors: str, marca: str, link_afiliat
             "imatge": imatge,
             "imagenes": imagenes or ([imatge] if imatge else []),
             "categoria": categoria or _detect_categoria(nom),
+            "fuente": fuente,
             "data": fb_firestore.SERVER_TIMESTAMP,
         })
         logger.info("Product saved to Firestore")
@@ -1254,6 +1255,72 @@ async def cmd_listo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _compose_and_send(update.effective_chat.id, user_id, context.bot)
 
 
+async def _handle_yepexpress_message(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+    """Parsea un mensaje de Yepexpress y lo guarda en Firestore."""
+    try:
+        # Formato: "Nike Shox r4 (yepex) —> 35€💎\nMás colores 🎨\nhttps://..."
+        lines = text.strip().splitlines()
+
+        # Línea 1: nombre y precio
+        first_line = lines[0] if lines else ""
+        # Extraer precio: busca "—> Xeuro" o "-> Xeuro"
+        price_match = re.search(r'[—\-]>\s*([\d,.]+)\s*€', first_line)
+        preu = f"{price_match.group(1)}€" if price_match else ""
+
+        # Nombre: todo antes de "(yepex)" y del "—>"
+        name_raw = re.split(r'\(yepex\)', first_line, flags=re.IGNORECASE)[0]
+        name_raw = re.split(r'[—\-]>', name_raw)[0].strip()
+        nom = name_raw.strip()
+
+        # Colores: buscar línea con "colores" o "🎨"
+        colors = ""
+        for line in lines[1:]:
+            if "color" in line.lower() or "🎨" in line:
+                m = re.search(r'(\d+)', line)
+                colors = f"{m.group(1)} colores" if m else ""
+                break
+
+        # Link: buscar URL en el texto
+        link = ""
+        for line in lines:
+            url_match = re.search(r'https?://\S+', line)
+            if url_match:
+                link = url_match.group(0)
+                break
+
+        if not nom or not link:
+            await update.message.reply_text("❌ No pude parsear el mensaje. Asegúrate de que tiene el formato correcto con (yepex) y el link.")
+            return
+
+        # Detectar marca desde el nombre
+        marca = _enrich_title(nom)[1] if nom else ""
+        categoria = _detect_categoria(nom)
+
+        save_to_firestore(
+            nom=nom,
+            preu=preu,
+            colors=colors,
+            marca=marca,
+            link_afiliats=link,
+            imatge="",
+            imagenes=[],
+            categoria=categoria,
+            fuente="Yepexpress",
+        )
+
+        await update.message.reply_text(
+            f"✅ Producto Yepexpress guardado en la web:\n\n"
+            f"*{nom}*\n"
+            f"💎 {preu}\n"
+            f"🔗 {link}\n"
+            f"📂 {categoria}",
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        logger.warning(f"Yepexpress parse error: {e}")
+        await update.message.reply_text(f"❌ Error al procesar el producto Yepexpress: {e}")
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type != "private":
         logger.info(f"[GRUPO] chat_id={update.effective_chat.id} title='{update.effective_chat.title}'")
@@ -1296,6 +1363,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("¿Quieres modificar algo más? Dímelo, usa /programar para enviarlo al canal a una hora, o /cancelar para terminar.")
         except Exception as e:
             await update.message.reply_text(f"Error al editar: {e}")
+        return
+
+    # Detectar mensaje de Yepexpress con tag (yepex)
+    if "(yepex)" in user_message.lower():
+        await _handle_yepexpress_message(update, context, user_message)
         return
 
     await update.message.reply_text("Envíame una captura de Hacoo para generar un post.")
