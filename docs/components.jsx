@@ -914,17 +914,17 @@ function TelegramBlock() {
       <div className="telegram__inner">
         <div className="telegram__left">
           <div className="section__eyebrow section__eyebrow--light">[ 03 ] EL CANAL</div>
-          <E tag="h2" className="section__title section__title--light" value={cfg.telegramTitle} fieldKey="telegramTitle" editMode={editMode} onSave={onSave} />
-          <E tag="p" className="section__lead section__lead--light" value={cfg.telegramLead} fieldKey="telegramLead" editMode={editMode} onSave={onSave} />
+          <E tag="h2" className="section__title section__title--light" style={{fontSize:'clamp(22px,5vw,36px)', lineHeight:1.15, marginBottom:8}} value={cfg.telegramTitle} fieldKey="telegramTitle" editMode={editMode} onSave={onSave} />
+          <E tag="p" className="section__lead section__lead--light" style={{fontSize:'clamp(13px,3vw,15px)', marginBottom:16}} value={cfg.telegramLead} fieldKey="telegramLead" editMode={editMode} onSave={onSave} />
           <a href={cfg.telegramLink} target="_blank" rel="noreferrer" className="btn btn--invert btn--lg">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
             <E tag="span" value={cfg.telegramLink} fieldKey="telegramLink" editMode={editMode} onSave={onSave} />
           </a>
-          <E tag="div" className="telegram__handle" value={cfg.telegramMembers} fieldKey="telegramMembers" editMode={editMode} onSave={onSave} />
+          <E tag="div" className="telegram__handle" style={{marginBottom:0}} value={cfg.telegramMembers} fieldKey="telegramMembers" editMode={editMode} onSave={onSave} />
         </div>
-        <div className="telegram__right">
+        <div className="telegram__right" style={{marginTop:0}}>
           {benefits.map((b, i) => (
-            <div key={i} className="benefit" style={{flexDirection:'row', alignItems:'center', padding:'14px 16px', gap:'14px', minHeight:0}}>
+            <div key={i} className="benefit" style={{flexDirection:'row', alignItems:'center', padding:'10px 14px', gap:'12px', minHeight:0}}>
               <div className="benefit__ic" style={{fontSize:'22px', flexShrink:0}}>{b.ic}</div>
               <div style={{display:'flex', flexDirection:'column', gap:'2px'}}>
                 <E className="benefit__t" style={{fontSize:'14px'}} value={cfg[b.tKey]} fieldKey={b.tKey} editMode={editMode} onSave={onSave} />
