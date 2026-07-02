@@ -693,8 +693,8 @@ function Catalog({ density, palette }) {
                 <span style={{
                   position: 'absolute', top: 8, right: 8, zIndex: 2,
                   background: fuente === 'Yepexpress' ? '#FF6B00' : '#1E3FBE',
-                  color: '#fff', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px',
-                  padding: '3px 7px', borderRadius: 999, pointerEvents: 'none',
+                  color: '#fff', fontSize: 8, fontWeight: 700, letterSpacing: '0.5px',
+                  padding: '2px 5px', borderRadius: 999, pointerEvents: 'none',
                 }}>{fuente}</span>
                 {editMode && (
                   <button onClick={(e) => { e.stopPropagation(); changeImage(); }} style={{
