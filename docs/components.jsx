@@ -585,9 +585,9 @@ function Catalog({ density, palette }) {
   return (
     <section id="drops" className={`section section--catalog density--${density}`}>
       <div className="section__head" style={{ marginBottom: 22 }}>
-        <div className="section__eyebrow" style={{ marginBottom: 8 }} translate="no">[ 01 ] CATÁLOGO</div>
+        <div className="section__eyebrow" style={{ marginBottom: 8 }}>[ 01 ] CATÁLOGO</div>
         <h2 className="section__title" style={{ fontSize: 'clamp(28px, 6vw, 48px)', whiteSpace: 'nowrap', marginBottom: 8 }}>Links <em>Productos</em>.</h2>
-        <p className="section__lead" translate="no">{loading ? 'Cargando…' : `${filtered.length} prendas disponibles. Filtra por marca o en el buscador.`}</p>
+        <p className="section__lead">{loading ? 'Cargando…' : `${filtered.length} prendas disponibles. Filtra por marca o en el buscador.`}</p>
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
         <div className="catalog__search" style={{ flex: 1, minWidth: 0 }}>
