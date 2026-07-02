@@ -178,6 +178,87 @@ function Marquee({ items = [], speed = 30 }) {
 /* ============================================================
    NAVBAR
    ============================================================ */
+const LANGS = [
+  { code: 'es', flag: '🇪🇸', label: 'Español' },
+  { code: 'en', flag: '🇬🇧', label: 'English' },
+  { code: 'fr', flag: '🇫🇷', label: 'Français' },
+  { code: 'it', flag: '🇮🇹', label: 'Italiano' },
+  { code: 'pt', flag: '🇵🇹', label: 'Português' },
+  { code: 'nl', flag: '🇳🇱', label: 'Nederlands' },
+  { code: 'hu', flag: '🇭🇺', label: 'Magyar' },
+  { code: 'de', flag: '🇩🇪', label: 'Deutsch' },
+];
+
+function LangSelector() {
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef(null);
+
+  const activeLang = (() => {
+    const m = document.cookie.match(/googtrans=\/es\/([a-z]+)/);
+    return m ? m[1] : 'es';
+  })();
+  const active = LANGS.find(l => l.code === activeLang) || LANGS[0];
+
+  const pick = (lang) => {
+    const expires = new Date();
+    expires.setFullYear(expires.getFullYear() + 1);
+    if (lang === 'es') {
+      document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.' + location.hostname;
+    } else {
+      document.cookie = 'googtrans=/es/' + lang + '; expires=' + expires.toUTCString() + '; path=/';
+      document.cookie = 'googtrans=/es/' + lang + '; expires=' + expires.toUTCString() + '; path=/; domain=.' + location.hostname;
+    }
+    location.reload();
+  };
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{position:'relative', display:'inline-block'}}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        display:'flex', alignItems:'center', gap:'6px',
+        background:'transparent', border:'1.5px solid currentColor',
+        borderRadius:'999px', padding:'6px 12px', cursor:'pointer',
+        fontSize:'13px', fontWeight:600, color:'inherit', opacity:0.85,
+        whiteSpace:'nowrap'
+      }}>
+        <span style={{fontSize:'18px'}}>{active.flag}</span>
+        <span style={{display:'none'}} className="lang-label">{active.label}</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" style={{opacity:0.6, transform: open ? 'rotate(180deg)' : 'none', transition:'transform 0.2s'}}>
+          <path d="M1 3l4 4 4-4"/>
+        </svg>
+      </button>
+      {open && (
+        <div style={{
+          position:'absolute', right:0, top:'calc(100% + 8px)',
+          background:'var(--c-surface, #fff)', border:'1.5px solid var(--c-border, #e5e7eb)',
+          borderRadius:'14px', boxShadow:'0 8px 24px rgba(0,0,0,0.12)',
+          overflow:'hidden', zIndex:9999, minWidth:'150px'
+        }}>
+          {LANGS.map(l => (
+            <button key={l.code} onClick={() => pick(l.code)} style={{
+              display:'flex', alignItems:'center', gap:'10px',
+              width:'100%', padding:'10px 16px', border:'none',
+              background: l.code === activeLang ? 'var(--c-primary, #000)' : 'transparent',
+              color: l.code === activeLang ? '#fff' : 'inherit',
+              cursor:'pointer', fontSize:'14px', fontWeight: l.code === activeLang ? 700 : 400,
+              textAlign:'left'
+            }}>
+              <span style={{fontSize:'20px'}}>{l.flag}</span>
+              <span>{l.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Navbar({ onScrollTo }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -198,10 +279,13 @@ function Navbar({ onScrollTo }) {
         <li><a href="#guides" onClick={(e) => { e.preventDefault(); onScrollTo('guides'); }}>Guías</a></li>
         <li><a href="#faq" onClick={(e) => { e.preventDefault(); onScrollTo('faq'); }}>FAQ</a></li>
       </ul>
-      <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer" className="btn btn--primary nav__cta">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
-        Entrar al canal
-      </a>
+      <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+        <a href="https://t.me/trentthacoo" target="_blank" rel="noreferrer" className="btn btn--primary nav__cta">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
+          Entrar al canal
+        </a>
+        <LangSelector />
+      </div>
     </nav>
   );
 }
