@@ -580,7 +580,7 @@
       const fuenteColor = fuenteLabel === 'Yepexpress' ? '#FF6B00' : '#1E3FBE';
       card.innerHTML = `
         ${img ? `<img src="${img}" alt="${name}" />` : `<div style="height:160px;background:#eee;display:flex;align-items:center;justify-content:center;font-size:11px;color:#aaa">Sin imagen</div>`}
-        <span style="position:absolute;top:8px;right:8px;z-index:2;background:${fuenteColor};color:#fff;font-size:8px;font-weight:700;letter-spacing:.5px;padding:2px 5px;border-radius:999px;pointer-events:none">${fuenteLabel}</span>
+        <span style="position:absolute;bottom:8px;left:8px;z-index:2;background:${fuenteColor};color:#fff;font-size:8px;font-weight:700;letter-spacing:.5px;padding:2px 5px;border-radius:999px;pointer-events:none">${fuenteLabel}</span>
         <div class="prod-card__body">
           <div class="prod-card__name" title="${name}">${name}</div>
           <div class="prod-card__price">${price}</div>
