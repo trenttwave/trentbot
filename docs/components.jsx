@@ -324,10 +324,10 @@ function Hero({ onScrollTo, palette }) {
             onClick={() => { try { navigator.clipboard.writeText(cfg.discountCode); } catch {} setCodeCopied(true); setTimeout(() => setCodeCopied(false), 1800); }}
             title="Copiar código"
           >
-            <span className="hero__code-strip-pct">−{cfg.discountPct}%</span>
+            <span className="hero__code-strip-pct">−{cfg.discountPct || '14'}%</span>
             <span className="hero__code-strip-sep" />
             <span className="hero__code-strip-label">CÓDIGO DESCUENTO<span className="hero__code-strip-fire">🎁</span>:</span>
-            <span className="hero__code-strip-code">{cfg.discountCode}</span>
+            <span className="hero__code-strip-code">{cfg.discountCode || 'TRENT14'}</span>
             <span className="hero__code-strip-copy">{codeCopied ? '✓ Copiado' : 'Copiar'}</span>
           </button>
         </div>
