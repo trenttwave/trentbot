@@ -977,10 +977,14 @@ function SizeCalculator() {
 /* ============================================================
    GUIDES
    ============================================================ */
-function boldWords(text, words) {
-  const pattern = new RegExp(`(${words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
-  const parts = text.split(pattern);
-  return parts.map((p, i) => words.includes(p) ? React.createElement('strong', {key: i}, p) : p);
+function renderText(text, boldWordsList) {
+  const boldPattern = new RegExp(`(${boldWordsList.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}|__[^_]+__)`, 'g');
+  const parts = text.split(boldPattern);
+  return parts.map((p, i) => {
+    if (boldWordsList.includes(p)) return React.createElement('strong', {key: i}, p);
+    if (p.startsWith('__') && p.endsWith('__')) return React.createElement('u', {key: i}, p.slice(2, -2));
+    return p;
+  });
 }
 
 function GuideModal({ guide, onClose }) {
@@ -1000,7 +1004,7 @@ function GuideModal({ guide, onClose }) {
           const lines = para.split('\n');
           const firstLine = lines[0];
           const isHeading = firstLine.startsWith('¿') || /^[✅⚠️🤝]/.test(firstLine) === false && /^[A-ZÁÉÍÓÚ][^a-záéíóú]{2,}/.test(firstLine);
-          const BW = (t) => boldWords(t, ['Yepexpress', 'Hacoo', 'TRENT14']);
+          const BW = (t) => renderText(t, ['Yepexpress', 'Hacoo', 'TRENT14']);
           if (isHeading && lines.length > 1) {
             return (
               <div key={i} style={{marginBottom: '16px'}}>
