@@ -978,11 +978,13 @@ function SizeCalculator() {
    GUIDES
    ============================================================ */
 function renderText(text, boldWordsList) {
-  const boldPattern = new RegExp(`(${boldWordsList.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}|__[^_]+__)`, 'g');
+  const escaped = boldWordsList.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const boldPattern = new RegExp(`(${[...escaped, '__[^_]+__', '\\*\\*[^*]+\\*\\*'].join('|')})`, 'g');
   const parts = text.split(boldPattern);
   return parts.map((p, i) => {
     if (boldWordsList.includes(p)) return React.createElement('strong', {key: i}, p);
     if (p.startsWith('__') && p.endsWith('__')) return React.createElement('u', {key: i}, p.slice(2, -2));
+    if (p.startsWith('**') && p.endsWith('**')) return React.createElement('strong', {key: i}, p.slice(2, -2));
     return p;
   });
 }
