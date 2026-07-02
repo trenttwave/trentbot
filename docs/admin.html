@@ -132,28 +132,26 @@
     .btn-save-main:disabled{opacity:.5;cursor:not-allowed}
 
     /* MOBILE NAV */
-    .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--surface);border-top:1px solid var(--border);padding:6px 0 env(safe-area-inset-bottom)}
-    .mobile-nav__inner{display:flex;justify-content:space-around;align-items:center}
-    .mobile-nav__item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 12px;border:none;background:none;cursor:pointer;font:inherit;color:var(--mute);font-size:10px;font-weight:600;letter-spacing:.02em;text-decoration:none;transition:color .15s}
+    .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--surface);border-top:1px solid var(--border);padding:4px 0 env(safe-area-inset-bottom)}
+    .mobile-nav__inner{display:flex;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:0;padding:0 4px}
+    .mobile-nav__inner::-webkit-scrollbar{display:none}
+    .mobile-nav__item{display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 10px;border:none;background:none;cursor:pointer;font:inherit;color:var(--mute);font-size:9px;font-weight:600;letter-spacing:.02em;text-decoration:none;transition:color .15s;white-space:nowrap;flex-shrink:0}
     .mobile-nav__item.active{color:var(--primary)}
-    .mobile-nav__item span:first-child{font-size:20px;line-height:1}
+    .mobile-nav__item span:first-child{font-size:17px;line-height:1}
 
     @media(max-width:600px){
       .mobile-nav{display:block}
-      .save-footer{bottom:56px;padding:10px 16px}
-      .admin-bar{padding:10px 16px}
-      .admin-bar .btn-preview{font-size:12px;padding:6px 10px}
-      .admin-content{padding:16px 16px 140px}
-      /* product card buttons always visible on touch */
+      .save-footer{bottom:46px;padding:6px 14px}
+      .btn-save-main{padding:7px 18px;font-size:12px;border-radius:8px}
+      #save-status{font-size:11px}
+      .admin-bar{padding:8px 14px}
+      .admin-bar .btn-preview{font-size:11px;padding:5px 9px}
+      .admin-content{padding:14px 14px 130px}
       .prod-card__del,.prod-card__star,.prod-card__drop,.prod-card__edit{opacity:1}
-      /* chips smaller */
       .pchip{padding:6px 10px;font-size:12px}
-      /* editor iframe shorter */
       .editor-wrap iframe{height:50vh}
-      /* grid 2 cols on small screens */
       .prod-grid{grid-template-columns:repeat(2,1fr);gap:10px}
       .prod-card img{height:130px}
-      /* hide editor section on mobile, show shortcut */
       .editor-wrap{display:none}
       .btn-fullscreen{width:100%}
     }
@@ -440,7 +438,11 @@
       <a href="#productos" class="mobile-nav__item" onclick="setMobileNav(this)"><span>🛍️</span><span>Productos</span></a>
       <a href="#aparenca" class="mobile-nav__item" onclick="setMobileNav(this)"><span>🎨</span><span>Diseño</span></a>
       <a href="#descompte" class="mobile-nav__item" onclick="setMobileNav(this)"><span>🎁</span><span>Código</span></a>
+      <a href="#hero" class="mobile-nav__item" onclick="setMobileNav(this)"><span>🏠</span><span>Hero</span></a>
       <a href="#metriques" class="mobile-nav__item" onclick="setMobileNav(this)"><span>📊</span><span>Métricas</span></a>
+      <a href="#marquee" class="mobile-nav__item" onclick="setMobileNav(this)"><span>📝</span><span>Marquee</span></a>
+      <a href="#telegram" class="mobile-nav__item" onclick="setMobileNav(this)"><span>✈️</span><span>Telegram</span></a>
+      <a href="#seguretat" class="mobile-nav__item" onclick="setMobileNav(this)"><span>🔐</span><span>Seguridad</span></a>
     </div>
   </nav>
 </div>
