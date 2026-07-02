@@ -833,8 +833,8 @@ function Catalog({ density, palette }) {
                 <div className="card__cat">{splitBrands(quickView.brand).join(' · ') || quickView.brand}</div>
                 <span style={{
                   background: quickView.fuente === 'Yepexpress' ? '#FF6B00' : '#1E3FBE',
-                  color: '#fff', fontSize: 9, fontWeight: 700, letterSpacing: '0.5px',
-                  padding: '3px 7px', borderRadius: 999,
+                  color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.5px',
+                  padding: '4px 9px', borderRadius: 999,
                 }}>{quickView.fuente || 'Hacoo'}</span>
               </div>
               <h3 className="card__name" style={{ fontSize: 21, lineHeight: 1.25, marginBottom: 10 }}>{quickView.name}</h3>
