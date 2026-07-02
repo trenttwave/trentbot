@@ -471,6 +471,7 @@ function Catalog({ density, palette }) {
 
   const [cat, setCat] = useState([]);
   const [brand, setBrand] = useState([]);
+  const [fuente, setFuente] = useState('Todas');
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -526,6 +527,7 @@ function Catalog({ density, palette }) {
       if (showWishlistOnly && !wishlist.includes(p.id)) return false;
       if (brand.length > 0 && !brand.some(b => brandVals.includes(b))) return false;
       if (cat.length > 0 && !cat.includes(detectCat(name, p.categoria, p.categoriaManual))) return false;
+      if (fuente !== 'Todas' && (p.fuente || 'Hacoo') !== fuente) return false;
       if (q && !name.toLowerCase().includes(q.toLowerCase())) return false;
       return true;
     }).sort((a, b) => {
@@ -541,7 +543,7 @@ function Catalog({ density, palette }) {
       const tb = b.data && b.data.toMillis ? b.data.toMillis() : (b.data && b.data.seconds ? b.data.seconds * 1000 : 0);
       return tb - ta;
     });
-  }, [products, brand, cat, q, showWishlistOnly, wishlist]);
+  }, [products, brand, cat, q, fuente, showWishlistOnly, wishlist]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
@@ -554,7 +556,7 @@ function Catalog({ density, palette }) {
 
   const activeFilters = brand.length + cat.length;
 
-  const clearFilters = () => { setBrand([]); setCat([]); resetPagination(); };
+  const clearFilters = () => { setBrand([]); setCat([]); setFuente('Todas'); resetPagination(); };
 
   const toggleCat = (c) => {
     if (c === 'Todo') { setCat([]); resetPagination(); return; }
@@ -640,6 +642,14 @@ function Catalog({ density, palette }) {
                 ))}
               </div>
             )}
+          </div>
+          <div className="filter-group" style={{ marginTop: 12 }}>
+            <span className="filter-label">Plataforma</span>
+            <div className="chips" style={{ marginBottom: 0 }}>
+              {['Todas', 'Hacoo', 'Yepexpress'].map(f => (
+                <button key={f} className={`chip ${fuente === f ? 'chip--active' : ''}`} onClick={() => { setFuente(f); resetPagination(); }}>{f}</button>
+              ))}
+            </div>
           </div>
         </div>
       )}
