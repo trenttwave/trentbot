@@ -912,12 +912,12 @@ function TelegramBlock() {
         </div>
         <div className="telegram__right">
           {benefits.map((b, i) => (
-            <div key={i} className="benefit">
-              <div className="benefit__head">
-                <div className="benefit__ic">{b.ic}</div>
-                <E className="benefit__t" value={cfg[b.tKey]} fieldKey={b.tKey} editMode={editMode} onSave={onSave} />
+            <div key={i} className="benefit" style={{flexDirection:'row', alignItems:'center', padding:'14px 16px', gap:'14px', minHeight:0}}>
+              <div className="benefit__ic" style={{fontSize:'22px', flexShrink:0}}>{b.ic}</div>
+              <div style={{display:'flex', flexDirection:'column', gap:'2px'}}>
+                <E className="benefit__t" style={{fontSize:'14px'}} value={cfg[b.tKey]} fieldKey={b.tKey} editMode={editMode} onSave={onSave} />
+                <E className="benefit__s" style={{fontSize:'12px', opacity:0.7}} value={cfg[b.sKey]} fieldKey={b.sKey} editMode={editMode} onSave={onSave} />
               </div>
-              <E className="benefit__s" value={cfg[b.sKey]} fieldKey={b.sKey} editMode={editMode} onSave={onSave} />
             </div>
           ))}
         </div>
