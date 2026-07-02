@@ -1109,7 +1109,7 @@ img { display: block; max-width: 100%; }
   .guide__tag { font-size: 9px; padding: 3px 8px; }
   .guide__title { margin-top: 10px; font-size: 18px; }
   .guide--big .guide__title { font-size: 22px; }
-  .guide:not(.guide--big):not(.guide--calc) .guide__title { font-size: 16px; line-height: 1.2; }
+  .guide:not(.guide--big):not(.guide--calc) .guide__title { font-size: 20px; line-height: 1.2; }
   .guide__foot { margin-top: 12px; font-size: 10px; }
 }
 
