@@ -977,6 +977,12 @@ function SizeCalculator() {
 /* ============================================================
    GUIDES
    ============================================================ */
+function boldWords(text, words) {
+  const pattern = new RegExp(`(${words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
+  const parts = text.split(pattern);
+  return parts.map((p, i) => words.includes(p) ? React.createElement('strong', {key: i}, p) : p);
+}
+
 function GuideModal({ guide, onClose }) {
   React.useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -993,16 +999,17 @@ function GuideModal({ guide, onClose }) {
         <div className="guide-modal__body">{guide.body.split('\n\n').map((para, i) => {
           const lines = para.split('\n');
           const firstLine = lines[0];
-          const isHeading = firstLine.startsWith('¿') || /^[A-ZÁÉÍÓÚ][^a-záéíóú]{2,}/.test(firstLine);
+          const isHeading = firstLine.startsWith('¿') || /^[✅⚠️🤝]/.test(firstLine) === false && /^[A-ZÁÉÍÓÚ][^a-záéíóú]{2,}/.test(firstLine);
+          const BW = (t) => boldWords(t, ['Yepexpress', 'Hacoo', 'TRENT14']);
           if (isHeading && lines.length > 1) {
             return (
               <div key={i} style={{marginBottom: '16px'}}>
-                <p style={{fontWeight: '700', fontSize: '15px', marginBottom: '4px'}}>{firstLine}</p>
-                <p style={{whiteSpace: 'pre-line'}}>{lines.slice(1).join('\n')}</p>
+                <p style={{fontWeight: '700', fontSize: '15px', marginBottom: '4px'}}>{BW(firstLine)}</p>
+                <p style={{whiteSpace: 'pre-line'}}>{BW(lines.slice(1).join('\n'))}</p>
               </div>
             );
           }
-          return <p key={i} style={{marginBottom: '14px', whiteSpace: 'pre-line', fontWeight: isHeading ? '700' : undefined}}>{para}</p>;
+          return <p key={i} style={{marginBottom: '14px', whiteSpace: 'pre-line', fontWeight: isHeading ? '700' : undefined}}>{BW(para)}</p>;
         })}</div>
         <button className="guide-modal__close" onClick={onClose} aria-label="Cerrar">✕</button>
       </div>
