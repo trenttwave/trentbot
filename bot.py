@@ -939,17 +939,19 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
         # Reemplazar link en el texto original del canal
         original_text = pending["original_text"]
         url_pattern = r'https?://\S+'
+        DISCOUNT_LINE = "🎁 Código descuento 14% en tu primer pedido: TRENT14"
         has_chain_emoji = "🔗" in original_text
         if has_chain_emoji and re.search(url_pattern, original_text):
-            # Ya tiene 🔗 con link → reemplazar solo la URL en su sitio
-            final_text = re.sub(url_pattern, affiliate_link, original_text)
+            # Ya tiene 🔗 con link → reemplazar solo la URL, insertar descuento encima del link
+            new_text = re.sub(url_pattern, affiliate_link, original_text)
+            final_text = re.sub(r'(🔗\s*https?://\S+)', f"{DISCOUNT_LINE}\n\\1", new_text)
         elif re.search(url_pattern, original_text):
-            # Link sin 🔗 (ej. link al principio) → quitarlo y ponerlo abajo con 🔗
+            # Link sin 🔗 → quitarlo y poner descuento + link abajo
             clean_text = re.sub(url_pattern, "", original_text).strip()
-            final_text = f"{clean_text}\n\n🔗 {affiliate_link}" if clean_text else f"🔗 {affiliate_link}"
+            final_text = f"{clean_text}\n\n{DISCOUNT_LINE}\n🔗 {affiliate_link}" if clean_text else f"{DISCOUNT_LINE}\n🔗 {affiliate_link}"
         else:
-            # Sin link → añadir abajo con 🔗
-            final_text = f"{original_text}\n\n🔗 {affiliate_link}" if original_text else f"🔗 {affiliate_link}"
+            # Sin link → añadir descuento + link abajo
+            final_text = f"{original_text}\n\n{DISCOUNT_LINE}\n🔗 {affiliate_link}" if original_text else f"{DISCOUNT_LINE}\n🔗 {affiliate_link}"
 
         user_states[user_id].update({
             "state": "channel_editing",
