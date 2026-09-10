@@ -997,6 +997,7 @@ async def callback_channel_publish(update: Update, context: ContextTypes.DEFAULT
         _pending_channel_msgs.pop(key, None)
         user_states.pop(user_id, None)
         await query.edit_message_text("❌ Publicación cancelada.")
+        await _show_next_from_queue(user_id, query.message.chat.id, context.bot)
         return
 
     if data.startswith("chpub_now_"):
@@ -1026,6 +1027,7 @@ async def callback_channel_publish(update: Update, context: ContextTypes.DEFAULT
             _pending_channel_msgs.pop(key, None)
             user_states.pop(user_id, None)
             await query.edit_message_text("✅ Publicado en el canal.")
+            await _show_next_from_queue(user_id, query.message.chat.id, context.bot)
         except Exception as e:
             await query.edit_message_text(f"❌ Error al publicar: {e}")
         return
@@ -1312,6 +1314,7 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
                     "photos_bytes": photos_bytes,
                     "channel_key": channel_key,
                     "job_name": job_name,
+                    "user_id": user_id,
                 },
                 name=job_name,
             )
@@ -1399,7 +1402,10 @@ async def _send_channel_scheduled(context) -> None:
             await context.bot.send_media_group(chat_id=CHANNEL_ID or chat_id, media=media)
         else:
             await context.bot.send_message(chat_id=CHANNEL_ID or chat_id, text=final_text)
+        user_id = data.get("user_id", 0)
         await context.bot.send_message(chat_id=chat_id, text="✅ Mensaje del canal enviado.")
+        if user_id:
+            await _show_next_from_queue(user_id, chat_id, context.bot)
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"❌ Error al enviar: {e}")
 
@@ -1609,6 +1615,10 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "0").strip())  # Tu Telegram user ID
 # clave: callback_data key → dict con info del mensaje
 _pending_channel_msgs: dict = {}
 
+# Cola de mensajes reenviados por usuario (procesamiento uno a uno)
+_fwd_queue: dict = {}   # user_id → [{"photo_bytes_list": [...], "original_text": "..."}, ...]
+_fwd_active: set = set()  # user_ids con un flujo activo en curso
+
 # ---------------------------------------------------------------------------
 # Telethon — escucha canal externo
 # ---------------------------------------------------------------------------
@@ -1784,6 +1794,43 @@ async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_i
 _fwd_album_buffer: dict = {}  # media_group_id → {file_ids, text, user_id, chat_id}
 
 
+async def _show_next_from_queue(user_id: int, chat_id: int, bot):
+    """Muestra el siguiente mensaje de la cola del usuario, si hay."""
+    import time
+    queue = _fwd_queue.get(user_id, [])
+    if not queue:
+        _fwd_active.discard(user_id)
+        await bot.send_message(chat_id=chat_id, text="✅ Cola vacía, todos los productos procesados.")
+        return
+
+    item = queue.pop(0)
+    photo_bytes_list = item["photo_bytes_list"]
+    original_text = item["original_text"]
+    remaining = len(queue)
+
+    key = f"ch_{int(time.time())}_{user_id}"
+    _pending_channel_msgs[key] = {"photo_bytes_list": photo_bytes_list, "original_text": original_text}
+
+    caption = f"📡 *Producto reenviado*"
+    if remaining:
+        caption += f" — quedan {remaining} en cola"
+    if original_text:
+        caption += f"\n\n{original_text}"
+
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Publicar", callback_data=f"ch_ok_{key}"),
+        InlineKeyboardButton("❌ Descartar", callback_data=f"ch_no_{key}"),
+    ]])
+
+    if len(photo_bytes_list) == 1:
+        await bot.send_photo(chat_id=chat_id, photo=photo_bytes_list[0], caption=caption, parse_mode="Markdown", reply_markup=kb)
+    else:
+        media = [InputMediaPhoto(media=b) for b in photo_bytes_list]
+        media[0] = InputMediaPhoto(media=photo_bytes_list[0], caption=caption, parse_mode="Markdown")
+        await bot.send_media_group(chat_id=chat_id, media=media)
+        await bot.send_message(chat_id=chat_id, text="¿Qué hacemos con este producto?", reply_markup=kb)
+
+
 async def _process_forwarded_album(context: ContextTypes.DEFAULT_TYPE):
     """Job que se dispara 2s después de recibir el primer mensaje del álbum reenviado."""
     import time
@@ -1808,30 +1855,18 @@ async def _process_forwarded_album(context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=chat_id, text="⚠️ No pude descargar las fotos.")
         return
 
-    key = f"ch_{int(time.time())}_{user_id}"
-    _pending_channel_msgs[key] = {
-        "photo_bytes_list": photo_bytes_list,
-        "original_text": original_text,
-    }
-
-    caption = f"📡 *Producto reenviado* ({len(photo_bytes_list)} fotos)\n\n{original_text}" if original_text else f"📡 *Producto reenviado* ({len(photo_bytes_list)} fotos)"
-    kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ Publicar", callback_data=f"ch_ok_{key}"),
-        InlineKeyboardButton("❌ Descartar", callback_data=f"ch_no_{key}"),
-    ]])
-
-    if len(photo_bytes_list) == 1:
-        await context.bot.send_photo(chat_id=chat_id, photo=photo_bytes_list[0], caption=caption, parse_mode="Markdown", reply_markup=kb)
+    # Encolar y mostrar si no hay flujo activo
+    _fwd_queue.setdefault(user_id, []).append({"photo_bytes_list": photo_bytes_list, "original_text": original_text})
+    if user_id not in _fwd_active:
+        _fwd_active.add(user_id)
+        await _show_next_from_queue(user_id, chat_id, context.bot)
     else:
-        media = [InputMediaPhoto(media=b) for b in photo_bytes_list]
-        media[0] = InputMediaPhoto(media=photo_bytes_list[0], caption=caption, parse_mode="Markdown")
-        await context.bot.send_media_group(chat_id=chat_id, media=media)
-        await context.bot.send_message(chat_id=chat_id, text="¿Qué hacemos con este producto?", reply_markup=kb)
+        queue_len = len(_fwd_queue.get(user_id, []))
+        await context.bot.send_message(chat_id=chat_id, text=f"➕ Álbum añadido a la cola ({queue_len} pendiente{'s' if queue_len != 1 else ''}).")
 
 
 async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """El usuario reenvía manualmente un mensaje del canal al bot."""
-    import time
     msg = update.message
     user_id = update.effective_user.id
 
@@ -1860,7 +1895,7 @@ async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEF
         if original_text:
             _fwd_album_buffer[mg_id]["text"] = original_text
     else:
-        # Foto individual
+        # Foto individual: encolar
         try:
             f = await context.bot.get_file(file_id)
             photo_bytes = bytes(await f.download_as_bytearray())
@@ -1869,15 +1904,15 @@ async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEF
             await msg.reply_text("⚠️ No pude descargar la foto.")
             return
 
-        key = f"ch_{int(time.time())}_{user_id}"
-        _pending_channel_msgs[key] = {"photo_bytes_list": [photo_bytes], "original_text": original_text}
+        _fwd_queue.setdefault(user_id, []).append({"photo_bytes_list": [photo_bytes], "original_text": original_text})
+        if user_id not in _fwd_active:
+            _fwd_active.add(user_id)
+            await _show_next_from_queue(user_id, update.effective_chat.id, context.bot)
+        # Si ya hay flujo activo, solo confirmar que se añadió a la cola
+        else:
+            queue_len = len(_fwd_queue.get(user_id, []))
+            await msg.reply_text(f"➕ Añadido a la cola ({queue_len} pendiente{'s' if queue_len != 1 else ''}).")
 
-        caption = f"📡 *Producto reenviado*\n\n{original_text}" if original_text else "📡 *Producto reenviado*"
-        kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ Publicar", callback_data=f"ch_ok_{key}"),
-            InlineKeyboardButton("❌ Descartar", callback_data=f"ch_no_{key}"),
-        ]])
-        await msg.reply_photo(photo=photo_bytes, caption=caption, parse_mode="Markdown", reply_markup=kb)
 
 
 async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1916,7 +1951,9 @@ async def callback_channel_no(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer()
     key = query.data.replace("ch_no_", "")
     _pending_channel_msgs.pop(key, None)
+    user_id = query.from_user.id
     await query.edit_message_text("❌ Producto descartado.")
+    await _show_next_from_queue(user_id, query.message.chat.id, context.bot)
 
 
 
