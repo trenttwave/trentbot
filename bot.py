@@ -724,7 +724,7 @@ async def generate_affiliate_link(product_id: str) -> str:
 
     if HACOO_EMAIL and HACOO_PASSWORD:
         try:
-            link = await asyncio.wait_for(_generate_via_playwright(product_id), timeout=45)
+            link = await asyncio.wait_for(_generate_via_playwright(product_id), timeout=90)
             if link:
                 logger.info(f"Affiliate link via Playwright: {link}")
                 return link
