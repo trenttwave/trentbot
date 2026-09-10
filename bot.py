@@ -939,7 +939,7 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
         # Reemplazar link en el texto original del canal
         original_text = pending["original_text"]
         url_pattern = r'https?://\S+'
-        DISCOUNT_LINE = "🎁 Código descuento 14% en tu primer pedido: TRENT14"
+        DISCOUNT_LINE = "🎁 Código descuento 14% en tu primer pedido: *TRENT14*"
         has_chain_emoji = "🔗" in original_text
         if has_chain_emoji and re.search(url_pattern, original_text):
             # Ya tiene 🔗 con link → reemplazar solo la URL, insertar descuento encima del link
@@ -1026,11 +1026,12 @@ async def callback_channel_publish(update: Update, context: ContextTypes.DEFAULT
                     chat_id=CHANNEL_ID,
                     photo=photos_bytes[0],
                     caption=final_text,
+                    parse_mode="Markdown",
                 )
             else:
                 from telegram import InputMediaPhoto as IMP
                 media = [IMP(media=b) for b in photos_bytes]
-                media[0] = IMP(media=photos_bytes[0], caption=final_text)
+                media[0] = IMP(media=photos_bytes[0], caption=final_text, parse_mode="Markdown")
                 await context.bot.send_media_group(chat_id=CHANNEL_ID, media=media)
 
             _pending_channel_msgs.pop(key, None)
@@ -1403,14 +1404,14 @@ async def _send_channel_scheduled(context) -> None:
     photos_bytes = data.get("photos_bytes", [])
     try:
         if len(photos_bytes) == 1:
-            await context.bot.send_photo(chat_id=CHANNEL_ID or chat_id, photo=photos_bytes[0], caption=final_text)
+            await context.bot.send_photo(chat_id=CHANNEL_ID or chat_id, photo=photos_bytes[0], caption=final_text, parse_mode="Markdown")
         elif photos_bytes:
             from telegram import InputMediaPhoto as IMP
             media = [IMP(media=b) for b in photos_bytes]
-            media[0] = IMP(media=photos_bytes[0], caption=final_text)
+            media[0] = IMP(media=photos_bytes[0], caption=final_text, parse_mode="Markdown")
             await context.bot.send_media_group(chat_id=CHANNEL_ID or chat_id, media=media)
         else:
-            await context.bot.send_message(chat_id=CHANNEL_ID or chat_id, text=final_text)
+            await context.bot.send_message(chat_id=CHANNEL_ID or chat_id, text=final_text, parse_mode="Markdown")
         user_id = data.get("user_id", 0)
         await context.bot.send_message(chat_id=chat_id, text="✅ Mensaje del canal enviado.")
         if user_id:
