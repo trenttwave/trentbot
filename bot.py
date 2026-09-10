@@ -1781,38 +1781,31 @@ async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_i
 # Callbacks para ✅/❌ del canal externo
 # ---------------------------------------------------------------------------
 
-async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """El usuario reenvía manualmente un mensaje del canal al bot."""
+_fwd_album_buffer: dict = {}  # media_group_id → {file_ids, text, user_id, chat_id}
+
+
+async def _process_forwarded_album(context: ContextTypes.DEFAULT_TYPE):
+    """Job que se dispara 2s después de recibir el primer mensaje del álbum reenviado."""
     import time
-    msg = update.message
-    user_id = update.effective_user.id
-
-    # Solo el owner puede usar esto
-    if OWNER_ID and user_id != OWNER_ID:
+    mg_id = context.job.data
+    group = _fwd_album_buffer.pop(mg_id, None)
+    if not group:
         return
 
-    # Recoger texto y fotos del mensaje reenviado
-    original_text = msg.caption or msg.text or ""
-    photo_file_ids = []
+    user_id = group["user_id"]
+    chat_id = group["chat_id"]
+    original_text = group["text"]
 
-    if msg.photo:
-        photo_file_ids.append(msg.photo[-1].file_id)
-
-    if not photo_file_ids:
-        await msg.reply_text("⚠️ Reenvía un mensaje con foto del canal.")
-        return
-
-    # Descargar foto
     photo_bytes_list = []
-    for fid in photo_file_ids:
+    for fid in group["file_ids"]:
         try:
             f = await context.bot.get_file(fid)
             photo_bytes_list.append(bytes(await f.download_as_bytearray()))
         except Exception as e:
-            logger.error(f"Error descargando foto reenviada: {e}")
+            logger.error(f"Error descargando foto álbum reenviado: {e}")
 
     if not photo_bytes_list:
-        await msg.reply_text("⚠️ No pude descargar la foto.")
+        await context.bot.send_message(chat_id=chat_id, text="⚠️ No pude descargar las fotos.")
         return
 
     key = f"ch_{int(time.time())}_{user_id}"
@@ -1821,18 +1814,70 @@ async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEF
         "original_text": original_text,
     }
 
-    caption = f"📡 *Producto reenviado*\n\n{original_text}" if original_text else "📡 *Producto reenviado*"
+    caption = f"📡 *Producto reenviado* ({len(photo_bytes_list)} fotos)\n\n{original_text}" if original_text else f"📡 *Producto reenviado* ({len(photo_bytes_list)} fotos)"
     kb = InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Publicar", callback_data=f"ch_ok_{key}"),
         InlineKeyboardButton("❌ Descartar", callback_data=f"ch_no_{key}"),
     ]])
 
-    await msg.reply_photo(
-        photo=photo_bytes_list[0],
-        caption=caption,
-        parse_mode="Markdown",
-        reply_markup=kb,
-    )
+    if len(photo_bytes_list) == 1:
+        await context.bot.send_photo(chat_id=chat_id, photo=photo_bytes_list[0], caption=caption, parse_mode="Markdown", reply_markup=kb)
+    else:
+        media = [InputMediaPhoto(media=b) for b in photo_bytes_list]
+        media[0] = InputMediaPhoto(media=photo_bytes_list[0], caption=caption, parse_mode="Markdown")
+        await context.bot.send_media_group(chat_id=chat_id, media=media)
+        await context.bot.send_message(chat_id=chat_id, text="¿Qué hacemos con este producto?", reply_markup=kb)
+
+
+async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """El usuario reenvía manualmente un mensaje del canal al bot."""
+    import time
+    msg = update.message
+    user_id = update.effective_user.id
+
+    if OWNER_ID and user_id != OWNER_ID:
+        return
+
+    if not msg.photo:
+        await msg.reply_text("⚠️ Reenvía un mensaje con foto del canal.")
+        return
+
+    original_text = msg.caption or ""
+    file_id = msg.photo[-1].file_id
+    mg_id = msg.media_group_id
+
+    if mg_id:
+        # Álbum: bufferizar y esperar 2s a que lleguen todas las fotos
+        if mg_id not in _fwd_album_buffer:
+            _fwd_album_buffer[mg_id] = {
+                "file_ids": [],
+                "text": original_text,
+                "user_id": user_id,
+                "chat_id": update.effective_chat.id,
+            }
+            context.application.job_queue.run_once(_process_forwarded_album, 2, data=mg_id, name=f"fwdalbum_{mg_id}")
+        _fwd_album_buffer[mg_id]["file_ids"].append(file_id)
+        if original_text:
+            _fwd_album_buffer[mg_id]["text"] = original_text
+    else:
+        # Foto individual
+        try:
+            f = await context.bot.get_file(file_id)
+            photo_bytes = bytes(await f.download_as_bytearray())
+        except Exception as e:
+            logger.error(f"Error descargando foto reenviada: {e}")
+            await msg.reply_text("⚠️ No pude descargar la foto.")
+            return
+
+        key = f"ch_{int(time.time())}_{user_id}"
+        _pending_channel_msgs[key] = {"photo_bytes_list": [photo_bytes], "original_text": original_text}
+
+        caption = f"📡 *Producto reenviado*\n\n{original_text}" if original_text else "📡 *Producto reenviado*"
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Publicar", callback_data=f"ch_ok_{key}"),
+            InlineKeyboardButton("❌ Descartar", callback_data=f"ch_no_{key}"),
+        ]])
+        await msg.reply_photo(photo=photo_bytes, caption=caption, parse_mode="Markdown", reply_markup=kb)
 
 
 async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE):
