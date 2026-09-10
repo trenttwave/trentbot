@@ -768,7 +768,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Detectar mensaje de Yepexpress reenviado con foto
     caption = update.message.caption or ""
     if "(yepex)" in caption.lower():
-        # Descargar la foto y subirla
         file_id = update.message.photo[-1].file_id
         imatge = ""
         try:
@@ -777,18 +776,22 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             imatge = await _upload_product_image(img_bytes) or ""
         except Exception as e:
             logger.warning(f"Yepexpress photo upload error: {e}")
-
         await _handle_yepexpress_message(update, context, caption, imatge=imatge)
         return
 
     state = user_states.get(user_id, {}).get("state")
+
+    # ── Flujo canal externo: el usuario manda la captura de Hacoo ──
+    if state == "waiting_hacoo_for_channel":
+        await _handle_channel_hacoo_photo(update, context, user_id)
+        return
+
     if state in ("waiting_title", "waiting_photos"):
         mg_id = update.message.media_group_id
         file_id = update.message.photo[-1].file_id
         caption = update.message.caption or ""
 
         if mg_id:
-            # Foto parte de un álbum — bufferizar y procesar cuando lleguen todas
             if mg_id not in media_group_buffer:
                 media_group_buffer[mg_id] = {"photos": [], "caption": "", "user_id": user_id, "chat_id": update.effective_chat.id}
                 context.application.job_queue.run_once(
@@ -798,7 +801,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if caption:
                 media_group_buffer[mg_id]["caption"] = caption
         else:
-            # Foto individual — auto-componer directamente
             if caption and state == "waiting_title":
                 user_states[user_id]["title"] = caption
                 user_states[user_id]["state"] = "waiting_photos"
@@ -846,7 +848,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
 
-        # Generar link i fetch og:image en paral·lel
         affiliate_link, image_url = await asyncio.gather(
             generate_affiliate_link(product_id),
             asyncio.to_thread(_fetch_og_image_url, product_id),
@@ -882,7 +883,167 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await status_msg.edit_text(f"Error: {e}")
 
 
-async def _process_media_group(context) -> None:
+async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """Procesa la captura de Hacoo cuando el usuario está en flujo de canal externo."""
+    state = user_states.get(user_id, {})
+    channel_key = state.get("channel_key")
+    pending = _pending_channel_msgs.get(channel_key)
+    if not pending:
+        await update.message.reply_text("❌ El producto del canal ya no está disponible. Empieza de nuevo.")
+        user_states.pop(user_id, None)
+        return
+
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    status_msg = await update.message.reply_text("Analizando la captura de Hacoo...")
+
+    try:
+        photo = update.message.photo[-1]
+        file = await context.bot.get_file(photo.file_id)
+        image_bytes = bytes(await file.download_as_bytearray())
+
+        product_info = gemini_vision(
+            image_bytes,
+            (
+                "Analiza esta captura de la app Hacoo. Devuelve exactamente tres líneas:\n"
+                "ID: [solo el número de ID del producto]\n"
+                "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]\n"
+                "Colores: [si ves el texto 'Total X están disponibles' devuelve ese número; "
+                "si no, cuenta todas las miniaturas de la sección Style y devuelve solo el número]"
+            ),
+        ).strip()
+
+        product_id = ""
+        price_raw = ""
+        colores = ""
+        for line in product_info.splitlines():
+            if line.startswith("ID:"):
+                product_id = line.replace("ID:", "").strip()
+            elif line.startswith("Precio:"):
+                price_raw = line.replace("Precio:", "").strip()
+            elif line.startswith("Colores:"):
+                val = line.replace("Colores:", "").strip()
+                if re.search(r"\d+", val):
+                    colores = re.search(r"\d+", val).group()
+
+        if not product_id.isdigit():
+            await status_msg.edit_text("No encontré el ID del producto. Envía otra captura.")
+            return
+
+        await status_msg.edit_text(f"ID: {product_id} ✓\nGenerando link de afiliado...")
+
+        affiliate_link, image_url = await asyncio.gather(
+            generate_affiliate_link(product_id),
+            asyncio.to_thread(_fetch_og_image_url, product_id),
+        )
+
+        # Reemplazar link en el texto original del canal
+        original_text = pending["original_text"]
+        url_pattern = r'https?://\S+'
+        if re.search(url_pattern, original_text):
+            final_text = re.sub(url_pattern, affiliate_link, original_text)
+        else:
+            final_text = f"{original_text}\n\n{affiliate_link}" if original_text else affiliate_link
+
+        user_states[user_id].update({
+            "state": "channel_editing",
+            "link": affiliate_link,
+            "price": price_raw,
+            "colores": colores,
+            "image_url": image_url or "",
+            "final_text": final_text,
+            "original_text": original_text,
+        })
+
+        # Mostrar preview con las fotos del canal + texto modificado
+        photos_bytes = pending["photo_bytes_list"]
+        if len(photos_bytes) == 1:
+            await context.bot.send_photo(
+                chat_id=update.effective_chat.id,
+                photo=photos_bytes[0],
+                caption=f"📋 *Preview del post:*\n\n{final_text}",
+                parse_mode="Markdown",
+            )
+        else:
+            from telegram import InputMediaPhoto as IMP
+            media = [IMP(media=b) for b in photos_bytes]
+            media[0] = IMP(media=photos_bytes[0], caption=f"📋 *Preview del post:*\n\n{final_text}", parse_mode="Markdown")
+            await context.bot.send_media_group(chat_id=update.effective_chat.id, media=media)
+
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("📤 Publicar ahora", callback_data=f"chpub_now_{channel_key}"),
+            InlineKeyboardButton("🕐 Programar", callback_data=f"chpub_sched_{channel_key}"),
+            InlineKeyboardButton("❌ Cancelar", callback_data=f"chpub_cancel_{channel_key}"),
+        ]])
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="¿Qué quieres hacer con este post?",
+            reply_markup=kb,
+        )
+
+    except Exception as e:
+        logger.error(f"Error en flujo canal externo: {e}")
+        await status_msg.edit_text(f"Error: {e}")
+
+
+async def callback_channel_publish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Gestiona publicar ahora / programar / cancelar para posts del canal externo."""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    data = query.data
+
+    if data.startswith("chpub_cancel_"):
+        key = data.replace("chpub_cancel_", "")
+        _pending_channel_msgs.pop(key, None)
+        user_states.pop(user_id, None)
+        await query.edit_message_text("❌ Publicación cancelada.")
+        return
+
+    if data.startswith("chpub_now_"):
+        key = data.replace("chpub_now_", "")
+        state = user_states.get(user_id, {})
+        pending = _pending_channel_msgs.get(key)
+        if not pending or not state:
+            await query.edit_message_text("❌ Ya no hay datos disponibles.")
+            return
+
+        final_text = state.get("final_text", "")
+        photos_bytes = pending["photo_bytes_list"]
+
+        try:
+            if len(photos_bytes) == 1:
+                await context.bot.send_photo(
+                    chat_id=CHANNEL_ID,
+                    photo=photos_bytes[0],
+                    caption=final_text,
+                )
+            else:
+                from telegram import InputMediaPhoto as IMP
+                media = [IMP(media=b) for b in photos_bytes]
+                media[0] = IMP(media=photos_bytes[0], caption=final_text)
+                await context.bot.send_media_group(chat_id=CHANNEL_ID, media=media)
+
+            _pending_channel_msgs.pop(key, None)
+            user_states.pop(user_id, None)
+            await query.edit_message_text("✅ Publicado en el canal.")
+        except Exception as e:
+            await query.edit_message_text(f"❌ Error al publicar: {e}")
+        return
+
+    if data.startswith("chpub_sched_"):
+        # Reusar el calendario existente
+        state = user_states.get(user_id, {})
+        if not state:
+            await query.edit_message_text("❌ No hay datos disponibles.")
+            return
+        # Marcar que estamos en modo programar para canal
+        user_states[user_id]["state"] = "channel_scheduling"
+        now = datetime.datetime.now(SPAIN_TZ)
+        kb = _build_calendar(now.year, now.month)
+        await query.edit_message_text("📅 Selecciona el día:", reply_markup=kb)
+
+
+
     mg_id = context.job.data
     group = media_group_buffer.pop(mg_id, None)
     if not group:
@@ -1132,10 +1293,39 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
             await query.edit_message_text("❌ CHANNEL_ID no configurado.")
             return
 
-        message_text = state.get("message_text", "")
-        photos = state.get("photos", [])
         delay = (target - now).total_seconds()
         job_name = f"scheduled_{user_id}_{target.strftime('%d%m_%H%M')}_{int(now.timestamp())}"
+
+        # ── Flujo canal externo programado ──
+        if state.get("state") == "channel_scheduling":
+            channel_key = state.get("channel_key")
+            pending = _pending_channel_msgs.get(channel_key, {})
+            final_text = state.get("final_text", "")
+            photos_bytes = pending.get("photo_bytes_list", [])
+
+            context.application.job_queue.run_once(
+                _send_channel_scheduled,
+                delay,
+                data={
+                    "chat_id": query.message.chat_id,
+                    "final_text": final_text,
+                    "photos_bytes": photos_bytes,
+                    "channel_key": channel_key,
+                    "job_name": job_name,
+                },
+                name=job_name,
+            )
+            _pending_channel_msgs.pop(channel_key, None)
+            user_states.pop(user_id, None)
+            await query.edit_message_text(
+                f"✅ Programado para el {target.strftime('%d/%m/%Y')} a las {hour}:{minute}\n"
+                f"📤 Destino: canal\n\nUsa /pendientes para ver los mensajes programados."
+            )
+            return
+
+        # ── Flujo normal ──
+        message_text = state.get("message_text", "")
+        photos = state.get("photos", [])
 
         context.application.job_queue.run_once(
             _send_scheduled_message,
@@ -1156,7 +1346,6 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
             f"📤 Destino: {destino}\n\n"
             f"Usa /pendientes para ver los mensajes programados."
         )
-        # Solo ahora que se ha programado de verdad, publicamos el producto en la web
         asyncio.create_task(_save_product_to_firestore(state))
 
 
@@ -1194,7 +1383,28 @@ async def _send_scheduled_message(context) -> None:
         await context.bot.send_message(chat_id=chat_id, text=f"❌ Error al enviar: {e}")
 
 
-async def _save_product_to_firestore(state: dict) -> None:
+async def _send_channel_scheduled(context) -> None:
+    """Envía al canal un post programado proveniente del flujo de canal externo."""
+    data = context.job.data
+    chat_id = data["chat_id"]
+    final_text = data["final_text"]
+    photos_bytes = data.get("photos_bytes", [])
+    try:
+        if len(photos_bytes) == 1:
+            await context.bot.send_photo(chat_id=CHANNEL_ID or chat_id, photo=photos_bytes[0], caption=final_text)
+        elif photos_bytes:
+            from telegram import InputMediaPhoto as IMP
+            media = [IMP(media=b) for b in photos_bytes]
+            media[0] = IMP(media=photos_bytes[0], caption=final_text)
+            await context.bot.send_media_group(chat_id=CHANNEL_ID or chat_id, media=media)
+        else:
+            await context.bot.send_message(chat_id=CHANNEL_ID or chat_id, text=final_text)
+        await context.bot.send_message(chat_id=chat_id, text="✅ Mensaje del canal enviado.")
+    except Exception as e:
+        await context.bot.send_message(chat_id=chat_id, text=f"❌ Error al enviar: {e}")
+
+
+
     """Guarda el producto en Firestore (web) — se llama solo al programar el envío."""
     try:
         photos = state.get("photos", [])
@@ -1389,7 +1599,228 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Envíame una captura de Hacoo para generar un post.")
 
 
-PRODUCT_TTL_DAYS = 90
+TELETHON_API_ID = os.environ.get("TELETHON_API_ID", "").strip()
+TELETHON_API_HASH = os.environ.get("TELETHON_API_HASH", "").strip()
+TELETHON_SESSION = os.environ.get("TELETHON_SESSION", "").strip()  # Sesión serializada en base64
+WATCH_CHANNEL = os.environ.get("WATCH_CHANNEL", "").strip()  # Username o ID del canal a escuchar
+OWNER_ID = int(os.environ.get("OWNER_ID", "0").strip())  # Tu Telegram user ID
+
+# Almacén temporal de mensajes pendientes de canal externo
+# clave: callback_data key → dict con info del mensaje
+_pending_channel_msgs: dict = {}
+
+# ---------------------------------------------------------------------------
+# Telethon — escucha canal externo
+# ---------------------------------------------------------------------------
+
+def _get_telethon_session():
+    """Devuelve un StringSession desde la variable de entorno."""
+    from telethon.sessions import StringSession
+    return StringSession(TELETHON_SESSION) if TELETHON_SESSION else StringSession()
+
+
+async def _start_telethon_listener(ptb_app):
+    """Arranca el cliente Telethon y escucha mensajes del canal externo."""
+    if not TELETHON_API_ID or not TELETHON_API_HASH or not WATCH_CHANNEL or not OWNER_ID:
+        logger.warning("Telethon listener no arranca: faltan TELETHON_API_ID, TELETHON_API_HASH, WATCH_CHANNEL u OWNER_ID")
+        return
+
+    from telethon import TelegramClient, events
+    from telethon.sessions import StringSession
+
+    session = StringSession(TELETHON_SESSION) if TELETHON_SESSION else StringSession()
+    client = TelegramClient(session, int(TELETHON_API_ID), TELETHON_API_HASH)
+
+    await client.start()
+    logger.info("Telethon client started")
+
+    # Resolver el canal
+    try:
+        watch_entity = await client.get_entity(WATCH_CHANNEL)
+        watch_id = watch_entity.id
+        logger.info(f"Escuchando canal: {WATCH_CHANNEL} (id={watch_id})")
+    except Exception as e:
+        logger.error(f"No se pudo resolver el canal {WATCH_CHANNEL}: {e}")
+        await client.disconnect()
+        return
+
+    # Buffer para álbumes (media_group)
+    _album_buffer: dict = {}
+
+    @client.on(events.NewMessage(chats=watch_entity))
+    async def on_channel_message(event):
+        msg = event.message
+
+        # Solo procesar mensajes con foto(s)
+        if not msg.photo and not msg.grouped_id:
+            return
+
+        grouped_id = msg.grouped_id
+
+        if grouped_id:
+            # Mensaje parte de un álbum — bufferizar
+            if grouped_id not in _album_buffer:
+                _album_buffer[grouped_id] = {"msgs": [], "text": ""}
+                # Programar procesamiento tras 2s para que lleguen todos
+                asyncio.get_event_loop().call_later(
+                    2.5,
+                    lambda gid=grouped_id: asyncio.create_task(
+                        _forward_album_to_owner(client, ptb_app, _album_buffer, gid)
+                    )
+                )
+            _album_buffer[grouped_id]["msgs"].append(msg)
+            if msg.text:
+                _album_buffer[grouped_id]["text"] = msg.text
+        else:
+            # Foto individual
+            if msg.photo:
+                await _forward_single_to_owner(client, ptb_app, msg)
+
+    await client.run_until_disconnected()
+
+
+async def _download_photo_bytes(client, msg) -> bytes | None:
+    """Descarga la foto de un mensaje Telethon como bytes."""
+    try:
+        return await client.download_media(msg, bytes)
+    except Exception as e:
+        logger.warning(f"Error descargando foto Telethon: {e}")
+        return None
+
+
+async def _forward_single_to_owner(client, ptb_app, msg):
+    """Reenvía un mensaje con foto individual al owner con botones ✅/❌."""
+    import time
+    photo_bytes = await _download_photo_bytes(client, msg)
+    if not photo_bytes:
+        return
+
+    key = f"ch_{int(time.time())}_{msg.id}"
+    original_text = msg.text or msg.message or ""
+
+    _pending_channel_msgs[key] = {
+        "photo_bytes_list": [photo_bytes],
+        "original_text": original_text,
+    }
+
+    caption = f"📡 *Nuevo producto del canal*\n\n{original_text}" if original_text else "📡 *Nuevo producto del canal*"
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Publicar", callback_data=f"ch_ok_{key}"),
+        InlineKeyboardButton("❌ Descartar", callback_data=f"ch_no_{key}"),
+    ]])
+
+    try:
+        await ptb_app.bot.send_photo(
+            chat_id=OWNER_ID,
+            photo=photo_bytes,
+            caption=caption,
+            parse_mode="Markdown",
+            reply_markup=kb,
+        )
+    except Exception as e:
+        logger.error(f"Error reenviando foto al owner: {e}")
+
+
+async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_id: int):
+    """Reenvía un álbum de fotos al owner con botones ✅/❌."""
+    import time
+    group = album_buffer.pop(grouped_id, None)
+    if not group:
+        return
+
+    msgs = group["msgs"]
+    original_text = group["text"]
+
+    # Descargar todas las fotos
+    photos_bytes = []
+    for m in msgs:
+        b = await _download_photo_bytes(client, m)
+        if b:
+            photos_bytes.append(b)
+
+    if not photos_bytes:
+        return
+
+    key = f"ch_{int(time.time())}_{grouped_id}"
+    _pending_channel_msgs[key] = {
+        "photo_bytes_list": photos_bytes,
+        "original_text": original_text,
+    }
+
+    caption_text = f"📡 *Nuevo producto del canal* ({len(photos_bytes)} fotos)\n\n{original_text}" if original_text else f"📡 *Nuevo producto del canal* ({len(photos_bytes)} fotos)"
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Publicar", callback_data=f"ch_ok_{key}"),
+        InlineKeyboardButton("❌ Descartar", callback_data=f"ch_no_{key}"),
+    ]])
+
+    try:
+        if len(photos_bytes) == 1:
+            await ptb_app.bot.send_photo(
+                chat_id=OWNER_ID,
+                photo=photos_bytes[0],
+                caption=caption_text,
+                parse_mode="Markdown",
+                reply_markup=kb,
+            )
+        else:
+            # Enviar álbum + mensaje con botones
+            from telegram import InputMediaPhoto as IMP
+            media = [IMP(media=b) for b in photos_bytes]
+            media[0] = IMP(media=photos_bytes[0], caption=caption_text, parse_mode="Markdown")
+            await ptb_app.bot.send_media_group(chat_id=OWNER_ID, media=media)
+            await ptb_app.bot.send_message(
+                chat_id=OWNER_ID,
+                text="¿Qué hacemos con este producto?",
+                reply_markup=kb,
+            )
+    except Exception as e:
+        logger.error(f"Error reenviando álbum al owner: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Callbacks para ✅/❌ del canal externo
+# ---------------------------------------------------------------------------
+
+async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """El usuario aprueba el producto del canal → pide captura de Hacoo."""
+    query = update.callback_query
+    await query.answer()
+    key = query.data.replace("ch_ok_", "")
+    pending = _pending_channel_msgs.get(key)
+    if not pending:
+        await query.edit_message_text("❌ Este producto ya no está disponible.")
+        return
+
+    user_id = query.from_user.id
+    # Guardar el contexto del canal en el estado del usuario
+    user_states[user_id] = {
+        "state": "waiting_hacoo_for_channel",
+        "channel_key": key,
+        "photos": [],
+        "price": "",
+        "colores": "",
+        "link": "",
+        "title": "",
+        "marca": "",
+        "categoria": "",
+        "image_url": "",
+    }
+
+    await query.edit_message_text(
+        "✅ Perfecto. Ahora envíame la captura del producto en Hacoo para generar el link de afiliado."
+    )
+
+
+async def callback_channel_no(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """El usuario descarta el producto del canal."""
+    query = update.callback_query
+    await query.answer()
+    key = query.data.replace("ch_no_", "")
+    _pending_channel_msgs.pop(key, None)
+    await query.edit_message_text("❌ Producto descartado.")
+
+
+
 
 
 async def _delete_expired_products(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1460,7 +1891,6 @@ def main():
         raise ValueError("GEMINI_API_KEY is not set")
 
     app = Application.builder().token(BOT_TOKEN).post_init(_restore_scheduled_jobs).build()
-    # job_queue está habilitado por defecto en python-telegram-bot v21
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("getid", cmd_getid))
     app.add_handler(CommandHandler("listo", cmd_listo))
@@ -1472,8 +1902,19 @@ def main():
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
     app.add_handler(CallbackQueryHandler(callback_calendario, pattern="^cal_"))
     app.add_handler(CallbackQueryHandler(callback_cancel_job, pattern="^cancel_job_"))
+    # ── Nuevos handlers canal externo ──
+    app.add_handler(CallbackQueryHandler(callback_channel_ok, pattern="^ch_ok_"))
+    app.add_handler(CallbackQueryHandler(callback_channel_no, pattern="^ch_no_"))
+    app.add_handler(CallbackQueryHandler(callback_channel_publish, pattern="^chpub_"))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Arrancar Telethon en background junto con el bot
+    async def _post_init_with_telethon(application):
+        await _restore_scheduled_jobs(application)
+        asyncio.create_task(_start_telethon_listener(application))
+
+    app.post_init = _post_init_with_telethon
 
     logger.info("TrentBot is running...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
