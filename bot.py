@@ -1375,7 +1375,8 @@ def _build_message(state: dict) -> str:
     except Exception:
         price_str = price
     colores_line = f"{colores} color 🎨" if colores == "1" else (f"{colores} colores 🎨" if colores.isdigit() else "Más colores 🎨")
-    return f"{title} —> {price_str}💎\n{colores_line}\n\n{link}"
+    discount = "🎁 Código descuento 14% en tu primer pedido: *TRENT14*\n"
+    return f"{title} —> {price_str}💎\n{colores_line}\n\n{discount}\n🔗 {link}"
 
 
 async def _send_scheduled_message(context) -> None:
@@ -1387,10 +1388,10 @@ async def _send_scheduled_message(context) -> None:
     try:
         if photos:
             media = [InputMediaPhoto(media=pid) for pid in photos]
-            media[0] = InputMediaPhoto(media=photos[0], caption=message_text)
+            media[0] = InputMediaPhoto(media=photos[0], caption=message_text, parse_mode="Markdown")
             await context.bot.send_media_group(chat_id=CHANNEL_ID or chat_id, media=media)
         else:
-            await context.bot.send_message(chat_id=CHANNEL_ID or chat_id, text=message_text)
+            await context.bot.send_message(chat_id=CHANNEL_ID or chat_id, text=message_text, parse_mode="Markdown")
         await context.bot.send_message(chat_id=chat_id, text="✅ Mensaje enviado al canal.")
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"❌ Error al enviar: {e}")
