@@ -939,10 +939,17 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
         # Reemplazar link en el texto original del canal
         original_text = pending["original_text"]
         url_pattern = r'https?://\S+'
-        if re.search(url_pattern, original_text):
+        has_chain_emoji = "🔗" in original_text
+        if has_chain_emoji and re.search(url_pattern, original_text):
+            # Ya tiene 🔗 con link → reemplazar solo la URL en su sitio
             final_text = re.sub(url_pattern, affiliate_link, original_text)
+        elif re.search(url_pattern, original_text):
+            # Link sin 🔗 (ej. link al principio) → quitarlo y ponerlo abajo con 🔗
+            clean_text = re.sub(url_pattern, "", original_text).strip()
+            final_text = f"{clean_text}\n\n🔗 {affiliate_link}" if clean_text else f"🔗 {affiliate_link}"
         else:
-            final_text = f"{original_text}\n\n{affiliate_link}" if original_text else affiliate_link
+            # Sin link → añadir abajo con 🔗
+            final_text = f"{original_text}\n\n🔗 {affiliate_link}" if original_text else f"🔗 {affiliate_link}"
 
         user_states[user_id].update({
             "state": "channel_editing",
