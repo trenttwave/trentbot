@@ -939,7 +939,7 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
         # Reemplazar link en el texto original del canal
         original_text = pending["original_text"]
         url_pattern = r'https?://\S+'
-        DISCOUNT_LINE = "🎁 Código descuento 14% en tu primer pedido: *TRENT14*"
+        DISCOUNT_LINE = "🎁 Código descuento 14% en tu primer pedido: *TRENT14*\n"
         has_chain_emoji = "🔗" in original_text
         if has_chain_emoji and re.search(url_pattern, original_text):
             # Ya tiene 🔗 con link → reemplazar solo la URL, insertar descuento encima del link
