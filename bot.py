@@ -1781,6 +1781,60 @@ async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_i
 # Callbacks para ✅/❌ del canal externo
 # ---------------------------------------------------------------------------
 
+async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """El usuario reenvía manualmente un mensaje del canal al bot."""
+    import time
+    msg = update.message
+    user_id = update.effective_user.id
+
+    # Solo el owner puede usar esto
+    if OWNER_ID and user_id != OWNER_ID:
+        return
+
+    # Recoger texto y fotos del mensaje reenviado
+    original_text = msg.caption or msg.text or ""
+    photo_file_ids = []
+
+    if msg.photo:
+        photo_file_ids.append(msg.photo[-1].file_id)
+
+    if not photo_file_ids:
+        await msg.reply_text("⚠️ Reenvía un mensaje con foto del canal.")
+        return
+
+    # Descargar foto
+    photo_bytes_list = []
+    for fid in photo_file_ids:
+        try:
+            f = await context.bot.get_file(fid)
+            photo_bytes_list.append(bytes(await f.download_as_bytearray()))
+        except Exception as e:
+            logger.error(f"Error descargando foto reenviada: {e}")
+
+    if not photo_bytes_list:
+        await msg.reply_text("⚠️ No pude descargar la foto.")
+        return
+
+    key = f"ch_{int(time.time())}_{user_id}"
+    _pending_channel_msgs[key] = {
+        "photo_bytes_list": photo_bytes_list,
+        "original_text": original_text,
+    }
+
+    caption = f"📡 *Producto reenviado*\n\n{original_text}" if original_text else "📡 *Producto reenviado*"
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Publicar", callback_data=f"ch_ok_{key}"),
+        InlineKeyboardButton("❌ Descartar", callback_data=f"ch_no_{key}"),
+    ]])
+
+    await msg.reply_photo(
+        photo=photo_bytes_list[0],
+        caption=caption,
+        parse_mode="Markdown",
+        reply_markup=kb,
+    )
+
+
 async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """El usuario aprueba el producto del canal → pide captura de Hacoo."""
     query = update.callback_query
@@ -1906,6 +1960,7 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_channel_ok, pattern="^ch_ok_"))
     app.add_handler(CallbackQueryHandler(callback_channel_no, pattern="^ch_no_"))
     app.add_handler(CallbackQueryHandler(callback_channel_publish, pattern="^chpub_"))
+    app.add_handler(MessageHandler(filters.PHOTO & filters.FORWARDED, handle_forwarded_channel_msg))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
