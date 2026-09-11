@@ -938,21 +938,49 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
             asyncio.to_thread(_fetch_og_image_url, product_id),
         )
 
-        # Reemplazar link en el texto original del canal
+        # Guardar affiliate link para esta URL
+        pending_urls = state.get("pending_urls", [])
+        url_index = state.get("url_index", 0)
+        url_affiliate_map = state.get("url_affiliate_map", {})
+
+        if pending_urls and url_index < len(pending_urls):
+            url_affiliate_map[pending_urls[url_index]] = affiliate_link
+            url_index += 1
+            user_states[user_id]["url_affiliate_map"] = url_affiliate_map
+            user_states[user_id]["url_index"] = url_index
+
+        # ¿Quedan más URLs por procesar?
+        if url_index < len(pending_urls):
+            user_states[user_id]["state"] = "waiting_hacoo_for_channel"
+            remaining = len(pending_urls) - url_index
+            await status_msg.edit_text(
+                f"✅ Link {url_index}/{len(pending_urls)} generado. "
+                f"Ahora envíame la captura de Hacoo del siguiente ({url_index + 1}/{len(pending_urls)})."
+            )
+            return
+
+        # Todos los links procesados → construir texto final
         original_text = pending["original_text"]
         url_pattern = r'https?://\S+'
         DISCOUNT_LINE = "🎁 Código descuento 14% en tu primer pedido: *TRENT14*\n"
-        has_chain_emoji = "🔗" in original_text
-        if has_chain_emoji and re.search(url_pattern, original_text):
-            # Ya tiene 🔗 con link → reemplazar solo la URL, insertar descuento encima del link
-            new_text = re.sub(url_pattern, affiliate_link, original_text)
-            final_text = re.sub(r'(🔗\s*https?://\S+)', f"{DISCOUNT_LINE}\n\\1", new_text)
-        elif re.search(url_pattern, original_text):
-            # Link sin 🔗 → quitarlo y poner descuento + link abajo
-            clean_text = re.sub(url_pattern, "", original_text).strip()
-            final_text = f"{clean_text}\n\n{DISCOUNT_LINE}\n🔗 {affiliate_link}" if clean_text else f"{DISCOUNT_LINE}\n🔗 {affiliate_link}"
+
+        if url_affiliate_map:
+            # Reemplazar cada URL original por su affiliate link
+            working_text = original_text
+            for orig_url, aff_url in url_affiliate_map.items():
+                working_text = working_text.replace(orig_url, aff_url)
+            # Si ya tiene 🔗 → insertar descuento encima del primer 🔗
+            if "🔗" in working_text:
+                final_text = re.sub(r'(🔗\s*https?://\S+)', f"{DISCOUNT_LINE}\n\\1", working_text, count=1)
+            else:
+                # Quitar URLs sueltas y poner todo abajo con 🔗
+                # Construir bloque de links
+                links_block = "\n".join(f"🔗 {aff}" for aff in url_affiliate_map.values())
+                clean_text = re.sub(url_pattern, "", original_text).strip()
+                # Limpiar líneas vacías extra
+                clean_text = re.sub(r'\n{3,}', '\n\n', clean_text).strip()
+                final_text = f"{clean_text}\n\n{DISCOUNT_LINE}\n{links_block}" if clean_text else f"{DISCOUNT_LINE}\n{links_block}"
         else:
-            # Sin link → añadir descuento + link abajo
             final_text = f"{original_text}\n\n{DISCOUNT_LINE}\n🔗 {affiliate_link}" if original_text else f"{DISCOUNT_LINE}\n🔗 {affiliate_link}"
 
         user_states[user_id].update({
@@ -1954,7 +1982,9 @@ async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     user_id = query.from_user.id
-    # Guardar el contexto del canal en el estado del usuario
+    original_text = pending.get("original_text", "")
+    urls = re.findall(r'https?://\S+', original_text)
+
     user_states[user_id] = {
         "state": "waiting_hacoo_for_channel",
         "channel_key": key,
@@ -1966,16 +1996,23 @@ async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE
         "marca": "",
         "categoria": "",
         "image_url": "",
+        "pending_urls": urls,       # lista de URLs a procesar
+        "url_index": 0,             # cuál estamos procesando ahora
+        "url_affiliate_map": {},    # {url_original: affiliate_link}
     }
 
-    texto_ok = "✅ Perfecto. Ahora envíame la captura del producto en Hacoo para generar el link de afiliado."
+    n = len(urls)
+    if n > 1:
+        texto_ok = f"✅ Este mensaje tiene {n} links. Envíame la captura de Hacoo del *primero* (1/{n})."
+    else:
+        texto_ok = "✅ Perfecto. Ahora envíame la captura del producto en Hacoo para generar el link de afiliado."
     try:
-        await query.edit_message_text(texto_ok)
+        await query.edit_message_text(texto_ok, parse_mode="Markdown")
     except Exception:
         try:
-            await query.edit_message_caption(texto_ok)
+            await query.edit_message_caption(texto_ok, parse_mode="Markdown")
         except Exception:
-            await query.message.reply_text(texto_ok)
+            await query.message.reply_text(texto_ok, parse_mode="Markdown")
 
 
 async def callback_channel_no(update: Update, context: ContextTypes.DEFAULT_TYPE):
