@@ -1612,6 +1612,73 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     logger.info(f"Message from {user.first_name} (@{user.username}): {user_message}")
 
+    # Si esperamos link de Yepex para canal externo
+    if user_states.get(user_id, {}).get("state") == "waiting_yepex_url_for_channel":
+        yepex_url = re.search(r'https?://\S+', user_message)
+        if not yepex_url:
+            await update.message.reply_text("⚠️ No he detectado ningún link. Envíame la URL del producto.")
+            return
+        yepex_link = yepex_url.group(0)
+        state = user_states.get(user_id, {})
+        channel_key = state.get("channel_key")
+        pending = _pending_channel_msgs.get(channel_key)
+        if not pending:
+            await update.message.reply_text("❌ El producto ya no está disponible.")
+            user_states.pop(user_id, None)
+            return
+
+        original_text = pending["original_text"]
+        DISCOUNT_LINE = "🎁 Código descuento 14% en tu primer pedido: *TRENT14*\n"
+        url_pattern = r'https?://\S+'
+
+        # Reemplazar link original por el Yepex link proporcionado
+        if "🔗" in original_text:
+            lines = original_text.split('\n')
+            first_link_idx = next((i for i, l in enumerate(lines) if '🔗' in l), -1)
+            if first_link_idx > 0:
+                label_idx = first_link_idx - 1 if lines[first_link_idx - 1].strip() else first_link_idx
+                pre = '\n'.join(lines[:label_idx]).rstrip()
+                post = re.sub(url_pattern, yepex_link, '\n'.join(lines[label_idx:]), count=1)
+                final_text = f"{pre}\n\n{DISCOUNT_LINE}\n{post}"
+            else:
+                final_text = f"{DISCOUNT_LINE}\n{re.sub(url_pattern, yepex_link, original_text, count=1)}"
+        else:
+            clean_text = re.sub(url_pattern, "", original_text).strip()
+            final_text = f"{clean_text}\n\n{DISCOUNT_LINE}\n🔗 {yepex_link}" if clean_text else f"{DISCOUNT_LINE}\n🔗 {yepex_link}"
+
+        user_states[user_id].update({
+            "state": "channel_editing",
+            "link": yepex_link,
+            "final_text": final_text,
+            "original_text": original_text,
+        })
+
+        photos_bytes = pending["photo_bytes_list"]
+        if len(photos_bytes) == 1:
+            await context.bot.send_photo(
+                chat_id=update.effective_chat.id,
+                photo=photos_bytes[0],
+                caption=f"📋 *Preview del post:*\n\n{final_text}",
+                parse_mode="Markdown",
+            )
+        else:
+            from telegram import InputMediaPhoto as IMP
+            media = [IMP(media=b) for b in photos_bytes]
+            media[0] = IMP(media=photos_bytes[0], caption=f"📋 *Preview del post:*\n\n{final_text}", parse_mode="Markdown")
+            await context.bot.send_media_group(chat_id=update.effective_chat.id, media=media)
+
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("📤 Publicar ahora", callback_data=f"chpub_now_{channel_key}"),
+            InlineKeyboardButton("🕐 Programar", callback_data=f"chpub_sched_{channel_key}"),
+            InlineKeyboardButton("❌ Cancelar", callback_data=f"chpub_cancel_{channel_key}"),
+        ]])
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="¿Qué quieres hacer con este post?",
+            reply_markup=kb,
+        )
+        return
+
     # Si esperamos título, guardarlo
     if user_states.get(user_id, {}).get("state") == "waiting_title":
         user_states[user_id]["title"] = user_message
@@ -2010,8 +2077,14 @@ async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE
         "url_affiliate_map": {},    # {url_original: affiliate_link}
     }
 
+    is_yepex = "(yepex)" in original_text.lower()
+    user_states[user_id]["is_yepex"] = is_yepex
+
     n = len(urls)
-    if n > 1:
+    if is_yepex:
+        user_states[user_id]["state"] = "waiting_yepex_url_for_channel"
+        texto_ok = "🟠 Producto Yepex detectado. Envíame el *link del producto* y lo pondré en el mensaje."
+    elif n > 1:
         texto_ok = f"✅ Este mensaje tiene {n} links. Envíame la captura de Hacoo del *primero* (1/{n})."
     else:
         texto_ok = "✅ Perfecto. Ahora envíame la captura del producto en Hacoo para generar el link de afiliado."
