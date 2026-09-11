@@ -1807,6 +1807,20 @@ async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_i
 _fwd_album_buffer: dict = {}  # media_group_id → {file_ids, text, user_id, chat_id}
 
 
+async def _start_fwd_queue_job(context: ContextTypes.DEFAULT_TYPE):
+    """Job que arranca la cola tras 3.5s, mostrando el total y el primer producto."""
+    data = context.job.data
+    user_id = data["user_id"]
+    chat_id = data["chat_id"]
+    total = len(_fwd_queue.get(user_id, []))
+    if total:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=f"📋 {total} producto{'s' if total != 1 else ''} en cola. Empezando con el primero:",
+        )
+    await _show_next_from_queue(user_id, chat_id, context.bot)
+
+
 async def _show_next_from_queue(user_id: int, chat_id: int, bot):
     """Muestra el siguiente mensaje de la cola del usuario, si hay."""
     import time
@@ -1868,14 +1882,15 @@ async def _process_forwarded_album(context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=chat_id, text="⚠️ No pude descargar las fotos.")
         return
 
-    # Encolar y mostrar si no hay flujo activo
+    # Encolar; si es el primero, programar job que arranca la cola en 3.5s
     _fwd_queue.setdefault(user_id, []).append({"photo_bytes_list": photo_bytes_list, "original_text": original_text})
     if user_id not in _fwd_active:
         _fwd_active.add(user_id)
-        await _show_next_from_queue(user_id, chat_id, context.bot)
-    else:
-        queue_len = len(_fwd_queue.get(user_id, []))
-        await context.bot.send_message(chat_id=chat_id, text=f"➕ Álbum añadido a la cola ({queue_len} pendiente{'s' if queue_len != 1 else ''}).")
+        context.application.job_queue.run_once(
+            _start_fwd_queue_job, 3.5,
+            data={"user_id": user_id, "chat_id": chat_id},
+            name=f"startqueue_{user_id}",
+        )
 
 
 async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1920,11 +1935,11 @@ async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEF
         _fwd_queue.setdefault(user_id, []).append({"photo_bytes_list": [photo_bytes], "original_text": original_text})
         if user_id not in _fwd_active:
             _fwd_active.add(user_id)
-            await _show_next_from_queue(user_id, update.effective_chat.id, context.bot)
-        # Si ya hay flujo activo, solo confirmar que se añadió a la cola
-        else:
-            queue_len = len(_fwd_queue.get(user_id, []))
-            await msg.reply_text(f"➕ Añadido a la cola ({queue_len} pendiente{'s' if queue_len != 1 else ''}).")
+            context.application.job_queue.run_once(
+                _start_fwd_queue_job, 3.5,
+                data={"user_id": user_id, "chat_id": update.effective_chat.id},
+                name=f"startqueue_{user_id}",
+            )
 
 
 
