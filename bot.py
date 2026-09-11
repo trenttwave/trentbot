@@ -1953,9 +1953,14 @@ async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE
         "image_url": "",
     }
 
-    await query.edit_message_text(
-        "✅ Perfecto. Ahora envíame la captura del producto en Hacoo para generar el link de afiliado."
-    )
+    texto_ok = "✅ Perfecto. Ahora envíame la captura del producto en Hacoo para generar el link de afiliado."
+    try:
+        await query.edit_message_text(texto_ok)
+    except Exception:
+        try:
+            await query.edit_message_caption(texto_ok)
+        except Exception:
+            await query.message.reply_text(texto_ok)
 
 
 async def callback_channel_no(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1965,7 +1970,13 @@ async def callback_channel_no(update: Update, context: ContextTypes.DEFAULT_TYPE
     key = query.data.replace("ch_no_", "")
     _pending_channel_msgs.pop(key, None)
     user_id = query.from_user.id
-    await query.edit_message_text("❌ Producto descartado.")
+    try:
+        await query.edit_message_text("❌ Producto descartado.")
+    except Exception:
+        try:
+            await query.edit_message_caption("❌ Producto descartado.")
+        except Exception:
+            await query.message.reply_text("❌ Producto descartado.")
     await _show_next_from_queue(user_id, query.message.chat.id, context.bot)
 
 
