@@ -969,9 +969,18 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
             working_text = original_text
             for orig_url, aff_url in url_affiliate_map.items():
                 working_text = working_text.replace(orig_url, aff_url)
-            # Si ya tiene 🔗 → insertar descuento encima del primer 🔗
+            # Si ya tiene 🔗 → insertar descuento antes del bloque de links (label + 🔗)
             if "🔗" in working_text:
-                final_text = re.sub(r'(🔗\s*https?://\S+)', f"{DISCOUNT_LINE}\n\\1", working_text, count=1)
+                lines = working_text.split('\n')
+                first_link_idx = next((i for i, l in enumerate(lines) if '🔗' in l), -1)
+                if first_link_idx > 0:
+                    # Si la línea anterior al 🔗 es un label (no vacía), incluirla en el bloque
+                    label_idx = first_link_idx - 1 if lines[first_link_idx - 1].strip() else first_link_idx
+                    pre = '\n'.join(lines[:label_idx]).rstrip()
+                    post = '\n'.join(lines[label_idx:])
+                    final_text = f"{pre}\n\n{DISCOUNT_LINE}\n{post}"
+                else:
+                    final_text = f"{DISCOUNT_LINE}\n{working_text}"
             else:
                 # Quitar URLs sueltas y poner todo abajo con 🔗
                 # Construir bloque de links
