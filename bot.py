@@ -34,6 +34,7 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
 HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 FIREBASE_CREDENTIALS = os.environ.get("FIREBASE_CREDENTIALS", "").strip()
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
@@ -766,6 +767,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"[GRUPO] chat_id={update.effective_chat.id} title='{update.effective_chat.title}'")
         return
     user_id = update.effective_user.id
+
+    # Si está en modo newsletter, procesar foto como captura de Hacoo
+    if user_states.get(user_id, {}).get("state", "").startswith("newsletter_") and user_states[user_id]["state"] != "newsletter_confirm":
+        section = user_states[user_id].get("newsletter_section", "zapatillas")
+        await _handle_newsletter_photo(update, context, user_id, section)
+        return
 
     # Detectar mensaje de Yepexpress reenviado con foto
     caption = update.message.caption or ""
@@ -1686,6 +1693,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Perfecto. Ahora envíame las fotos. Cuando termines escribe /listo.")
         return
 
+    # Si está en modo newsletter (añadiendo links de texto)
+    if user_states.get(user_id, {}).get("state", "").startswith("newsletter_") and user_states[user_id]["state"] != "newsletter_confirm":
+        section = user_states[user_id].get("newsletter_section", "zapatillas")
+        await _handle_newsletter_links(update, context, user_id, section)
+        return
+
     # Si está editando el mensaje
     if user_states.get(user_id, {}).get("state") == "editing":
         current_text = user_states[user_id]["message_text"]
@@ -2178,6 +2191,472 @@ async def _restore_scheduled_jobs(app):
     asyncio.create_task(_warm_playwright())
 
 
+# ---------------------------------------------------------------------------
+# NEWSLETTER — almacenamiento y lógica
+# ---------------------------------------------------------------------------
+
+_NEWSLETTER_FILE = "/tmp/newsletter_products.json"
+_NEWSLETTER_SECTIONS = {"zapatillas": "👟 Zapatillas", "hombre": "👔 Ropa Hombre", "mujer": "👗 Ropa Mujer"}
+
+
+def _load_newsletter() -> dict:
+    try:
+        with open(_NEWSLETTER_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {"zapatillas": [], "hombre": [], "mujer": []}
+
+
+def _save_newsletter(data: dict):
+    try:
+        with open(_NEWSLETTER_FILE, "w") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Error guardando newsletter: {e}")
+
+
+def _build_newsletter_html(data: dict, week: int) -> str:
+    def products_html(items: list, icon: str) -> str:
+        if not items:
+            return '<div class="product" style="padding:24px;text-align:center;display:block;"><p style="color:#aaa;font-size:14px;">Sin productos esta semana.</p></div>'
+        rank_emojis = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"]
+        html = ""
+        for i, p in enumerate(items):
+            rank = rank_emojis[i] if i < len(rank_emojis) else f"{i+1}."
+            badge = '<div class="badge badge-gold">TOP #1</div>' if i == 0 else ""
+            img_style = f'background-image:url("{p["image_url"]}");background-size:cover;background-position:center;' if p.get("image_url") else ""
+            img_content = "" if p.get("image_url") else icon
+            html += f'''
+  <div class="product">
+    <div class="product-rank">{rank}</div>
+    <div class="product-img" style="{img_style}">{img_content}</div>
+    <div class="product-info">
+      {badge}
+      <div class="product-name">{p["name"]}</div>
+      <a href="{p["link"]}" class="product-btn">Ver producto →</a>
+    </div>
+  </div>'''
+        return html
+
+    zap = products_html(data.get("zapatillas", []), "👟")
+    hom = products_html(data.get("hombre", []), "🧥")
+    muj = products_html(data.get("mujer", []), "👗")
+    nz = len(data.get("zapatillas", []))
+    nh = len(data.get("hombre", []))
+    nm = len(data.get("mujer", []))
+
+    return f"""<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>TRENT Newsletter Semanal</title>
+  <style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{ background: #f0f0f0; font-family: Arial, sans-serif; }}
+    .wrapper {{ max-width: 600px; margin: 0 auto; background: #ffffff; }}
+    .header {{ background: #0a0a0a; padding: 32px 24px; text-align: center; }}
+    .header-logo {{ font-size: 48px; font-weight: 900; color: #ffffff; letter-spacing: 0.06em; }}
+    .header-logo span {{ color: #e8002d; }}
+    .header-sub {{ font-size: 12px; color: #666; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 6px; }}
+    .header-date {{ font-size: 11px; color: #444; margin-top: 8px; }}
+    .hero {{ background: #e8002d; padding: 22px 24px; text-align: center; }}
+    .hero-title {{ font-size: 24px; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 0.04em; }}
+    .hero-sub {{ font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 6px; }}
+    .intro {{ padding: 24px; border-bottom: 2px solid #f0f0f0; }}
+    .intro p {{ font-size: 15px; color: #555; line-height: 1.7; }}
+    .intro strong {{ color: #0a0a0a; }}
+    .section-header {{ padding: 0 24px; margin-top: 28px; }}
+    .section-header-inner {{ background: #0a0a0a; padding: 14px 20px; display: flex; align-items: center; gap: 12px; }}
+    .section-icon {{ font-size: 24px; }}
+    .section-title-text {{ font-size: 16px; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 0.06em; }}
+    .section-count {{ font-size: 11px; color: #888; margin-left: auto; }}
+    .product {{ padding: 16px 24px; border-bottom: 1px solid #f0f0f0; display: flex; gap: 14px; align-items: flex-start; }}
+    .product-rank {{ font-size: 20px; flex-shrink: 0; width: 30px; text-align: center; margin-top: 4px; }}
+    .product-img {{ width: 80px; height: 80px; background: #f5f5f5; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; border: 1px solid #eee; }}
+    .product-info {{ flex: 1; }}
+    .badge {{ display: inline-block; padding: 2px 8px; font-size: 10px; font-weight: 700; border-radius: 2px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.06em; }}
+    .badge-gold {{ background: #FFD700; color: #0a0a0a; }}
+    .product-name {{ font-size: 15px; font-weight: 700; color: #0a0a0a; margin-bottom: 4px; line-height: 1.3; }}
+    .product-btn {{ display: inline-block; background: #e8002d; color: #fff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 7px 14px; text-decoration: none; margin-top: 8px; border-radius: 2px; }}
+    .divider {{ height: 8px; background: #f0f0f0; margin-top: 24px; }}
+    .code-section {{ background: #0a0a0a; padding: 32px 24px; text-align: center; }}
+    .code-label {{ font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 10px; }}
+    .code-box {{ font-size: 42px; font-weight: 900; color: #e8002d; letter-spacing: 0.08em; margin-bottom: 6px; }}
+    .code-desc {{ font-size: 13px; color: #888; }}
+    .cta {{ padding: 32px 24px; text-align: center; background: #fafafa; }}
+    .cta p {{ font-size: 15px; color: #555; line-height: 1.6; margin-bottom: 20px; }}
+    .cta-btn {{ display: inline-block; background: #0a0a0a; color: #fff; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 16px 36px; text-decoration: none; }}
+    .footer {{ padding: 20px 24px; text-align: center; border-top: 1px solid #f0f0f0; }}
+    .footer p {{ font-size: 11px; color: #aaa; line-height: 2; }}
+    .footer a {{ color: #aaa; }}
+  </style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="header">
+    <div class="header-logo">TREN<span>T</span></div>
+    <div class="header-sub">Links · Moda · Marca</div>
+    <div class="header-date">Newsletter Semanal · Semana {week}</div>
+  </div>
+  <div class="hero">
+    <div class="hero-title">🔥 Los mejores productos de la semana</div>
+    <div class="hero-sub">Zapatillas · Ropa Hombre · Ropa Mujer</div>
+  </div>
+  <div class="intro">
+    <p>Hola! Esta semana he seleccionado <strong>los mejores productos de Hacoo</strong> divididos por categoría. Todos los links están verificados. Recuerda usar el código <strong>TRENT14</strong> para llevarte un <strong>−14% en tu primera compra</strong> 🔥</p>
+  </div>
+  <div class="section-header">
+    <div class="section-header-inner">
+      <div class="section-icon">👟</div>
+      <div class="section-title-text">Zapatillas de la semana</div>
+      <div class="section-count">{nz} picks</div>
+    </div>
+  </div>
+  {zap}
+  <div class="divider"></div>
+  <div class="section-header">
+    <div class="section-header-inner">
+      <div class="section-icon">👔</div>
+      <div class="section-title-text">Ropa Hombre de la semana</div>
+      <div class="section-count">{nh} picks</div>
+    </div>
+  </div>
+  {hom}
+  <div class="divider"></div>
+  <div class="section-header">
+    <div class="section-header-inner">
+      <div class="section-icon">👗</div>
+      <div class="section-title-text">Ropa Mujer de la semana</div>
+      <div class="section-count">{nm} picks</div>
+    </div>
+  </div>
+  {muj}
+  <div class="divider"></div>
+  <div class="code-section">
+    <div class="code-label">Código descuento — Solo 1ª compra</div>
+    <div class="code-box">TRENT14</div>
+    <div class="code-desc">−14% en tu primera compra en Hacoo y Yepexpress</div>
+  </div>
+  <div class="cta">
+    <p>¿Quieres recibir links <strong>cada día</strong>?<br>Únete al canal con <strong>41.000 miembros</strong> activos.</p>
+    <a href="https://t.me/trentthacoo" class="cta-btn">📱 Unirme al canal de Telegram</a>
+  </div>
+  <div class="footer">
+    <p>
+      @trent_wave · @trentthacoo<br>
+      <a href="https://trentlinks.netlify.app">trentlinks.netlify.app</a><br><br>
+      Has recibido este email porque te suscribiste a TRENT Newsletter.<br>
+      <a href="#">Cancelar suscripción</a>
+    </p>
+  </div>
+</div>
+</body>
+</html>"""
+
+
+def _brevo_get_contacts() -> list:
+    """Obtiene todos los contactos de Brevo."""
+    if not BREVO_API_KEY:
+        return []
+    emails = []
+    offset = 0
+    limit = 500
+    while True:
+        try:
+            r = requests.get(
+                "https://api.brevo.com/v3/contacts",
+                headers={"api-key": BREVO_API_KEY, "Accept": "application/json"},
+                params={"limit": limit, "offset": offset},
+                timeout=15,
+            )
+            data = r.json()
+            contacts = data.get("contacts", [])
+            for c in contacts:
+                email = c.get("email")
+                if email:
+                    emails.append({"email": email, "name": c.get("attributes", {}).get("FIRSTNAME", "")})
+            if len(contacts) < limit:
+                break
+            offset += limit
+        except Exception as e:
+            logger.error(f"Brevo get contacts error: {e}")
+            break
+    return emails
+
+
+def _brevo_send_newsletter(subject: str, html_content: str, contacts: list) -> tuple[bool, str]:
+    """Envía el newsletter via Brevo transactional API."""
+    if not BREVO_API_KEY:
+        return False, "BREVO_API_KEY no configurada"
+    if not contacts:
+        return False, "Sin suscriptores"
+
+    # Brevo permite hasta 50 destinatarios por email transaccional, enviamos en lotes
+    errors = []
+    sent = 0
+    batch_size = 50
+    for i in range(0, len(contacts), batch_size):
+        batch = contacts[i:i+batch_size]
+        to = [{"email": c["email"], "name": c.get("name", "")} for c in batch]
+        payload = {
+            "sender": {"name": "TRENT", "email": "trent@trentlinks.netlify.app"},
+            "to": to,
+            "subject": subject,
+            "htmlContent": html_content,
+        }
+        try:
+            r = requests.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={"api-key": BREVO_API_KEY, "Content-Type": "application/json"},
+                json=payload,
+                timeout=30,
+            )
+            if r.status_code in (200, 201, 202):
+                sent += len(batch)
+            else:
+                errors.append(f"Lote {i//batch_size+1}: {r.status_code} {r.text[:100]}")
+        except Exception as e:
+            errors.append(f"Lote {i//batch_size+1}: {e}")
+
+    if sent > 0:
+        return True, f"Enviado a {sent} suscriptores" + (f" (errores: {'; '.join(errors)})" if errors else "")
+    return False, "; ".join(errors) or "Error desconocido"
+
+
+async def cmd_newsletter(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Entra en modo newsletter y pregunta qué sección añadir."""
+    user_id = update.effective_user.id
+    if OWNER_ID and user_id != OWNER_ID:
+        return
+    data = _load_newsletter()
+    totals = {k: len(v) for k, v in data.items()}
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton(f"👟 Zapatillas ({totals['zapatillas']})", callback_data="nl_sec_zapatillas"),
+        InlineKeyboardButton(f"👔 Hombre ({totals['hombre']})", callback_data="nl_sec_hombre"),
+    ],[
+        InlineKeyboardButton(f"👗 Mujer ({totals['mujer']})", callback_data="nl_sec_mujer"),
+    ]])
+    await update.message.reply_text(
+        "📰 *Modo Newsletter*\n\n¿A qué sección quieres añadir productos?",
+        parse_mode="Markdown",
+        reply_markup=kb,
+    )
+
+
+async def callback_newsletter_section(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """El usuario elige la sección de la newsletter."""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    section = query.data.replace("nl_sec_", "")
+    section_name = _NEWSLETTER_SECTIONS.get(section, section)
+
+    user_states[user_id] = {"state": f"newsletter_{section}", "newsletter_section": section}
+    await query.edit_message_text(
+        f"📰 Añadiendo a *{section_name}*\n\n"
+        f"Envíame:\n"
+        f"• Una captura de Hacoo → genero el link automáticamente\n"
+        f"• Un mensaje con links directos (ej: `🥇 Nike Air Max → https://...`)\n\n"
+        f"Escribe /newsletter para cambiar de sección o /ver_newsletter para ver lo guardado.",
+        parse_mode="Markdown",
+    )
+
+
+async def cmd_ver_newsletter(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra los productos guardados para la newsletter."""
+    user_id = update.effective_user.id
+    if OWNER_ID and user_id != OWNER_ID:
+        return
+    data = _load_newsletter()
+    lines = ["📰 *Newsletter actual:*\n"]
+    for key, label in _NEWSLETTER_SECTIONS.items():
+        items = data.get(key, [])
+        lines.append(f"*{label}* ({len(items)} productos)")
+        if items:
+            for i, p in enumerate(items):
+                lines.append(f"  {i+1}. {p['name']} — {p['link']}")
+        else:
+            lines.append("  _(vacío)_")
+        lines.append("")
+    await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
+
+
+async def cmd_enviar_newsletter(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Genera el email HTML y pide confirmación antes de enviarlo."""
+    user_id = update.effective_user.id
+    if OWNER_ID and user_id != OWNER_ID:
+        return
+
+    data = _load_newsletter()
+    total = sum(len(v) for v in data.values())
+    if total == 0:
+        await update.message.reply_text("❌ No hay productos guardados en la newsletter.")
+        return
+
+    week = datetime.datetime.now().isocalendar()[1]
+    html = _build_newsletter_html(data, week)
+
+    # Guardar HTML en fichero temporal
+    html_path = "/tmp/newsletter_preview.html"
+    with open(html_path, "w") as f:
+        f.write(html)
+
+    contacts = _brevo_get_contacts()
+    user_states[user_id] = {"state": "newsletter_confirm", "html": html, "contacts_count": len(contacts)}
+
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Enviar newsletter", callback_data="nl_send_confirm"),
+        InlineKeyboardButton("❌ Cancelar", callback_data="nl_send_cancel"),
+    ]])
+    await update.message.reply_document(
+        document=open(html_path, "rb"),
+        filename=f"newsletter_semana{week}.html",
+        caption=(
+            f"📰 *Preview newsletter Semana {week}*\n\n"
+            f"👟 Zapatillas: {len(data['zapatillas'])} productos\n"
+            f"👔 Hombre: {len(data['hombre'])} productos\n"
+            f"👗 Mujer: {len(data['mujer'])} productos\n\n"
+            f"📧 Suscriptores: {len(contacts)}\n\n"
+            f"Abre el HTML para previsualizar. ¿Lo enviamos?"
+        ),
+        parse_mode="Markdown",
+        reply_markup=kb,
+    )
+
+
+async def callback_newsletter_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Confirma o cancela el envío de la newsletter."""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    state = user_states.get(user_id, {})
+
+    if query.data == "nl_send_cancel":
+        user_states.pop(user_id, None)
+        await query.edit_message_caption("❌ Envío cancelado.")
+        return
+
+    html = state.get("html", "")
+    if not html:
+        await query.edit_message_caption("❌ No hay HTML guardado. Usa /enviar de nuevo.")
+        return
+
+    await query.edit_message_caption("⏳ Enviando newsletter...")
+    contacts = _brevo_get_contacts()
+    week = datetime.datetime.now().isocalendar()[1]
+    subject = f"🔥 TRENT — Los mejores productos de la semana {week}"
+    ok, msg = _brevo_send_newsletter(subject, html, contacts)
+
+    if ok:
+        _save_newsletter({"zapatillas": [], "hombre": [], "mujer": []})
+        user_states.pop(user_id, None)
+        await context.bot.send_message(
+            chat_id=query.message.chat.id,
+            text=f"✅ Newsletter enviada. {msg}\n\nProductos limpiados para la semana siguiente.",
+        )
+    else:
+        await context.bot.send_message(
+            chat_id=query.message.chat.id,
+            text=f"❌ Error al enviar: {msg}",
+        )
+
+
+async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, section: str):
+    """Procesa una captura de Hacoo para la newsletter."""
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    status_msg = await update.message.reply_text("Analizando captura para newsletter...")
+    try:
+        photo = update.message.photo[-1]
+        file = await context.bot.get_file(photo.file_id)
+        image_bytes = bytes(await file.download_as_bytearray())
+
+        product_info = gemini_vision(
+            image_bytes,
+            "Analiza esta captura de la app Hacoo. Devuelve exactamente tres líneas:\n"
+            "ID: [solo el número de ID del producto]\n"
+            "Precio: [precio redondeado sin decimales con símbolo €]\n"
+            "Nombre: [nombre del producto, marca + modelo si es posible]"
+        ).strip()
+
+        product_id = ""
+        price_raw = ""
+        nombre = ""
+        for line in product_info.splitlines():
+            if line.startswith("ID:"):
+                product_id = line.replace("ID:", "").strip()
+            elif line.startswith("Precio:"):
+                price_raw = line.replace("Precio:", "").strip()
+            elif line.startswith("Nombre:"):
+                nombre = line.replace("Nombre:", "").strip()
+
+        if not product_id.isdigit():
+            await status_msg.edit_text("No encontré el ID. Envía otra captura.")
+            return
+
+        await status_msg.edit_text(f"ID: {product_id} ✓ Generando link...")
+        affiliate_link, image_url = await asyncio.gather(
+            generate_affiliate_link(product_id),
+            asyncio.to_thread(_fetch_og_image_url, product_id),
+        )
+
+        data = _load_newsletter()
+        data[section].append({
+            "name": nombre or f"Producto {product_id}",
+            "link": affiliate_link,
+            "image_url": image_url or "",
+            "price": price_raw,
+        })
+        _save_newsletter(data)
+
+        section_name = _NEWSLETTER_SECTIONS.get(section, section)
+        n = len(data[section])
+        await status_msg.edit_text(
+            f"✅ Añadido a *{section_name}* (#{n})\n\n"
+            f"*{nombre}* — {price_raw}\n{affiliate_link}\n\n"
+            f"Envía otra captura, otro mensaje con links, o /newsletter para cambiar de sección.",
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        await status_msg.edit_text(f"❌ Error: {e}")
+
+
+async def _handle_newsletter_links(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, section: str):
+    """Parsea un mensaje con links directos para la newsletter."""
+    text = update.message.text
+    url_pattern = r'https?://\S+'
+    lines = text.strip().splitlines()
+
+    added = []
+    for line in lines:
+        url_match = re.search(url_pattern, line)
+        if not url_match:
+            continue
+        link = url_match.group(0)
+        # El nombre es todo antes del link, limpiando emojis de ranking
+        name_raw = re.sub(url_pattern, "", line).strip()
+        name_raw = re.sub(r'^[🥇🥈🥉1-9️⃣\d\.\s\→\-]+', "", name_raw).strip()
+        if not name_raw:
+            name_raw = "Producto"
+        added.append({"name": name_raw, "link": link, "image_url": "", "price": ""})
+
+    if not added:
+        await update.message.reply_text("No encontré ningún link en tu mensaje. Envía links con formato `Nombre → https://...`")
+        return
+
+    data = _load_newsletter()
+    data[section].extend(added)
+    _save_newsletter(data)
+
+    section_name = _NEWSLETTER_SECTIONS.get(section, section)
+    names = "\n".join(f"• {p['name']}" for p in added)
+    await update.message.reply_text(
+        f"✅ {len(added)} producto{'s' if len(added)!=1 else ''} añadido{'s' if len(added)!=1 else ''} a *{section_name}*:\n\n{names}\n\n"
+        f"Total en {section_name}: {len(data[section])} productos.",
+        parse_mode="Markdown",
+    )
+
+
 def main():
     if not BOT_TOKEN:
         raise ValueError("BOT_TOKEN is not set")
@@ -2192,6 +2671,11 @@ def main():
     app.add_handler(CommandHandler("pendientes", cmd_pendientes))
     app.add_handler(CommandHandler("backup", cmd_backup))
     app.add_handler(CommandHandler("restore", cmd_restore))
+    app.add_handler(CommandHandler("newsletter", cmd_newsletter))
+    app.add_handler(CommandHandler("ver_newsletter", cmd_ver_newsletter))
+    app.add_handler(CommandHandler("enviar", cmd_enviar_newsletter))
+    app.add_handler(CallbackQueryHandler(callback_newsletter_section, pattern="^nl_sec_"))
+    app.add_handler(CallbackQueryHandler(callback_newsletter_send, pattern="^nl_send_"))
     app.add_handler(MessageHandler(filters.Regex(r"^📋BACKUP\n"), cmd_restore))
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
     app.add_handler(CallbackQueryHandler(callback_calendario, pattern="^cal_"))
