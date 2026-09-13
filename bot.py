@@ -2404,9 +2404,9 @@ def _brevo_send_newsletter(subject: str, html_content: str, contacts: list) -> t
     batch_size = 50
     for i in range(0, len(contacts), batch_size):
         batch = contacts[i:i+batch_size]
-        to = [{"email": c["email"], "name": c.get("name", "")} for c in batch]
+        to = [{"email": c["email"], "name": c.get("name") or c["email"].split("@")[0]} for c in batch]
         payload = {
-            "sender": {"name": "TRENT", "email": "trent@trentlinks.netlify.app"},
+            "sender": {"name": "TRENT", "email": "trenttwave@gmail.com"},
             "to": to,
             "subject": subject,
             "htmlContent": html_content,
