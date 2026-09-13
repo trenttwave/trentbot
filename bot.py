@@ -2454,12 +2454,11 @@ async def callback_newsletter_section(update: Update, context: ContextTypes.DEFA
 
     user_states[user_id] = {"state": f"newsletter_{section}", "newsletter_section": section}
     await query.edit_message_text(
-        f"📰 Añadiendo a *{section_name}*\n\n"
+        f"📰 Añadiendo a {section_name}\n\n"
         f"Envíame:\n"
         f"• Una captura de Hacoo → genero el link automáticamente\n"
-        f"• Un mensaje con links directos (ej: `🥇 Nike Air Max → https://...`)\n\n"
+        f"• Un mensaje con links directos (ej: Nike Air Max → https://...)\n\n"
         f"Escribe /newsletter para cambiar de sección o /ver_newsletter para ver lo guardado.",
-        parse_mode="Markdown",
     )
 
 
