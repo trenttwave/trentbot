@@ -2568,7 +2568,28 @@ async def callback_newsletter_send(update: Update, context: ContextTypes.DEFAULT
 
 
 async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, section: str):
-    """Procesa una captura de Hacoo para la newsletter."""
+    """Procesa una foto para la newsletter. Si el caption ya tiene link, lo guarda directamente."""
+    section_name = _NEWSLETTER_SECTIONS.get(section, section)
+
+    # Si el mensaje ya tiene un link en el caption (mensaje reenviado del canal con link hecho)
+    caption = update.message.caption or ""
+    existing_link = re.search(r'https?://\S+', caption)
+    if existing_link:
+        link = existing_link.group(0).rstrip(")")
+        # Extraer nombre del caption: primera línea sin el link
+        first_line = caption.splitlines()[0] if caption else ""
+        nombre = re.sub(r'https?://\S+', "", first_line).strip(" →—>-🔗").strip()
+        if not nombre:
+            nombre = "Producto"
+        data = _load_newsletter()
+        data[section].append({"name": nombre, "link": link, "image_url": "", "price": ""})
+        _save_newsletter(data)
+        n = len(data[section])
+        await update.message.reply_text(
+            f"✅ Añadido a {section_name} (#{n})\n\n{nombre}\n{link}"
+        )
+        return
+
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     status_msg = await update.message.reply_text("Analizando captura para newsletter...")
     try:
