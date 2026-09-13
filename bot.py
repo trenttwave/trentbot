@@ -2015,6 +2015,12 @@ async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEF
     msg = update.message
     user_id = update.effective_user.id
 
+    # Si está en modo newsletter, redirigir al handler de newsletter
+    if user_states.get(user_id, {}).get("state", "").startswith("newsletter_") and user_states[user_id]["state"] != "newsletter_confirm":
+        section = user_states[user_id].get("newsletter_section", "zapatillas")
+        await _handle_newsletter_photo(update, context, user_id, section)
+        return
+
     if OWNER_ID and user_id != OWNER_ID:
         return
 
