@@ -768,8 +768,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     user_id = update.effective_user.id
 
-    # Si está en modo newsletter, procesar foto como captura de Hacoo
-    if user_states.get(user_id, {}).get("state", "").startswith("newsletter_") and user_states[user_id]["state"] != "newsletter_confirm":
+    # Si está en modo newsletter, procesar foto
+    nl_state = user_states.get(user_id, {}).get("state", "")
+    if nl_state.startswith("newsletter_") and nl_state != "newsletter_confirm":
         section = user_states[user_id].get("newsletter_section", "zapatillas")
         await _handle_newsletter_photo(update, context, user_id, section)
         return
@@ -2016,7 +2017,8 @@ async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEF
     user_id = update.effective_user.id
 
     # Si está en modo newsletter, redirigir al handler de newsletter
-    if user_states.get(user_id, {}).get("state", "").startswith("newsletter_") and user_states[user_id]["state"] != "newsletter_confirm":
+    nl_state = user_states.get(user_id, {}).get("state", "")
+    if nl_state.startswith("newsletter_") and nl_state != "newsletter_confirm":
         section = user_states[user_id].get("newsletter_section", "zapatillas")
         await _handle_newsletter_photo(update, context, user_id, section)
         return
@@ -2597,84 +2599,104 @@ async def callback_newsletter_send(update: Update, context: ContextTypes.DEFAULT
 
 
 async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, section: str):
-    """Procesa una foto para la newsletter. Si el caption ya tiene link, lo guarda directamente."""
+    """Procesa una foto para la newsletter."""
     section_name = _NEWSLETTER_SECTIONS.get(section, section)
-
-    # Si el mensaje ya tiene un link en el caption (mensaje reenviado del canal con link hecho)
-    caption = update.message.caption or ""
     nl_source = user_states.get(user_id, {}).get("nl_source", "own")
-    existing_link = re.search(r'https?://\S+', caption) if nl_source == "own" else None
-    if existing_link:
-        link = existing_link.group(0).rstrip(")")
-        # Extraer nombre del caption: primera línea sin el link
-        first_line = caption.splitlines()[0] if caption else ""
-        nombre = re.sub(r'https?://\S+', "", first_line).strip(" →—>-🔗").strip()
-        if not nombre:
-            nombre = "Producto"
-        data = _load_newsletter()
-        data[section].append({"name": nombre, "link": link, "image_url": "", "price": ""})
-        _save_newsletter(data)
-        n = len(data[section])
+
+    # --- MI CANAL: el caption ya tiene mi link, guardar directamente ---
+    if nl_source == "own":
+        caption = update.message.caption or ""
+        existing_link = re.search(r'https?://\S+', caption)
+        if existing_link:
+            link = existing_link.group(0).rstrip(")")
+            first_line = caption.splitlines()[0] if caption else ""
+            nombre = re.sub(r'https?://\S+', "", first_line).strip(" →—>-🔗").strip()
+            if not nombre:
+                nombre = "Producto"
+            data = _load_newsletter()
+            data[section].append({"name": nombre, "link": link, "image_url": "", "price": ""})
+            _save_newsletter(data)
+            n = len(data[section])
+            await update.message.reply_text(f"✅ Añadido a {section_name} (#{n})\n\n{nombre}\n{link}")
+            return
+        await update.message.reply_text("No encontré un link en el mensaje. Reenvía un mensaje de tu canal que tenga el link.")
+        return
+
+    # --- OTRO CANAL: mensaje reenviado → guardar texto original y pedir captura Hacoo ---
+    if nl_source == "other" and user_states[user_id].get("state") == f"newsletter_{section}":
+        # Es el mensaje reenviado del otro canal — guardar su texto y pedir captura
+        caption = update.message.caption or ""
+        user_states[user_id]["nl_original_text"] = caption
+        user_states[user_id]["state"] = f"newsletter_{section}_waiting_hacoo"
         await update.message.reply_text(
-            f"✅ Añadido a {section_name} (#{n})\n\n{nombre}\n{link}"
+            "Perfecto. Ahora envíame la captura del producto en Hacoo para generar tu link de afiliado."
         )
         return
 
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    status_msg = await update.message.reply_text("Analizando captura para newsletter...")
-    try:
-        photo = update.message.photo[-1]
-        file = await context.bot.get_file(photo.file_id)
-        image_bytes = bytes(await file.download_as_bytearray())
+    # --- OTRO CANAL: captura de Hacoo → generar link y guardar ---
+    if nl_source == "other" and user_states[user_id].get("state") == f"newsletter_{section}_waiting_hacoo":
+        original_text = user_states[user_id].get("nl_original_text", "")
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+        status_msg = await update.message.reply_text("Generando link de afiliado...")
+        try:
+            photo = update.message.photo[-1]
+            file = await context.bot.get_file(photo.file_id)
+            image_bytes = bytes(await file.download_as_bytearray())
 
-        product_info = gemini_vision(
-            image_bytes,
-            "Analiza esta captura de la app Hacoo. Devuelve exactamente tres líneas:\n"
-            "ID: [solo el número de ID del producto]\n"
-            "Precio: [precio redondeado sin decimales con símbolo €]\n"
-            "Nombre: [nombre del producto, marca + modelo si es posible]"
-        ).strip()
+            product_info = gemini_vision(
+                image_bytes,
+                "Analiza esta captura de la app Hacoo. Devuelve exactamente tres líneas:\n"
+                "ID: [solo el número de ID del producto]\n"
+                "Precio: [precio redondeado sin decimales con símbolo €]\n"
+                "Nombre: [nombre del producto, marca + modelo si es posible]"
+            ).strip()
 
-        product_id = ""
-        price_raw = ""
-        nombre = ""
-        for line in product_info.splitlines():
-            if line.startswith("ID:"):
-                product_id = line.replace("ID:", "").strip()
-            elif line.startswith("Precio:"):
-                price_raw = line.replace("Precio:", "").strip()
-            elif line.startswith("Nombre:"):
-                nombre = line.replace("Nombre:", "").strip()
+            product_id = ""
+            price_raw = ""
+            nombre = ""
+            for line in product_info.splitlines():
+                if line.startswith("ID:"):
+                    product_id = line.replace("ID:", "").strip()
+                elif line.startswith("Precio:"):
+                    price_raw = line.replace("Precio:", "").strip()
+                elif line.startswith("Nombre:"):
+                    nombre = line.replace("Nombre:", "").strip()
 
-        if not product_id.isdigit():
-            await status_msg.edit_text("No encontré el ID. Envía otra captura.")
-            return
+            if not product_id.isdigit():
+                await status_msg.edit_text("No encontré el ID en la captura. Envía otra captura de Hacoo.")
+                return
 
-        await status_msg.edit_text(f"ID: {product_id} ✓ Generando link...")
-        affiliate_link, image_url = await asyncio.gather(
-            generate_affiliate_link(product_id),
-            asyncio.to_thread(_fetch_og_image_url, product_id),
-        )
+            await status_msg.edit_text(f"ID: {product_id} ✓ Generando link...")
+            affiliate_link, image_url = await asyncio.gather(
+                generate_affiliate_link(product_id),
+                asyncio.to_thread(_fetch_og_image_url, product_id),
+            )
 
-        data = _load_newsletter()
-        data[section].append({
-            "name": nombre or f"Producto {product_id}",
-            "link": affiliate_link,
-            "image_url": image_url or "",
-            "price": price_raw,
-        })
-        _save_newsletter(data)
+            # Extraer nombre del texto original si no lo tenemos de Gemini
+            if not nombre and original_text:
+                first_line = original_text.splitlines()[0]
+                nombre = re.sub(r'https?://\S+', "", first_line).strip(" →—>-🔗🥇🥈🥉").strip()
+            if not nombre:
+                nombre = f"Producto {product_id}"
 
-        section_name = _NEWSLETTER_SECTIONS.get(section, section)
-        n = len(data[section])
-        await status_msg.edit_text(
-            f"✅ Añadido a *{section_name}* (#{n})\n\n"
-            f"*{nombre}* — {price_raw}\n{affiliate_link}\n\n"
-            f"Envía otra captura, otro mensaje con links, o /newsletter para cambiar de sección.",
-            parse_mode="Markdown",
-        )
-    except Exception as e:
-        await status_msg.edit_text(f"❌ Error: {e}")
+            data = _load_newsletter()
+            data[section].append({
+                "name": nombre,
+                "link": affiliate_link,
+                "image_url": image_url or "",
+                "price": price_raw,
+            })
+            _save_newsletter(data)
+
+            # Volver al estado de espera del siguiente mensaje
+            user_states[user_id]["state"] = f"newsletter_{section}"
+            n = len(data[section])
+            await status_msg.edit_text(
+                f"✅ Añadido a {section_name} (#{n})\n\n{nombre} — {price_raw}\n{affiliate_link}\n\n"
+                f"Reenvía otro mensaje o /newsletter para cambiar de sección."
+            )
+        except Exception as e:
+            await status_msg.edit_text(f"❌ Error: {e}")
 
 
 async def _handle_newsletter_links(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, section: str):
