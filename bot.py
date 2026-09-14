@@ -2049,14 +2049,30 @@ async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEF
     msg = update.message
     user_id = update.effective_user.id
 
-    # Si está en modo newsletter, manejar según fuente
+    # Si está en modo newsletter, manejar según fuente (auto-detectada)
     nl_state = user_states.get(user_id, {}).get("state", "")
     if nl_state.startswith("newsletter_") and nl_state != "newsletter_confirm" and not nl_state.endswith("_waiting_hacoo"):
         section = user_states[user_id].get("newsletter_section", "zapatillas")
-        nl_source = user_states[user_id].get("nl_source", "own")
         file_id = msg.photo[-1].file_id if msg.photo else None
-        caption = msg.caption or ""
+        caption = msg.caption or msg.text or ""
         media_group_id = msg.media_group_id
+
+        # Auto-detectar fuente: ¿es de mi canal o de otro?
+        forward_origin = msg.forward_origin
+        origin_chat_id = None
+        if forward_origin and hasattr(forward_origin, "chat"):
+            origin_chat_id = str(forward_origin.chat.id).lstrip("-")
+        own_channel_id = str(CHANNEL_ID).lstrip("-") if CHANNEL_ID else ""
+        is_own_channel = bool(own_channel_id and origin_chat_id and origin_chat_id == own_channel_id)
+
+        if is_own_channel:
+            nl_source = "own"
+        elif forward_origin:
+            nl_source = "other"
+        else:
+            nl_source = user_states[user_id].get("nl_source", "own")
+
+        user_states[user_id]["nl_source"] = nl_source
 
         if nl_source == "other":
             # Otro canal: bufferear álbum completo antes de procesar
@@ -2562,14 +2578,14 @@ async def callback_newsletter_section(update: Update, context: ContextTypes.DEFA
     section = query.data.replace("nl_sec_", "")
     section_name = _NEWSLETTER_SECTIONS.get(section, section)
 
+    # Sin preguntar la fuente: el bot la detecta automáticamente según el mensaje recibido
     user_states[user_id] = {"state": f"newsletter_{section}", "newsletter_section": section}
-    kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("📢 Mi canal (link ya hecho)", callback_data=f"nl_src_own_{section}"),
-        InlineKeyboardButton("🔗 Otro canal (generar link)", callback_data=f"nl_src_other_{section}"),
-    ]])
     await query.edit_message_text(
-        f"📰 {section_name}\n\n¿De dónde viene el producto?",
-        reply_markup=kb,
+        f"📰 {section_name}\n\n"
+        f"Envíame el producto:\n"
+        f"• Reenvía un mensaje de tu canal (link ya incluido)\n"
+        f"• Reenvía un mensaje de otro canal (te genero el link)\n"
+        f"• Envía una captura de Hacoo directamente"
     )
 
 
@@ -2874,7 +2890,17 @@ async def _handle_newsletter_forwarded(update_or_ctx, context, user_id: int, sec
 async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, section: str):
     """Procesa una foto para la newsletter."""
     section_name = _NEWSLETTER_SECTIONS.get(section, section)
-    nl_source = user_states.get(user_id, {}).get("nl_source", "own")
+    nl_source = user_states.get(user_id, {}).get("nl_source")
+
+    # Si la fuente no está definida aún, detectar automáticamente
+    if not nl_source:
+        if update.message.forward_origin is None:
+            # Foto directa (no reenviada) = captura de Hacoo
+            nl_source = "other"
+        else:
+            # Reenviada: por defecto "other" (ya debería haberse gestionado en handle_forwarded)
+            nl_source = "other"
+        user_states[user_id]["nl_source"] = nl_source
 
     # --- MI CANAL: el caption ya tiene mi link, guardar directamente ---
     if nl_source == "own":
