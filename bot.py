@@ -2535,8 +2535,10 @@ def _brevo_get_contacts() -> list:
             contacts = data.get("contacts", [])
             for c in contacts:
                 email = c.get("email")
-                if email:
-                    emails.append({"email": email, "name": c.get("attributes", {}).get("FIRSTNAME", "")})
+                # Saltar contactos desuscritos o bloqueados
+                if not email or c.get("emailBlacklisted") or c.get("smsBlacklisted"):
+                    continue
+                emails.append({"email": email, "name": c.get("attributes", {}).get("FIRSTNAME", "") or c.get("attributes", {}).get("LASTNAME", "")})
             if len(contacts) < limit:
                 break
             offset += limit
