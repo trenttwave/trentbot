@@ -2289,10 +2289,30 @@ def _build_newsletter_html(data: dict, week: int) -> str:
         for i, p in enumerate(items):
             rank = rank_emojis[i] if i < len(rank_emojis) else f"{i+1}."
             badge = '<div class="badge badge-gold">TOP #1</div>' if i == 0 else ""
-            border_style = ' style="border-left-color:#aaa;"' if i == 0 and len(items) == 1 else ""
-            img_content = f'<img src="{p["image_url"]}" width="76" height="76" style="display:block;width:76px;height:76px;object-fit:cover;" alt="">' if p.get("image_url") else icon
-            html += f'''
-    <div class="product"{border_style}>
+            imgs = p.get("image_urls") or ([p["image_url"]] if p.get("image_url") else [])
+            if len(imgs) > 1:
+                # Múltiples fotos: fila horizontal con scroll
+                imgs_html = "".join(
+                    f'<img src="{u}" width="76" height="76" style="display:inline-block;width:76px;height:76px;object-fit:cover;margin-right:4px;border-radius:2px;" alt="">'
+                    for u in imgs
+                )
+                img_block = f'<div style="overflow-x:auto;white-space:nowrap;margin-bottom:10px;">{imgs_html}</div>'
+                html += f'''
+    <div class="product">
+      <div class="product-top">
+        <div class="product-rank-cell">{rank}</div>
+        <div class="product-info-cell" style="padding-left:0;">
+          {badge}
+          <div class="product-name">{p["name"]}</div>
+        </div>
+      </div>
+      {img_block}
+      <a href="{p["link"]}" class="product-btn">Ver producto &#8594;</a>
+    </div>'''
+            else:
+                img_content = f'<img src="{imgs[0]}" width="76" height="76" style="display:block;width:76px;height:76px;object-fit:cover;" alt="">' if imgs else icon
+                html += f'''
+    <div class="product">
       <div class="product-top">
         <div class="product-rank-cell">{rank}</div>
         <div class="product-img-cell"><div class="product-img">{img_content}</div></div>
@@ -2658,28 +2678,36 @@ async def callback_newsletter_send(update: Update, context: ContextTypes.DEFAULT
 async def _nl_save_all(chat_id: int, user_id: int, section: str, affiliate_map: dict, bot):
     """Guarda todos los productos del affiliate_map en la newsletter."""
     section_name = _NEWSLETTER_SECTIONS.get(section, section)
-    nl_photo_file_ids = user_states.get(user_id, {}).get("nl_photo_file_ids", [])
+    nl_photo_groups = user_states.get(user_id, {}).get("nl_photo_groups", [])
     data = _load_newsletter()
     added = []
     for i, (orig_url, info) in enumerate(affiliate_map.items()):
         n_name = info.get("name") or "Producto"
-        # Obtener URL pública de la foto
-        image_url = info.get("image_url") or ""
-        # Si image_url no empieza por http es un file_id de Telegram → descargar URL
-        if image_url and not image_url.startswith("http"):
+        # Obtener URLs públicas de las fotos de este producto
+        image_urls = []
+        # Primero usar imagen de Hacoo si existe (ya es URL pública)
+        hacoo_url = info.get("image_url") or ""
+        if hacoo_url and hacoo_url.startswith("http"):
+            image_urls.append(hacoo_url)
+        # Añadir fotos del álbum original para este producto
+        group = nl_photo_groups[i] if i < len(nl_photo_groups) else []
+        for fid in group:
+            if fid and not fid.startswith("http"):
+                try:
+                    tg_file = await bot.get_file(fid)
+                    image_urls.append(tg_file.file_path)
+                except Exception:
+                    pass
+            elif fid.startswith("http"):
+                image_urls.append(fid)
+        # Si no hay ninguna imagen de Hacoo, usar solo las del álbum
+        if not image_urls and hacoo_url and not hacoo_url.startswith("http"):
             try:
-                tg_file = await bot.get_file(image_url)
-                image_url = tg_file.file_path
+                tg_file = await bot.get_file(hacoo_url)
+                image_urls.append(tg_file.file_path)
             except Exception:
-                image_url = ""
-        # Si no hay imagen, intentar con la foto del álbum en posición i
-        if not image_url and i < len(nl_photo_file_ids):
-            try:
-                tg_file = await bot.get_file(nl_photo_file_ids[i])
-                image_url = tg_file.file_path
-            except Exception:
-                image_url = ""
-        data[section].append({"name": n_name, "link": info["link"], "image_url": image_url, "price": info.get("price", "")})
+                pass
+        data[section].append({"name": n_name, "link": info["link"], "image_urls": image_urls, "image_url": image_urls[0] if image_urls else "", "price": info.get("price", "")})
         added.append(f"• {n_name} → {info['link']}")
     _save_newsletter(data)
     user_states[user_id]["state"] = f"newsletter_{section}"
@@ -2745,7 +2773,16 @@ async def _handle_newsletter_forwarded(update_or_ctx, context, user_id: int, sec
     user_states[user_id]["nl_url_index"] = 0
     user_states[user_id]["nl_affiliate_map"] = {}
     user_states[user_id]["nl_names"] = names
-    user_states[user_id]["nl_photo_file_ids"] = file_ids  # fotos en orden
+    # Detectar si es 1 foto por link o varias fotos para 1 link
+    if len(urls) == 1 and len(file_ids) > 1:
+        # Todas las fotos son de este único producto
+        user_states[user_id]["nl_photo_groups"] = [file_ids]
+    elif len(file_ids) == len(urls):
+        # 1 foto por link
+        user_states[user_id]["nl_photo_groups"] = [[fid] for fid in file_ids]
+    else:
+        # Número diferente: usar 1 foto por link hasta donde llegue
+        user_states[user_id]["nl_photo_groups"] = [[fid] for fid in file_ids] + [[] for _ in range(len(urls) - len(file_ids))]
     user_states[user_id]["state"] = f"newsletter_{section}_waiting_hacoo"
 
     n = len(urls)
