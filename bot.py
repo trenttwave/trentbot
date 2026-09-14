@@ -1694,8 +1694,54 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Perfecto. Ahora envíame las fotos. Cuando termines escribe /listo.")
         return
 
+    # Si está en modo newsletter esperando captura de Hacoo y el usuario envía un link directo (Yepex)
+    nl_state = user_states.get(user_id, {}).get("state", "")
+    if nl_state.endswith("_waiting_hacoo") and user_states[user_id].get("nl_source") == "other":
+        url_match = re.search(r'https?://\S+', user_message)
+        if url_match:
+            section = user_states[user_id].get("newsletter_section", "zapatillas")
+            section_name = _NEWSLETTER_SECTIONS.get(section, section)
+            affiliate_link = url_match.group(0).rstrip(".,)")
+            pending_urls = user_states[user_id].get("nl_pending_urls", [])
+            url_index = user_states[user_id].get("nl_url_index", 0)
+            affiliate_map = user_states[user_id].get("nl_affiliate_map", {})
+            current_url = pending_urls[url_index] if url_index < len(pending_urls) else None
+            if current_url:
+                affiliate_map[current_url] = {"link": affiliate_link, "image_url": "", "name": "", "price": ""}
+                user_states[user_id]["nl_affiliate_map"] = affiliate_map
+                url_index += 1
+                user_states[user_id]["nl_url_index"] = url_index
+                if url_index < len(pending_urls):
+                    await update.message.reply_text(
+                        f"✅ Link {url_index}/{len(pending_urls)} guardado.\n"
+                        f"Envíame la captura de Hacoo o el link directo del producto {url_index+1}/{len(pending_urls)}."
+                    )
+                else:
+                    # Todos procesados → guardar en newsletter
+                    original_text = user_states[user_id].get("nl_original_text", "")
+                    data = _load_newsletter()
+                    added = []
+                    for orig_url, info in affiliate_map.items():
+                        n_name = info["name"]
+                        if not n_name:
+                            for line in original_text.splitlines():
+                                if orig_url in line:
+                                    n_name = re.sub(r'https?://\S+', "", line).strip(" →—>-🔗🥇🥈🥉1234567890️⃣.").strip()
+                                    break
+                        if not n_name:
+                            n_name = "Producto"
+                        data[section].append({"name": n_name, "link": info["link"], "image_url": info["image_url"], "price": info["price"]})
+                        added.append(f"• {n_name} → {info['link']}")
+                    _save_newsletter(data)
+                    user_states[user_id]["state"] = f"newsletter_{section}"
+                    resumen = "\n".join(added)
+                    await update.message.reply_text(
+                        f"✅ {len(added)} producto{'s' if len(added)!=1 else ''} añadido{'s' if len(added)!=1 else ''} a {section_name}:\n\n{resumen}\n\nReenvía otro mensaje o /newsletter para cambiar de sección."
+                    )
+            return
+
     # Si está en modo newsletter (añadiendo links de texto)
-    if user_states.get(user_id, {}).get("state", "").startswith("newsletter_") and user_states[user_id]["state"] != "newsletter_confirm":
+    if nl_state.startswith("newsletter_") and nl_state != "newsletter_confirm":
         section = user_states[user_id].get("newsletter_section", "zapatillas")
         await _handle_newsletter_links(update, context, user_id, section)
         return
