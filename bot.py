@@ -770,6 +770,17 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Si está en modo newsletter, procesar foto
     nl_state = user_states.get(user_id, {}).get("state", "")
+    if nl_state.endswith("_waiting_name_photo"):
+        # Foto para el producto de captura directa Hacoo
+        section = user_states[user_id].get("newsletter_section", "zapatillas")
+        file_id = update.message.photo[-1].file_id
+        user_states[user_id].setdefault("nl_direct_photos", []).append(file_id)
+        nombre = user_states[user_id].get("nl_direct_name", "")
+        if nombre:
+            await _nl_save_direct_hacoo(update.message.chat.id, user_id, section, context.bot)
+        else:
+            await update.message.reply_text("Foto guardada. Ahora dime el nombre del producto.")
+        return
     if nl_state.startswith("newsletter_") and nl_state != "newsletter_confirm":
         section = user_states[user_id].get("newsletter_section", "zapatillas")
         await _handle_newsletter_photo(update, context, user_id, section)
@@ -1724,6 +1735,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     await _nl_save_all(update.message.chat.id, user_id, section, affiliate_map, context.bot)
             return
+
+    # Si está en modo waiting_name_photo (captura directa Hacoo: esperando nombre)
+    if nl_state.endswith("_waiting_name_photo"):
+        section = user_states[user_id].get("newsletter_section", "zapatillas")
+        section_name = _NEWSLETTER_SECTIONS.get(section, section)
+        user_states[user_id]["nl_direct_name"] = _clean_product_name(user_message.strip())
+        photos = user_states[user_id].get("nl_direct_photos", [])
+        if photos:
+            # Ya tenemos fotos → guardar
+            await _nl_save_direct_hacoo(update.message.chat.id, user_id, section, context.bot)
+        else:
+            await update.message.reply_text("✅ Nombre guardado. Ahora envíame la foto (o fotos) del producto. Cuando termines escribe /listo_nl.")
+        return
 
     # Si está en modo newsletter (añadiendo links de texto)
     if nl_state.startswith("newsletter_") and nl_state != "newsletter_confirm":
@@ -2763,6 +2787,13 @@ async def _nl_save_all(chat_id: int, user_id: int, section: str, affiliate_map: 
     )
 
 
+def _clean_product_name(name: str) -> str:
+    """Limpia el nombre del producto: quita (yepex), emojis y espacios extra."""
+    name = re.sub(r'\(yepex\)', "", name, flags=re.IGNORECASE).strip()
+    name = re.sub(r'[\U00010000-\U0010ffff]|[☀-➿]|[\uD800-\uDFFF]', "", name).strip()
+    return name.strip(" →—>-🔗").strip()
+
+
 def _extract_name_for_url(text: str, url: str) -> str:
     """Extrae el nombre del producto buscando la línea antes del link en el texto."""
     lines = text.splitlines()
@@ -2781,6 +2812,52 @@ def _extract_name_for_url(text: str, url: str) -> str:
             name_line = name_line.strip(" →—>-🔗MH:").strip()
             return name_line
     return ""
+
+
+async def _nl_save_direct_hacoo(chat_id: int, user_id: int, section: str, bot):
+    """Guarda en la newsletter un producto de captura directa Hacoo (con nombre y fotos del usuario)."""
+    section_name = _NEWSLETTER_SECTIONS.get(section, section)
+    link = user_states[user_id].get("nl_direct_link", "")
+    image_url = user_states[user_id].get("nl_direct_image_url", "")
+    price = user_states[user_id].get("nl_direct_price", "")
+    nombre = user_states[user_id].get("nl_direct_name", "") or "Producto"
+    photo_ids = user_states[user_id].get("nl_direct_photos", [])
+
+    image_urls = []
+    if image_url and image_url.startswith("http"):
+        image_urls.append(image_url)
+    for fid in photo_ids:
+        try:
+            tg_file = await bot.get_file(fid)
+            image_urls.append(tg_file.file_path)
+        except Exception:
+            pass
+
+    data = _load_newsletter()
+    data[section].append({"name": nombre, "link": link, "image_urls": image_urls, "image_url": image_urls[0] if image_urls else "", "price": price})
+    _save_newsletter(data)
+    n = len(data[section])
+    user_states[user_id]["state"] = f"newsletter_{section}"
+    img_info = f" ({len(image_urls)} imágenes)" if len(image_urls) > 1 else ""
+    await bot.send_message(chat_id=chat_id, text=f"✅ Añadido a {section_name} (#{n}){img_info}\n\n{nombre}\n{link}\n\nReenvía otro mensaje o /newsletter para cambiar de sección.")
+
+
+async def cmd_listo_nl(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Guarda el producto de captura directa Hacoo cuando el usuario ya envió nombre y fotos."""
+    user_id = update.effective_user.id
+    nl_state = user_states.get(user_id, {}).get("state", "")
+    if not nl_state.endswith("_waiting_name_photo"):
+        return
+    section = user_states[user_id].get("newsletter_section", "zapatillas")
+    nombre = user_states[user_id].get("nl_direct_name", "")
+    photos = user_states[user_id].get("nl_direct_photos", [])
+    if not nombre:
+        await update.message.reply_text("Aún no me has dicho el nombre del producto.")
+        return
+    if not photos:
+        await update.message.reply_text("Aún no me has enviado ninguna foto.")
+        return
+    await _nl_save_direct_hacoo(update.message.chat.id, user_id, section, context.bot)
 
 
 async def _nl_album_flush_job(context):
@@ -2818,8 +2895,8 @@ async def _nl_own_album_flush_job(context):
 
     link = existing_link.group(0).rstrip(")")
     first_line = caption.splitlines()[0] if caption else ""
-    nombre = re.sub(r'https?://\S+', "", first_line).strip(" →—>-🔗").strip()
-    nombre = re.sub(r'[\U00010000-\U0010ffff]|[☀-➿]|[\uD800-\uDFFF]', "", nombre).strip()
+    nombre = re.sub(r'https?://\S+', "", first_line).strip()
+    nombre = _clean_product_name(nombre)
     if not nombre:
         nombre = "Producto"
 
@@ -2922,8 +2999,8 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
         if existing_link:
             link = existing_link.group(0).rstrip(")")
             first_line = caption.splitlines()[0] if caption else ""
-            nombre = re.sub(r'https?://\S+', "", first_line).strip(" →—>-🔗").strip()
-            nombre = re.sub(r'[\U00010000-\U0010ffff]|[☀-➿]|[\uD800-\uDFFF]', "", nombre).strip()
+            nombre = re.sub(r'https?://\S+', "", first_line).strip()
+            nombre = _clean_product_name(nombre)
             if not nombre:
                 nombre = "Producto"
             data = _load_newsletter()
@@ -3010,9 +3087,11 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
             nl_names = user_states[user_id].get("nl_names", [])
             saved_name = nl_names[url_index] if url_index < len(nl_names) else ""
             if saved_name:
-                nombre = saved_name  # nombre del mensaje original siempre gana
-            elif not nombre:
-                nombre = "Producto"
+                nombre = _clean_product_name(saved_name)
+            elif nombre:
+                nombre = _clean_product_name(nombre)
+            else:
+                nombre = ""
 
             # Para captura directa (sin URL previa), usar el link generado como clave
             map_key = current_url if current_url != "_direct_hacoo" else affiliate_link
@@ -3028,6 +3107,21 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
                 await status_msg.edit_text(
                     f"✅ Link {url_index}/{len(pending_urls)} generado.\n"
                     f"Envíame la captura de Hacoo de '{next_name}' ({url_index+1}/{len(pending_urls)}) o el link directo si es Yepex."
+                )
+                return
+
+            # Si es captura directa, pedir nombre y foto antes de guardar
+            if current_url == "_direct_hacoo" or map_key == affiliate_link:
+                user_states[user_id]["state"] = f"newsletter_{section}_waiting_name_photo"
+                user_states[user_id]["nl_direct_link"] = affiliate_link
+                user_states[user_id]["nl_direct_image_url"] = image_url or ""
+                user_states[user_id]["nl_direct_price"] = price_raw
+                user_states[user_id]["nl_direct_name"] = ""
+                user_states[user_id]["nl_direct_photos"] = []
+                await status_msg.edit_text(
+                    f"✅ Link generado: {affiliate_link}\n\n"
+                    f"Ahora dime el nombre del producto y envíame la foto (o fotos) para la newsletter.\n"
+                    f"Cuando tengas todo, escribe /listo_nl para guardar."
                 )
                 return
 
@@ -3090,6 +3184,7 @@ def main():
     app.add_handler(CommandHandler("newsletter", cmd_newsletter))
     app.add_handler(CommandHandler("ver_newsletter", cmd_ver_newsletter))
     app.add_handler(CommandHandler("enviar", cmd_enviar_newsletter))
+    app.add_handler(CommandHandler("listo_nl", cmd_listo_nl))
     app.add_handler(CallbackQueryHandler(callback_newsletter_section, pattern="^nl_sec_"))
     app.add_handler(CallbackQueryHandler(callback_newsletter_source, pattern="^nl_src_"))
     app.add_handler(CallbackQueryHandler(callback_newsletter_send, pattern="^nl_send_"))
