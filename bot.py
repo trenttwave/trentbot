@@ -2224,24 +2224,26 @@ def _save_newsletter(data: dict):
 def _build_newsletter_html(data: dict, week: int) -> str:
     def products_html(items: list, icon: str) -> str:
         if not items:
-            return '<div class="product" style="padding:24px;text-align:center;display:block;"><p style="color:#aaa;font-size:14px;">Sin productos esta semana.</p></div>'
+            return f'<div style="padding:20px 16px;text-align:center;"><p style="color:#aaa;font-size:13px;">Sin productos esta semana.</p></div>'
         rank_emojis = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"]
         html = ""
         for i, p in enumerate(items):
             rank = rank_emojis[i] if i < len(rank_emojis) else f"{i+1}."
             badge = '<div class="badge badge-gold">TOP #1</div>' if i == 0 else ""
-            img_style = f'background-image:url("{p["image_url"]}");background-size:cover;background-position:center;' if p.get("image_url") else ""
-            img_content = "" if p.get("image_url") else icon
+            border_style = ' style="border-left-color:#aaa;"' if i == 0 and len(items) == 1 else ""
+            img_content = f'<img src="{p["image_url"]}" width="76" height="76" style="display:block;width:76px;height:76px;object-fit:cover;" alt="">' if p.get("image_url") else icon
             html += f'''
-  <div class="product">
-    <div class="product-rank">{rank}</div>
-    <div class="product-img" style="{img_style}">{img_content}</div>
-    <div class="product-info">
-      {badge}
-      <div class="product-name">{p["name"]}</div>
-      <a href="{p["link"]}" class="product-btn">Ver producto →</a>
-    </div>
-  </div>'''
+    <div class="product"{border_style}>
+      <div class="product-top">
+        <div class="product-rank-cell">{rank}</div>
+        <div class="product-img-cell"><div class="product-img">{img_content}</div></div>
+        <div class="product-info-cell">
+          {badge}
+          <div class="product-name">{p["name"]}</div>
+        </div>
+      </div>
+      <a href="{p["link"]}" class="product-btn">Ver producto &#8594;</a>
+    </div>'''
         return html
 
     zap = products_html(data.get("zapatillas", []), "👟")
@@ -2250,6 +2252,7 @@ def _build_newsletter_html(data: dict, week: int) -> str:
     nz = len(data.get("zapatillas", []))
     nh = len(data.get("hombre", []))
     nm = len(data.get("mujer", []))
+    muj_count = f"{nm} picks" if nm else "próximamente"
 
     return f"""<!doctype html>
 <html lang="es">
@@ -2259,41 +2262,43 @@ def _build_newsletter_html(data: dict, week: int) -> str:
   <title>TRENT Newsletter Semanal</title>
   <style>
     * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-    body {{ background: #f0f0f0; font-family: Arial, sans-serif; }}
+    body {{ background: #f4f4f4; font-family: Arial, Helvetica, sans-serif; -webkit-text-size-adjust: 100%; }}
     .wrapper {{ max-width: 600px; margin: 0 auto; background: #ffffff; }}
-    .header {{ background: #0a0a0a; padding: 32px 24px; text-align: center; }}
-    .header-logo {{ font-size: 48px; font-weight: 900; color: #ffffff; letter-spacing: 0.06em; }}
+    .header {{ background: #111111; padding: 28px 20px; text-align: center; }}
+    .header-logo {{ font-size: 40px; font-weight: 900; color: #ffffff; letter-spacing: 4px; }}
     .header-logo span {{ color: #e8002d; }}
-    .header-sub {{ font-size: 12px; color: #666; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 6px; }}
-    .header-date {{ font-size: 11px; color: #444; margin-top: 8px; }}
-    .hero {{ background: #e8002d; padding: 22px 24px; text-align: center; }}
-    .hero-title {{ font-size: 24px; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 0.04em; }}
-    .hero-sub {{ font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 6px; }}
-    .intro {{ padding: 24px; border-bottom: 2px solid #f0f0f0; }}
-    .intro p {{ font-size: 15px; color: #555; line-height: 1.7; }}
-    .intro strong {{ color: #0a0a0a; }}
-    .section-header {{ padding: 0 24px; margin-top: 28px; }}
-    .section-header-inner {{ background: #0a0a0a; padding: 14px 20px; display: flex; align-items: center; gap: 12px; }}
-    .section-icon {{ font-size: 24px; }}
-    .section-title-text {{ font-size: 16px; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 0.06em; }}
-    .section-count {{ font-size: 11px; color: #888; margin-left: auto; }}
-    .product {{ padding: 16px 24px; border-bottom: 1px solid #f0f0f0; display: flex; gap: 14px; align-items: flex-start; }}
-    .product-rank {{ font-size: 20px; flex-shrink: 0; width: 30px; text-align: center; margin-top: 4px; }}
-    .product-img {{ width: 80px; height: 80px; background: #f5f5f5; border-radius: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; border: 1px solid #eee; }}
-    .product-info {{ flex: 1; }}
-    .badge {{ display: inline-block; padding: 2px 8px; font-size: 10px; font-weight: 700; border-radius: 2px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.06em; }}
-    .badge-gold {{ background: #FFD700; color: #0a0a0a; }}
-    .product-name {{ font-size: 15px; font-weight: 700; color: #0a0a0a; margin-bottom: 4px; line-height: 1.3; }}
-    .product-btn {{ display: inline-block; background: #e8002d; color: #fff; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; padding: 7px 14px; text-decoration: none; margin-top: 8px; border-radius: 2px; }}
-    .divider {{ height: 8px; background: #f0f0f0; margin-top: 24px; }}
-    .code-section {{ background: #0a0a0a; padding: 32px 24px; text-align: center; }}
-    .code-label {{ font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 10px; }}
-    .code-box {{ font-size: 42px; font-weight: 900; color: #e8002d; letter-spacing: 0.08em; margin-bottom: 6px; }}
-    .code-desc {{ font-size: 13px; color: #888; }}
-    .cta {{ padding: 32px 24px; text-align: center; background: #fafafa; }}
-    .cta p {{ font-size: 15px; color: #555; line-height: 1.6; margin-bottom: 20px; }}
-    .cta-btn {{ display: inline-block; background: #0a0a0a; color: #fff; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 16px 36px; text-decoration: none; }}
-    .footer {{ padding: 20px 24px; text-align: center; border-top: 1px solid #f0f0f0; }}
+    .header-sub {{ font-size: 11px; color: #777; letter-spacing: 2px; text-transform: uppercase; margin-top: 6px; }}
+    .hero {{ background: #e8002d; padding: 24px 20px; text-align: center; }}
+    .hero-title {{ font-size: 26px; font-weight: 900; color: #ffffff; text-transform: uppercase; line-height: 1.2; }}
+    .hero-sub {{ font-size: 13px; color: rgba(255,255,255,0.9); margin-top: 8px; }}
+    .intro {{ background: #ffffff; padding: 20px; border-bottom: 3px solid #f4f4f4; }}
+    .intro p {{ font-size: 14px; color: #444; line-height: 1.7; }}
+    .intro strong {{ color: #111; }}
+    .section-wrap {{ background: #ffffff; padding: 0 0 8px 0; }}
+    .section-bar {{ background: #111111; margin: 16px 16px 0 16px; padding: 14px 16px; display: table; width: calc(100% - 32px); }}
+    .section-icon {{ display: table-cell; font-size: 22px; vertical-align: middle; width: 36px; }}
+    .section-name {{ display: table-cell; font-size: 14px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; vertical-align: middle; }}
+    .section-count {{ display: table-cell; font-size: 11px; color: #888; text-align: right; vertical-align: middle; white-space: nowrap; }}
+    .product {{ background: #ffffff; margin: 8px 16px; padding: 14px; border: 1px solid #eeeeee; border-left: 4px solid #e8002d; }}
+    .product-top {{ display: table; width: 100%; margin-bottom: 10px; }}
+    .product-rank-cell {{ display: table-cell; width: 30px; vertical-align: top; font-size: 18px; }}
+    .product-img-cell {{ display: table-cell; width: 80px; vertical-align: top; padding-right: 12px; }}
+    .product-img {{ width: 76px; height: 76px; background: #f8f8f8; border: 1px solid #eee; display: block; text-align: center; line-height: 76px; font-size: 32px; overflow: hidden; }}
+    .product-info-cell {{ display: table-cell; vertical-align: top; }}
+    .badge {{ display: inline-block; padding: 3px 8px; font-size: 10px; font-weight: 900; border-radius: 2px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }}
+    .badge-gold {{ background: #FFD700; color: #111; }}
+    .product-name {{ font-size: 14px; font-weight: 700; color: #111; line-height: 1.4; margin-bottom: 10px; }}
+    .product-btn {{ display: block; background: #e8002d; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 10px 16px; text-decoration: none; text-align: center; }}
+    .divider {{ height: 12px; background: #f4f4f4; }}
+    .code-section {{ background: #111111; padding: 28px 20px; text-align: center; }}
+    .code-label {{ font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }}
+    .code-box {{ font-size: 44px; font-weight: 900; color: #e8002d; letter-spacing: 4px; margin-bottom: 6px; }}
+    .code-desc {{ font-size: 13px; color: #999; }}
+    .cta {{ background: #f4f4f4; padding: 28px 20px; text-align: center; }}
+    .cta-text {{ font-size: 15px; color: #444; line-height: 1.6; margin-bottom: 18px; }}
+    .cta-text strong {{ color: #111; }}
+    .cta-btn {{ display: block; background: #111111; color: #ffffff; font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; padding: 16px 24px; text-decoration: none; }}
+    .footer {{ background: #ffffff; padding: 20px; text-align: center; border-top: 1px solid #eee; }}
     .footer p {{ font-size: 11px; color: #aaa; line-height: 2; }}
     .footer a {{ color: #aaa; }}
   </style>
@@ -2303,56 +2308,54 @@ def _build_newsletter_html(data: dict, week: int) -> str:
   <div class="header">
     <div class="header-logo">TREN<span>T</span></div>
     <div class="header-sub">Links · Moda · Marca</div>
-    <div class="header-date">Newsletter Semanal · Semana {week}</div>
   </div>
   <div class="hero">
-    <div class="hero-title">🔥 Los mejores productos de la semana</div>
+    <div class="hero-title">&#128293; Los mejores productos de la semana</div>
     <div class="hero-sub">Zapatillas · Ropa Hombre · Ropa Mujer</div>
   </div>
   <div class="intro">
-    <p>Hola! Esta semana he seleccionado <strong>los mejores productos de Hacoo</strong> divididos por categoría. Todos los links están verificados. Recuerda usar el código <strong>TRENT14</strong> para llevarte un <strong>−14% en tu primera compra</strong> 🔥</p>
+    <p>Hola! Esta semana he seleccionado <strong>los mejores productos de Hacoo</strong> divididos por categoría. Todos los links están verificados. Recuerda usar el código <strong>TRENT14</strong> para un <strong>&#8722;14% en tu primera compra</strong> &#128293;</p>
   </div>
-  <div class="section-header">
-    <div class="section-header-inner">
-      <div class="section-icon">👟</div>
-      <div class="section-title-text">Zapatillas de la semana</div>
+  <div class="section-wrap">
+    <div class="section-bar">
+      <div class="section-icon">&#128095;</div>
+      <div class="section-name">Zapatillas de la semana</div>
       <div class="section-count">{nz} picks</div>
     </div>
+    {zap}
   </div>
-  {zap}
   <div class="divider"></div>
-  <div class="section-header">
-    <div class="section-header-inner">
-      <div class="section-icon">👔</div>
-      <div class="section-title-text">Ropa Hombre de la semana</div>
+  <div class="section-wrap">
+    <div class="section-bar">
+      <div class="section-icon">&#128084;</div>
+      <div class="section-name">Ropa Hombre de la semana</div>
       <div class="section-count">{nh} picks</div>
     </div>
+    {hom}
   </div>
-  {hom}
   <div class="divider"></div>
-  <div class="section-header">
-    <div class="section-header-inner">
-      <div class="section-icon">👗</div>
-      <div class="section-title-text">Ropa Mujer de la semana</div>
-      <div class="section-count">{nm} picks</div>
+  <div class="section-wrap">
+    <div class="section-bar">
+      <div class="section-icon">&#128161;</div>
+      <div class="section-name">Ropa Mujer de la semana</div>
+      <div class="section-count">{muj_count}</div>
     </div>
+    {muj}
   </div>
-  {muj}
   <div class="divider"></div>
   <div class="code-section">
-    <div class="code-label">Código descuento — Solo 1ª compra</div>
+    <div class="code-label">Código descuento · Solo 1ª compra</div>
     <div class="code-box">TRENT14</div>
-    <div class="code-desc">−14% en tu primera compra en Hacoo y Yepexpress</div>
+    <div class="code-desc">&#8722;14% en tu primera compra en Hacoo</div>
   </div>
   <div class="cta">
-    <p>¿Quieres recibir links <strong>cada día</strong>?<br>Únete al canal con <strong>41.000 miembros</strong> activos.</p>
-    <a href="https://t.me/trentthacoo" class="cta-btn">📱 Unirme al canal de Telegram</a>
+    <p class="cta-text">¿Quieres recibir links <strong>cada día</strong>?<br>Únete al canal con <strong>41.000 miembros</strong>.</p>
+    <a href="https://t.me/trentthacoo" class="cta-btn">&#128241; Unirme al canal de Telegram</a>
   </div>
   <div class="footer">
     <p>
       @trent_wave · @trentthacoo<br>
       <a href="https://trentlinks.netlify.app">trentlinks.netlify.app</a><br><br>
-      Has recibido este email porque te suscribiste a TRENT Newsletter.<br>
       <a href="#">Cancelar suscripción</a>
     </p>
   </div>
