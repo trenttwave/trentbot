@@ -2658,12 +2658,20 @@ async def callback_newsletter_send(update: Update, context: ContextTypes.DEFAULT
 async def _nl_save_all(chat_id: int, user_id: int, section: str, affiliate_map: dict, bot):
     """Guarda todos los productos del affiliate_map en la newsletter."""
     section_name = _NEWSLETTER_SECTIONS.get(section, section)
+    nl_photo_file_ids = user_states.get(user_id, {}).get("nl_photo_file_ids", [])
     data = _load_newsletter()
     added = []
-    for orig_url, info in affiliate_map.items():
+    for i, (orig_url, info) in enumerate(affiliate_map.items()):
         n_name = info.get("name") or "Producto"
-        # image_url es file_id de Telegram — guardarlo tal cual (no es URL pública, se omite en HTML)
-        data[section].append({"name": n_name, "link": info["link"], "image_url": "", "price": info.get("price", "")})
+        # Obtener URL pública de la foto del álbum original (si existe)
+        image_url = info.get("image_url") or ""
+        if not image_url and i < len(nl_photo_file_ids):
+            try:
+                tg_file = await bot.get_file(nl_photo_file_ids[i])
+                image_url = tg_file.file_path  # URL completa del CDN de Telegram
+            except Exception:
+                image_url = ""
+        data[section].append({"name": n_name, "link": info["link"], "image_url": image_url, "price": info.get("price", "")})
         added.append(f"• {n_name} → {info['link']}")
     _save_newsletter(data)
     user_states[user_id]["state"] = f"newsletter_{section}"
