@@ -2059,11 +2059,18 @@ async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEF
 
         # Auto-detectar fuente: ¿es de mi canal o de otro?
         forward_origin = msg.forward_origin
-        origin_chat_id = None
-        if forward_origin and hasattr(forward_origin, "chat"):
-            origin_chat_id = str(forward_origin.chat.id).lstrip("-")
-        own_channel_id = str(CHANNEL_ID).lstrip("-") if CHANNEL_ID else ""
-        is_own_channel = bool(own_channel_id and origin_chat_id and origin_chat_id == own_channel_id)
+        is_own_channel = False
+        if forward_origin:
+            # Caso 1: reenviado desde un canal → comparar chat.id con CHANNEL_ID
+            if hasattr(forward_origin, "chat"):
+                origin_chat_id = str(forward_origin.chat.id).lstrip("-")
+                own_channel_id = str(CHANNEL_ID).lstrip("-") if CHANNEL_ID else ""
+                is_own_channel = bool(own_channel_id and origin_chat_id == own_channel_id)
+            # Caso 2: reenviado desde el propio bot (Trent Bot) → es mi canal
+            elif hasattr(forward_origin, "sender_user") and forward_origin.sender_user:
+                sender = forward_origin.sender_user
+                bot_id = context.bot.id if context and hasattr(context, "bot") else None
+                is_own_channel = bool(sender.is_bot and bot_id and sender.id == bot_id)
 
         if is_own_channel:
             nl_source = "own"
