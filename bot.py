@@ -1707,37 +1707,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             affiliate_map = user_states[user_id].get("nl_affiliate_map", {})
             current_url = pending_urls[url_index] if url_index < len(pending_urls) else None
             if current_url:
-                affiliate_map[current_url] = {"link": affiliate_link, "image_url": "", "name": "", "price": ""}
+                nl_names = user_states[user_id].get("nl_names", [])
+                saved_name = nl_names[url_index] if url_index < len(nl_names) else ""
+                nl_photo_ids = user_states[user_id].get("nl_photo_file_ids", [])
+                saved_photo = nl_photo_ids[url_index] if url_index < len(nl_photo_ids) else ""
+                affiliate_map[current_url] = {"link": affiliate_link, "image_url": saved_photo, "name": saved_name, "price": ""}
                 user_states[user_id]["nl_affiliate_map"] = affiliate_map
                 url_index += 1
                 user_states[user_id]["nl_url_index"] = url_index
                 if url_index < len(pending_urls):
+                    next_name = nl_names[url_index] if url_index < len(nl_names) else f"producto {url_index+1}"
                     await update.message.reply_text(
                         f"✅ Link {url_index}/{len(pending_urls)} guardado.\n"
-                        f"Envíame la captura de Hacoo o el link directo del producto {url_index+1}/{len(pending_urls)}."
+                        f"Envíame la captura de Hacoo de '{next_name}' ({url_index+1}/{len(pending_urls)}) o el link directo si es Yepex."
                     )
                 else:
-                    # Todos procesados → guardar en newsletter
-                    original_text = user_states[user_id].get("nl_original_text", "")
-                    data = _load_newsletter()
-                    added = []
-                    for orig_url, info in affiliate_map.items():
-                        n_name = info["name"]
-                        if not n_name:
-                            for line in original_text.splitlines():
-                                if orig_url in line:
-                                    n_name = re.sub(r'https?://\S+', "", line).strip(" →—>-🔗🥇🥈🥉1234567890️⃣.").strip()
-                                    break
-                        if not n_name:
-                            n_name = "Producto"
-                        data[section].append({"name": n_name, "link": info["link"], "image_url": info["image_url"], "price": info["price"]})
-                        added.append(f"• {n_name} → {info['link']}")
-                    _save_newsletter(data)
-                    user_states[user_id]["state"] = f"newsletter_{section}"
-                    resumen = "\n".join(added)
-                    await update.message.reply_text(
-                        f"✅ {len(added)} producto{'s' if len(added)!=1 else ''} añadido{'s' if len(added)!=1 else ''} a {section_name}:\n\n{resumen}\n\nReenvía otro mensaje o /newsletter para cambiar de sección."
-                    )
+                    await _nl_save_all(update.message.chat.id, user_id, section, affiliate_map, context.bot)
             return
 
     # Si está en modo newsletter (añadiendo links de texto)
@@ -1969,6 +1954,7 @@ async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_i
 # ---------------------------------------------------------------------------
 
 _fwd_album_buffer: dict = {}  # media_group_id → {file_ids, text, user_id, chat_id}
+_nl_album_buffer: dict = {}   # media_group_id → {file_ids, caption, user_id, chat_id} para newsletter
 
 
 async def _start_fwd_queue_job(context: ContextTypes.DEFAULT_TYPE):
@@ -2062,8 +2048,33 @@ async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEF
     msg = update.message
     user_id = update.effective_user.id
 
-    # Si está en modo newsletter, redirigir al handler de newsletter
+    # Si está en modo newsletter otro canal, bufferear álbum completo antes de procesar
     nl_state = user_states.get(user_id, {}).get("state", "")
+    if nl_state.startswith("newsletter_") and nl_state != "newsletter_confirm" and user_states[user_id].get("nl_source") == "other" and not nl_state.endswith("_waiting_hacoo"):
+        section = user_states[user_id].get("newsletter_section", "zapatillas")
+        file_id = msg.photo[-1].file_id if msg.photo else None
+        caption = msg.caption or ""
+        media_group_id = msg.media_group_id
+
+        if media_group_id:
+            if media_group_id not in _nl_album_buffer:
+                _nl_album_buffer[media_group_id] = {"file_ids": [], "caption": caption, "user_id": user_id, "chat_id": msg.chat.id}
+                context.job_queue.run_once(
+                    _nl_album_flush_job,
+                    when=2.0,
+                    data={"media_group_id": media_group_id, "section": section},
+                    name=f"nlalbum_{media_group_id}",
+                )
+            if file_id:
+                _nl_album_buffer[media_group_id]["file_ids"].append(file_id)
+            if caption:
+                _nl_album_buffer[media_group_id]["caption"] = caption
+        else:
+            # Foto suelta (sin álbum)
+            await _handle_newsletter_forwarded(update, context, user_id, section, [file_id] if file_id else [], caption)
+        return
+
+    # Si está en modo newsletter (mi canal o waiting_hacoo), redirigir al handler existente
     if nl_state.startswith("newsletter_") and nl_state != "newsletter_confirm":
         section = user_states[user_id].get("newsletter_section", "zapatillas")
         await _handle_newsletter_photo(update, context, user_id, section)
@@ -2644,6 +2655,91 @@ async def callback_newsletter_send(update: Update, context: ContextTypes.DEFAULT
         )
 
 
+async def _nl_save_all(chat_id: int, user_id: int, section: str, affiliate_map: dict, bot):
+    """Guarda todos los productos del affiliate_map en la newsletter."""
+    section_name = _NEWSLETTER_SECTIONS.get(section, section)
+    data = _load_newsletter()
+    added = []
+    for orig_url, info in affiliate_map.items():
+        n_name = info.get("name") or "Producto"
+        # image_url es file_id de Telegram — guardarlo tal cual (no es URL pública, se omite en HTML)
+        data[section].append({"name": n_name, "link": info["link"], "image_url": "", "price": info.get("price", "")})
+        added.append(f"• {n_name} → {info['link']}")
+    _save_newsletter(data)
+    user_states[user_id]["state"] = f"newsletter_{section}"
+    resumen = "\n".join(added)
+    await bot.send_message(
+        chat_id=chat_id,
+        text=f"✅ {len(added)} producto{'s' if len(added)!=1 else ''} añadido{'s' if len(added)!=1 else ''} a {section_name}:\n\n{resumen}\n\nReenvía otro mensaje o /newsletter para cambiar de sección."
+    )
+
+
+def _extract_name_for_url(text: str, url: str) -> str:
+    """Extrae el nombre del producto buscando la línea antes del link en el texto."""
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        if url in line:
+            # Buscar nombre en la misma línea o en la anterior
+            name_line = ""
+            if i > 0:
+                prev = re.sub(r'https?://\S+', "", lines[i-1]).strip()
+                if prev:
+                    name_line = prev
+            if not name_line:
+                name_line = re.sub(r'https?://\S+', "", line).strip()
+            # Limpiar emojis de ranking y símbolos
+            name_line = re.sub(r'^[\s🥇🥈🥉1-9️⃣🔟⭐🏆\d\.\:\-→]+', "", name_line).strip()
+            name_line = name_line.strip(" →—>-🔗MH:").strip()
+            return name_line
+    return ""
+
+
+async def _nl_album_flush_job(context):
+    """Procesa el álbum de newsletter cuando han llegado todas las fotos."""
+    data = context.job.data
+    media_group_id = data["media_group_id"]
+    section = data["section"]
+    buf = _nl_album_buffer.pop(media_group_id, None)
+    if not buf:
+        return
+    user_id = buf["user_id"]
+    file_ids = buf["file_ids"]
+    caption = buf["caption"]
+    await _handle_newsletter_forwarded(context, context, user_id, section, file_ids, caption, bot=context.bot, chat_id=buf["chat_id"])
+
+
+async def _handle_newsletter_forwarded(update_or_ctx, context, user_id: int, section: str, file_ids: list, caption: str, bot=None, chat_id: int = None):
+    """Procesa un mensaje reenviado de otro canal para la newsletter: detecta links, guarda fotos y pide capturas Hacoo."""
+    if bot is None:
+        bot = context.bot
+    if chat_id is None:
+        chat_id = update_or_ctx.message.chat.id
+
+    urls = re.findall(r'https?://\S+', caption)
+    urls = [u.rstrip(".,)") for u in urls]
+    if not urls:
+        await bot.send_message(chat_id=chat_id, text="No encontré ningún link en el mensaje. Reenvía un mensaje con links.")
+        return
+
+    # Extraer nombre para cada URL del texto
+    names = [_extract_name_for_url(caption, u) or f"Producto {i+1}" for i, u in enumerate(urls)]
+
+    user_states[user_id]["nl_original_text"] = caption
+    user_states[user_id]["nl_pending_urls"] = urls
+    user_states[user_id]["nl_url_index"] = 0
+    user_states[user_id]["nl_affiliate_map"] = {}
+    user_states[user_id]["nl_names"] = names
+    user_states[user_id]["nl_photo_file_ids"] = file_ids  # fotos en orden
+    user_states[user_id]["state"] = f"newsletter_{section}_waiting_hacoo"
+
+    n = len(urls)
+    nombre_1 = names[0] if names else "primero"
+    if n == 1:
+        await bot.send_message(chat_id=chat_id, text=f"Perfecto. Envíame la captura de Hacoo de '{nombre_1}' para generar tu link, o el link directo si es Yepex.")
+    else:
+        await bot.send_message(chat_id=chat_id, text=f"Este mensaje tiene {n} links. Envíame la captura de Hacoo de '{nombre_1}' (1/{n}), o el link directo si es Yepex.")
+
+
 async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, section: str):
     """Procesa una foto para la newsletter."""
     section_name = _NEWSLETTER_SECTIONS.get(section, section)
@@ -2739,6 +2835,12 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
                 asyncio.to_thread(_fetch_og_image_url, product_id),
             )
 
+            # Usar nombre del texto original si Gemini no lo detectó bien
+            nl_names = user_states[user_id].get("nl_names", [])
+            saved_name = nl_names[url_index] if url_index < len(nl_names) else ""
+            if not nombre:
+                nombre = saved_name
+
             affiliate_map[current_url] = {"link": affiliate_link, "image_url": image_url or "", "name": nombre, "price": price_raw}
             user_states[user_id]["nl_affiliate_map"] = affiliate_map
             url_index += 1
@@ -2747,40 +2849,15 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
             # ¿Quedan más links?
             if url_index < len(pending_urls):
                 user_states[user_id]["state"] = f"newsletter_{section}_waiting_hacoo"
+                next_name = nl_names[url_index] if url_index < len(nl_names) else f"producto {url_index+1}"
                 await status_msg.edit_text(
                     f"✅ Link {url_index}/{len(pending_urls)} generado.\n"
-                    f"Ahora envíame la captura del producto {url_index+1}/{len(pending_urls)}."
+                    f"Envíame la captura de Hacoo de '{next_name}' ({url_index+1}/{len(pending_urls)}) o el link directo si es Yepex."
                 )
                 return
 
-            # Todos los links procesados → guardar cada uno en newsletter
-            data = _load_newsletter()
-            added = []
-            for orig_url, info in affiliate_map.items():
-                # Buscar el nombre en el texto original para ese link
-                n_name = info["name"]
-                if not n_name:
-                    for line in original_text.splitlines():
-                        if orig_url in line:
-                            n_name = re.sub(r'https?://\S+', "", line).strip(" →—>-🔗🥇🥈🥉1234567890️⃣.").strip()
-                            break
-                if not n_name:
-                    n_name = "Producto"
-                data[section].append({
-                    "name": n_name,
-                    "link": info["link"],
-                    "image_url": info["image_url"],
-                    "price": info["price"],
-                })
-                added.append(f"• {n_name} → {info['link']}")
-
-            _save_newsletter(data)
-            user_states[user_id]["state"] = f"newsletter_{section}"
-            resumen = "\n".join(added)
-            await status_msg.edit_text(
-                f"✅ {len(added)} producto{'s' if len(added)!=1 else ''} añadido{'s' if len(added)!=1 else ''} a {section_name}:\n\n{resumen}\n\n"
-                f"Reenvía otro mensaje o /newsletter para cambiar de sección."
-            )
+            await status_msg.edit_text("Guardando productos...")
+            await _nl_save_all(update.effective_chat.id, user_id, section, affiliate_map, context.bot)
         except Exception as e:
             await status_msg.edit_text(f"❌ Error: {e}")
 
