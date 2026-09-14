@@ -2901,13 +2901,16 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
 
     # Si la fuente no está definida aún, detectar automáticamente
     if not nl_source:
-        if update.message.forward_origin is None:
-            # Foto directa (no reenviada) = captura de Hacoo
-            nl_source = "other"
-        else:
-            # Reenviada: por defecto "other" (ya debería haberse gestionado en handle_forwarded)
-            nl_source = "other"
+        nl_source = "other"
         user_states[user_id]["nl_source"] = nl_source
+        # Foto directa (captura Hacoo): preparar estado waiting_hacoo con sentinel
+        if update.message.forward_origin is None:
+            user_states[user_id]["nl_pending_urls"] = ["_direct_hacoo"]
+            user_states[user_id]["nl_url_index"] = 0
+            user_states[user_id]["nl_affiliate_map"] = {}
+            user_states[user_id]["nl_names"] = [""]
+            user_states[user_id]["nl_photo_groups"] = [[]]
+            user_states[user_id]["state"] = f"newsletter_{section}_waiting_hacoo"
 
     # --- MI CANAL: el caption ya tiene mi link, guardar directamente ---
     if nl_source == "own":
@@ -3003,13 +3006,17 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
                 asyncio.to_thread(_fetch_og_image_url, product_id),
             )
 
-            # Usar nombre del texto original si Gemini no lo detectó bien
+            # El nombre del mensaje original tiene prioridad sobre el de Gemini
             nl_names = user_states[user_id].get("nl_names", [])
             saved_name = nl_names[url_index] if url_index < len(nl_names) else ""
-            if not nombre:
-                nombre = saved_name
+            if saved_name:
+                nombre = saved_name  # nombre del mensaje original siempre gana
+            elif not nombre:
+                nombre = "Producto"
 
-            affiliate_map[current_url] = {"link": affiliate_link, "image_url": image_url or "", "name": nombre, "price": price_raw}
+            # Para captura directa (sin URL previa), usar el link generado como clave
+            map_key = current_url if current_url != "_direct_hacoo" else affiliate_link
+            affiliate_map[map_key] = {"link": affiliate_link, "image_url": image_url or "", "name": nombre, "price": price_raw}
             user_states[user_id]["nl_affiliate_map"] = affiliate_map
             url_index += 1
             user_states[user_id]["nl_url_index"] = url_index
