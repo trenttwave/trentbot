@@ -2622,8 +2622,11 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
         await update.message.reply_text("No encontré un link en el mensaje. Reenvía un mensaje de tu canal que tenga el link.")
         return
 
-    # --- OTRO CANAL: mensaje reenviado → detectar links y pedir capturas uno a uno ---
-    if nl_source == "other" and user_states[user_id].get("state") == f"newsletter_{section}":
+    # --- OTRO CANAL: si la foto es REENVIADA → guardar texto y pedir captura ---
+    if nl_source == "other" and update.message.forward_origin is not None:
+        # Solo procesar el primero del álbum (el que tiene caption con links)
+        if user_states[user_id].get("state") == f"newsletter_{section}_waiting_hacoo":
+            return  # ignorar fotos reenviadas adicionales del mismo álbum
         caption = update.message.caption or ""
         urls = re.findall(r'https?://\S+', caption)
         urls = [u.rstrip(".,)") for u in urls]
@@ -2642,7 +2645,7 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
             await update.message.reply_text(f"Este mensaje tiene {n} links. Envíame la captura de Hacoo del primero (1/{n}).")
         return
 
-    # --- OTRO CANAL: captura de Hacoo para el link actual ---
+    # --- OTRO CANAL: foto DIRECTA (no reenviada) = captura de Hacoo ---
     if nl_source == "other" and user_states[user_id].get("state") == f"newsletter_{section}_waiting_hacoo":
         pending_urls = user_states[user_id].get("nl_pending_urls", [])
         url_index = user_states[user_id].get("nl_url_index", 0)
