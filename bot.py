@@ -2663,12 +2663,20 @@ async def _nl_save_all(chat_id: int, user_id: int, section: str, affiliate_map: 
     added = []
     for i, (orig_url, info) in enumerate(affiliate_map.items()):
         n_name = info.get("name") or "Producto"
-        # Obtener URL pública de la foto del álbum original (si existe)
+        # Obtener URL pública de la foto
         image_url = info.get("image_url") or ""
+        # Si image_url no empieza por http es un file_id de Telegram → descargar URL
+        if image_url and not image_url.startswith("http"):
+            try:
+                tg_file = await bot.get_file(image_url)
+                image_url = tg_file.file_path
+            except Exception:
+                image_url = ""
+        # Si no hay imagen, intentar con la foto del álbum en posición i
         if not image_url and i < len(nl_photo_file_ids):
             try:
                 tg_file = await bot.get_file(nl_photo_file_ids[i])
-                image_url = tg_file.file_path  # URL completa del CDN de Telegram
+                image_url = tg_file.file_path
             except Exception:
                 image_url = ""
         data[section].append({"name": n_name, "link": info["link"], "image_url": image_url, "price": info.get("price", "")})
