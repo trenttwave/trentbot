@@ -1954,7 +1954,8 @@ async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_i
 # ---------------------------------------------------------------------------
 
 _fwd_album_buffer: dict = {}  # media_group_id → {file_ids, text, user_id, chat_id}
-_nl_album_buffer: dict = {}   # media_group_id → {file_ids, caption, user_id, chat_id} para newsletter
+_nl_album_buffer: dict = {}   # media_group_id → {file_ids, caption, user_id, chat_id} para newsletter (otro canal)
+_nl_own_album_buffer: dict = {}  # media_group_id → {file_ids, caption, user_id, chat_id} para newsletter (mi canal)
 
 
 async def _start_fwd_queue_job(context: ContextTypes.DEFAULT_TYPE):
@@ -2048,33 +2049,54 @@ async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEF
     msg = update.message
     user_id = update.effective_user.id
 
-    # Si está en modo newsletter otro canal, bufferear álbum completo antes de procesar
+    # Si está en modo newsletter, manejar según fuente
     nl_state = user_states.get(user_id, {}).get("state", "")
-    if nl_state.startswith("newsletter_") and nl_state != "newsletter_confirm" and user_states[user_id].get("nl_source") == "other" and not nl_state.endswith("_waiting_hacoo"):
+    if nl_state.startswith("newsletter_") and nl_state != "newsletter_confirm" and not nl_state.endswith("_waiting_hacoo"):
         section = user_states[user_id].get("newsletter_section", "zapatillas")
+        nl_source = user_states[user_id].get("nl_source", "own")
         file_id = msg.photo[-1].file_id if msg.photo else None
         caption = msg.caption or ""
         media_group_id = msg.media_group_id
 
-        if media_group_id:
-            if media_group_id not in _nl_album_buffer:
-                _nl_album_buffer[media_group_id] = {"file_ids": [], "caption": caption, "user_id": user_id, "chat_id": msg.chat.id}
-                context.job_queue.run_once(
-                    _nl_album_flush_job,
-                    when=2.0,
-                    data={"media_group_id": media_group_id, "section": section},
-                    name=f"nlalbum_{media_group_id}",
-                )
-            if file_id:
-                _nl_album_buffer[media_group_id]["file_ids"].append(file_id)
-            if caption:
-                _nl_album_buffer[media_group_id]["caption"] = caption
+        if nl_source == "other":
+            # Otro canal: bufferear álbum completo antes de procesar
+            if media_group_id:
+                if media_group_id not in _nl_album_buffer:
+                    _nl_album_buffer[media_group_id] = {"file_ids": [], "caption": caption, "user_id": user_id, "chat_id": msg.chat.id}
+                    context.job_queue.run_once(
+                        _nl_album_flush_job,
+                        when=2.0,
+                        data={"media_group_id": media_group_id, "section": section},
+                        name=f"nlalbum_{media_group_id}",
+                    )
+                if file_id:
+                    _nl_album_buffer[media_group_id]["file_ids"].append(file_id)
+                if caption:
+                    _nl_album_buffer[media_group_id]["caption"] = caption
+            else:
+                await _handle_newsletter_forwarded(update, context, user_id, section, [file_id] if file_id else [], caption)
+            return
         else:
-            # Foto suelta (sin álbum)
-            await _handle_newsletter_forwarded(update, context, user_id, section, [file_id] if file_id else [], caption)
-        return
+            # Mi canal: bufferear álbum para recoger todas las imágenes
+            if media_group_id:
+                if media_group_id not in _nl_own_album_buffer:
+                    _nl_own_album_buffer[media_group_id] = {"file_ids": [], "caption": caption, "user_id": user_id, "chat_id": msg.chat.id}
+                    context.job_queue.run_once(
+                        _nl_own_album_flush_job,
+                        when=2.0,
+                        data={"media_group_id": media_group_id, "section": section},
+                        name=f"nlownalbum_{media_group_id}",
+                    )
+                if file_id:
+                    _nl_own_album_buffer[media_group_id]["file_ids"].append(file_id)
+                if caption:
+                    _nl_own_album_buffer[media_group_id]["caption"] = caption
+            else:
+                # Foto suelta sin álbum
+                await _handle_newsletter_photo(update, context, user_id, section)
+            return
 
-    # Si está en modo newsletter (mi canal o waiting_hacoo), redirigir al handler existente
+    # Si está en modo newsletter waiting_hacoo, redirigir al handler existente
     if nl_state.startswith("newsletter_") and nl_state != "newsletter_confirm":
         section = user_states[user_id].get("newsletter_section", "zapatillas")
         await _handle_newsletter_photo(update, context, user_id, section)
@@ -2739,7 +2761,7 @@ def _extract_name_for_url(text: str, url: str) -> str:
 
 
 async def _nl_album_flush_job(context):
-    """Procesa el álbum de newsletter cuando han llegado todas las fotos."""
+    """Procesa el álbum de newsletter cuando han llegado todas las fotos (otro canal)."""
     data = context.job.data
     media_group_id = data["media_group_id"]
     section = data["section"]
@@ -2750,6 +2772,55 @@ async def _nl_album_flush_job(context):
     file_ids = buf["file_ids"]
     caption = buf["caption"]
     await _handle_newsletter_forwarded(context, context, user_id, section, file_ids, caption, bot=context.bot, chat_id=buf["chat_id"])
+
+
+async def _nl_own_album_flush_job(context):
+    """Procesa el álbum de newsletter cuando han llegado todas las fotos (mi canal)."""
+    data = context.job.data
+    media_group_id = data["media_group_id"]
+    section = data["section"]
+    buf = _nl_own_album_buffer.pop(media_group_id, None)
+    if not buf:
+        return
+    user_id = buf["user_id"]
+    chat_id = buf["chat_id"]
+    file_ids = buf["file_ids"]
+    caption = buf["caption"]
+    section_name = _NEWSLETTER_SECTIONS.get(section, section)
+
+    existing_link = re.search(r'https?://\S+', caption)
+    if not existing_link:
+        await context.bot.send_message(chat_id=chat_id, text="No encontré un link en el mensaje. Reenvía un mensaje de tu canal que tenga el link.")
+        return
+
+    link = existing_link.group(0).rstrip(")")
+    first_line = caption.splitlines()[0] if caption else ""
+    nombre = re.sub(r'https?://\S+', "", first_line).strip(" →—>-🔗").strip()
+    nombre = re.sub(r'[\U00010000-\U0010ffff]|[☀-➿]|[\uD800-\uDFFF]', "", nombre).strip()
+    if not nombre:
+        nombre = "Producto"
+
+    # Obtener URLs de las imágenes desde Telegram CDN
+    image_urls = []
+    for fid in file_ids:
+        try:
+            tg_file = await context.bot.get_file(fid)
+            image_urls.append(tg_file.file_path)
+        except Exception:
+            pass
+
+    data_nl = _load_newsletter()
+    data_nl[section].append({
+        "name": nombre,
+        "link": link,
+        "image_urls": image_urls,
+        "image_url": image_urls[0] if image_urls else "",
+        "price": "",
+    })
+    _save_newsletter(data_nl)
+    n = len(data_nl[section])
+    img_info = f" ({len(image_urls)} imágenes)" if len(image_urls) > 1 else ""
+    await context.bot.send_message(chat_id=chat_id, text=f"✅ Añadido a {section_name} (#{n}){img_info}\n\n{nombre}\n{link}")
 
 
 async def _handle_newsletter_forwarded(update_or_ctx, context, user_id: int, section: str, file_ids: list, caption: str, bot=None, chat_id: int = None):
