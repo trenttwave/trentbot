@@ -2769,7 +2769,8 @@ async def _handle_newsletter_forwarded(update_or_ctx, context, user_id: int, sec
     if len(urls) == 1:
         # Un solo link → el nombre es la primera línea del caption (sin el link)
         first_line = caption.splitlines()[0] if caption else ""
-        first_line = re.sub(r'https?://\S+', "", first_line).strip(" 🔗→—>-").strip()
+        first_line = re.sub(r'https?://\S+', "", first_line).strip()
+        first_line = re.sub(r'[\U00010000-\U0010ffff]|[☀-➿]|[\uD800-\uDFFF]', "", first_line).strip(" 🔗→—>-").strip()
         names = [first_line or "Producto"]
     else:
         names = [_extract_name_for_url(caption, u) or f"Producto {i+1}" for i, u in enumerate(urls)]
