@@ -2808,11 +2808,15 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
     # --- MI CANAL: el caption ya tiene mi link, guardar directamente ---
     if nl_source == "own":
         caption = update.message.caption or ""
+        # Si es parte de un álbum y no tiene caption, ignorar (ya se procesó la primera foto)
+        if not caption and update.message.media_group_id:
+            return
         existing_link = re.search(r'https?://\S+', caption)
         if existing_link:
             link = existing_link.group(0).rstrip(")")
             first_line = caption.splitlines()[0] if caption else ""
             nombre = re.sub(r'https?://\S+', "", first_line).strip(" →—>-🔗").strip()
+            nombre = re.sub(r'[\U00010000-\U0010ffff]|[☀-➿]|[\uD800-\uDFFF]', "", nombre).strip()
             if not nombre:
                 nombre = "Producto"
             data = _load_newsletter()
