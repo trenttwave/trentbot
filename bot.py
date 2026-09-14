@@ -775,6 +775,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         section = user_states[user_id].get("newsletter_section", "zapatillas")
         file_id = update.message.photo[-1].file_id
         user_states[user_id].setdefault("nl_direct_photos", []).append(file_id)
+        # Si la foto tiene caption, usarlo como nombre automáticamente
+        caption = update.message.caption or ""
+        if caption and not user_states[user_id].get("nl_direct_name"):
+            user_states[user_id]["nl_direct_name"] = _clean_product_name(caption.splitlines()[0])
         nombre = user_states[user_id].get("nl_direct_name", "")
         if nombre:
             await _nl_save_direct_hacoo(update.message.chat.id, user_id, section, context.bot)
@@ -1719,10 +1723,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             current_url = pending_urls[url_index] if url_index < len(pending_urls) else None
             if current_url:
                 nl_names = user_states[user_id].get("nl_names", [])
-                saved_name = nl_names[url_index] if url_index < len(nl_names) else ""
+                saved_name = _clean_product_name(nl_names[url_index]) if url_index < len(nl_names) else ""
                 nl_photo_ids = user_states[user_id].get("nl_photo_file_ids", [])
                 saved_photo = nl_photo_ids[url_index] if url_index < len(nl_photo_ids) else ""
-                affiliate_map[current_url] = {"link": affiliate_link, "image_url": saved_photo, "name": saved_name, "price": ""}
+                affiliate_map[current_url] = {"link": affiliate_link, "image_url": saved_photo, "name": saved_name or "Producto", "price": ""}
                 user_states[user_id]["nl_affiliate_map"] = affiliate_map
                 url_index += 1
                 user_states[user_id]["nl_url_index"] = url_index
@@ -2938,13 +2942,11 @@ async def _handle_newsletter_forwarded(update_or_ctx, context, user_id: int, sec
 
     # Extraer nombre para cada URL del texto
     if len(urls) == 1:
-        # Un solo link → el nombre es la primera línea del caption (sin el link)
         first_line = caption.splitlines()[0] if caption else ""
         first_line = re.sub(r'https?://\S+', "", first_line).strip()
-        first_line = re.sub(r'[\U00010000-\U0010ffff]|[☀-➿]|[\uD800-\uDFFF]', "", first_line).strip(" 🔗→—>-").strip()
-        names = [first_line or "Producto"]
+        names = [_clean_product_name(first_line) or "Producto"]
     else:
-        names = [_extract_name_for_url(caption, u) or f"Producto {i+1}" for i, u in enumerate(urls)]
+        names = [_clean_product_name(_extract_name_for_url(caption, u)) or f"Producto {i+1}" for i, u in enumerate(urls)]
 
     user_states[user_id]["nl_original_text"] = caption
     user_states[user_id]["nl_pending_urls"] = urls
