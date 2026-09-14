@@ -2462,13 +2462,39 @@ async def callback_newsletter_section(update: Update, context: ContextTypes.DEFA
     section_name = _NEWSLETTER_SECTIONS.get(section, section)
 
     user_states[user_id] = {"state": f"newsletter_{section}", "newsletter_section": section}
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("📢 Mi canal (link ya hecho)", callback_data=f"nl_src_own_{section}"),
+        InlineKeyboardButton("🔗 Otro canal (generar link)", callback_data=f"nl_src_other_{section}"),
+    ]])
     await query.edit_message_text(
-        f"📰 Añadiendo a {section_name}\n\n"
-        f"Envíame:\n"
-        f"• Una captura de Hacoo → genero el link automáticamente\n"
-        f"• Un mensaje con links directos (ej: Nike Air Max → https://...)\n\n"
-        f"Escribe /newsletter para cambiar de sección o /ver_newsletter para ver lo guardado.",
+        f"📰 {section_name}\n\n¿De dónde viene el producto?",
+        reply_markup=kb,
     )
+
+
+async def callback_newsletter_source(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """El usuario elige si el producto viene de su canal o de otro."""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    # data: nl_src_own_zapatillas  o  nl_src_other_zapatillas
+    parts = query.data.split("_", 3)  # ['nl', 'src', 'own'/'other', section]
+    source = parts[2]  # 'own' o 'other'
+    section = parts[3]
+    section_name = _NEWSLETTER_SECTIONS.get(section, section)
+
+    user_states[user_id] = {"state": f"newsletter_{section}", "newsletter_section": section, "nl_source": source}
+
+    if source == "own":
+        await query.edit_message_text(
+            f"📰 {section_name} — Mi canal\n\n"
+            f"Reenvíame el mensaje de tu canal. El link de afiliado ya viene incluido y lo guardaré directamente."
+        )
+    else:
+        await query.edit_message_text(
+            f"📰 {section_name} — Otro canal\n\n"
+            f"Reenvíame la captura del producto en Hacoo y generaré tu link de afiliado automáticamente."
+        )
 
 
 async def cmd_ver_newsletter(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2576,7 +2602,8 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
 
     # Si el mensaje ya tiene un link en el caption (mensaje reenviado del canal con link hecho)
     caption = update.message.caption or ""
-    existing_link = re.search(r'https?://\S+', caption)
+    nl_source = user_states.get(user_id, {}).get("nl_source", "own")
+    existing_link = re.search(r'https?://\S+', caption) if nl_source == "own" else None
     if existing_link:
         link = existing_link.group(0).rstrip(")")
         # Extraer nombre del caption: primera línea sin el link
@@ -2704,6 +2731,7 @@ def main():
     app.add_handler(CommandHandler("ver_newsletter", cmd_ver_newsletter))
     app.add_handler(CommandHandler("enviar", cmd_enviar_newsletter))
     app.add_handler(CallbackQueryHandler(callback_newsletter_section, pattern="^nl_sec_"))
+    app.add_handler(CallbackQueryHandler(callback_newsletter_source, pattern="^nl_src_"))
     app.add_handler(CallbackQueryHandler(callback_newsletter_send, pattern="^nl_send_"))
     app.add_handler(MessageHandler(filters.Regex(r"^📋BACKUP\n"), cmd_restore))
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
