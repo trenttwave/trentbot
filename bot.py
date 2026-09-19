@@ -833,14 +833,45 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await _compose_and_send(update.effective_chat.id, user_id, context.bot)
         return
 
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
-    status_msg = await update.message.reply_text("Analizando la imagen...")
-
+    # Descargar la imagen y encolar para mantener el orden de envío
     try:
         photo = update.message.photo[-1]
         file = await context.bot.get_file(photo.file_id)
         image_bytes = bytes(await file.download_as_bytearray())
+    except Exception as e:
+        logger.error(f"Error descargando captura Hacoo: {e}")
+        await update.message.reply_text("⚠️ No pude descargar la imagen. Inténtalo de nuevo.")
+        return
 
+    chat_id = update.effective_chat.id
+    _hacoo_queue.setdefault(user_id, []).append({"image_bytes": image_bytes, "chat_id": chat_id})
+
+    if user_id not in _hacoo_active:
+        _hacoo_active.add(user_id)
+        context.application.job_queue.run_once(
+            _process_hacoo_queue_job, 0.1,
+            data={"user_id": user_id},
+            name=f"hacooqueue_{user_id}",
+        )
+
+
+async def _process_hacoo_queue_job(context: ContextTypes.DEFAULT_TYPE):
+    """Procesa capturas de Hacoo en orden, una a una por usuario."""
+    user_id = context.job.data["user_id"]
+    queue = _hacoo_queue.get(user_id, [])
+    if not queue:
+        _hacoo_active.discard(user_id)
+        return
+
+    item = queue.pop(0)
+    image_bytes = item["image_bytes"]
+    chat_id = item["chat_id"]
+    bot = context.bot
+
+    status_msg = await bot.send_message(chat_id=chat_id, text="Analizando la imagen...")
+    await bot.send_chat_action(chat_id=chat_id, action="typing")
+
+    try:
         product_info = gemini_vision(
             image_bytes,
             (
@@ -867,45 +898,52 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not product_id.isdigit():
             await status_msg.edit_text(
-                "No encontre el ID del producto. Asegurate de que la captura muestre el ID numerico."
-            )
-            return
-
-        await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
-
-        affiliate_link, image_url = await asyncio.gather(
-            generate_affiliate_link(product_id),
-            asyncio.to_thread(_fetch_og_image_url, product_id),
-        )
-        image_url = image_url or ""
-
-        plain_fallback = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
-        link_is_affiliate = affiliate_link != plain_fallback
-
-        user_states[user_id] = {
-            "state": "waiting_title",
-            "link": affiliate_link,
-            "price": price_raw,
-            "colores": colores,
-            "image_url": image_url,
-            "photos": [],
-            "marca": "",
-            "categoria": "",
-        }
-
-        if link_is_affiliate:
-            await status_msg.edit_text(
-                f"{affiliate_link}\n\nAhora envíame el título del producto."
+                "No encontré el ID del producto. Asegúrate de que la captura muestre el ID numérico."
             )
         else:
-            await status_msg.edit_text(
-                f"⚠️ No s'ha pogut generar el link d'afiliats (Playwright falló). "
-                f"S'usa el link directe:\n{affiliate_link}\n\nAhora envíame el título del producto."
+            await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
+
+            affiliate_link, image_url = await asyncio.gather(
+                generate_affiliate_link(product_id),
+                asyncio.to_thread(_fetch_og_image_url, product_id),
             )
+            image_url = image_url or ""
+
+            plain_fallback = f"https://www.hacoo.pl/en-ES/detail/{product_id}"
+            link_is_affiliate = affiliate_link != plain_fallback
+
+            user_states[user_id] = {
+                "state": "waiting_title",
+                "link": affiliate_link,
+                "price": price_raw,
+                "colores": colores,
+                "image_url": image_url,
+                "photos": [],
+                "marca": "",
+                "categoria": "",
+            }
+
+            if link_is_affiliate:
+                await status_msg.edit_text(f"{affiliate_link}\n\nAhora envíame el título del producto.")
+            else:
+                await status_msg.edit_text(
+                    f"⚠️ No se pudo generar el link de afiliados (Playwright falló). "
+                    f"Se usa el link directo:\n{affiliate_link}\n\nAhora envíame el título del producto."
+                )
 
     except Exception as e:
-        logger.error(f"Error processing photo: {e}")
+        logger.error(f"Error procesando captura Hacoo: {e}")
         await status_msg.edit_text(f"Error: {e}")
+
+    # Procesar el siguiente si hay más en cola
+    if _hacoo_queue.get(user_id):
+        context.application.job_queue.run_once(
+            _process_hacoo_queue_job, 0.1,
+            data={"user_id": user_id},
+            name=f"hacooqueue_{user_id}_{len(_hacoo_queue[user_id])}",
+        )
+    else:
+        _hacoo_active.discard(user_id)
 
 
 async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
@@ -1808,6 +1846,10 @@ _pending_channel_msgs: dict = {}
 # Cola de mensajes reenviados por usuario (procesamiento uno a uno)
 _fwd_queue: dict = {}   # user_id → [{"photo_bytes_list": [...], "original_text": "..."}, ...]
 _fwd_active: set = set()  # user_ids con un flujo activo en curso
+
+# Cola de capturas Hacoo (flujo normal) para mantener el orden de envío
+_hacoo_queue: dict = {}   # user_id → [{"image_bytes": bytes, "chat_id": int}, ...]
+_hacoo_active: set = set()  # user_ids con procesamiento en curso
 
 # ---------------------------------------------------------------------------
 # Telethon — escucha canal externo
