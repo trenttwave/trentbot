@@ -2278,7 +2278,7 @@ async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE
         "url_affiliate_map": {},    # {url_original: affiliate_link}
     }
 
-    is_yepex = "(yepex)" in original_text.lower()
+    is_yepex = bool(re.search(r'yepex|yepexpress', original_text, re.IGNORECASE))
     user_states[user_id]["is_yepex"] = is_yepex
 
     n = len(urls)
@@ -3091,7 +3091,14 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
         user_states[user_id]["nl_affiliate_map"] = {}
         user_states[user_id]["state"] = f"newsletter_{section}_waiting_hacoo"
         n = len(urls)
-        if n == 1:
+        is_yepex = bool(re.search(r'yepex|yepexpress', caption, re.IGNORECASE))
+        nombre_1 = user_states[user_id].get("nl_names", [""])[0] if user_states[user_id].get("nl_names") else "primero"
+        if is_yepex:
+            if n == 1:
+                await update.message.reply_text(f"Es un producto de YepExpress. Envíame tu link de afiliado de '{nombre_1}'.")
+            else:
+                await update.message.reply_text(f"Este mensaje tiene {n} productos de YepExpress. Envíame tu link de afiliado del primero: '{nombre_1}' (1/{n}).")
+        elif n == 1:
             await update.message.reply_text("Perfecto. Ahora envíame la captura del producto en Hacoo para generar tu link de afiliado.")
         else:
             await update.message.reply_text(f"Este mensaje tiene {n} links. Envíame la captura de Hacoo del primero (1/{n}).")
