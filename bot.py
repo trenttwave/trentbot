@@ -1770,10 +1770,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 user_states[user_id]["nl_url_index"] = url_index
                 if url_index < len(pending_urls):
                     next_name = nl_names[url_index] if url_index < len(nl_names) else f"producto {url_index+1}"
-                    await update.message.reply_text(
-                        f"✅ Link {url_index}/{len(pending_urls)} guardado.\n"
-                        f"Envíame la captura de Hacoo de '{next_name}' ({url_index+1}/{len(pending_urls)}) o el link directo si es Yepex."
-                    )
+                    original_text = user_states[user_id].get("nl_original_text", "")
+                    next_is_yepex = bool(re.search(r'yepex|yepexpress', original_text, re.IGNORECASE))
+                    if next_is_yepex:
+                        await update.message.reply_text(
+                            f"✅ Link {url_index}/{len(pending_urls)} guardado.\n"
+                            f"Envíame tu link de afiliado YepExpress de '{next_name}' ({url_index+1}/{len(pending_urls)})."
+                        )
+                    else:
+                        await update.message.reply_text(
+                            f"✅ Link {url_index}/{len(pending_urls)} guardado.\n"
+                            f"Envíame la captura de Hacoo de '{next_name}' ({url_index+1}/{len(pending_urls)}) o el link directo si es Yepex."
+                        )
                 else:
                     await _nl_save_all(update.message.chat.id, user_id, section, affiliate_map, context.bot)
             return
@@ -3009,9 +3017,17 @@ async def _handle_newsletter_forwarded(update_or_ctx, context, user_id: int, sec
         user_states[user_id]["nl_photo_groups"] = [[fid] for fid in file_ids] + [[] for _ in range(len(urls) - len(file_ids))]
     user_states[user_id]["state"] = f"newsletter_{section}_waiting_hacoo"
 
+    # Detectar si el mensaje es de Yepex para adaptar el texto
+    is_yepex = bool(re.search(r'yepex|yepexpress', caption, re.IGNORECASE))
+
     n = len(urls)
     nombre_1 = names[0] if names else "primero"
-    if n == 1:
+    if is_yepex:
+        if n == 1:
+            await bot.send_message(chat_id=chat_id, text=f"Es un producto de YepExpress. Envíame tu link de afiliado de '{nombre_1}'.")
+        else:
+            await bot.send_message(chat_id=chat_id, text=f"Este mensaje tiene {n} productos de YepExpress. Envíame tu link de afiliado del primero: '{nombre_1}' (1/{n}).")
+    elif n == 1:
         await bot.send_message(chat_id=chat_id, text=f"Perfecto. Envíame la captura de Hacoo de '{nombre_1}' para generar tu link, o el link directo si es Yepex.")
     else:
         await bot.send_message(chat_id=chat_id, text=f"Este mensaje tiene {n} links. Envíame la captura de Hacoo de '{nombre_1}' (1/{n}), o el link directo si es Yepex.")
@@ -3150,10 +3166,18 @@ async def _handle_newsletter_photo(update: Update, context: ContextTypes.DEFAULT
             if url_index < len(pending_urls):
                 user_states[user_id]["state"] = f"newsletter_{section}_waiting_hacoo"
                 next_name = nl_names[url_index] if url_index < len(nl_names) else f"producto {url_index+1}"
-                await status_msg.edit_text(
-                    f"✅ Link {url_index}/{len(pending_urls)} generado.\n"
-                    f"Envíame la captura de Hacoo de '{next_name}' ({url_index+1}/{len(pending_urls)}) o el link directo si es Yepex."
-                )
+                original_text = user_states[user_id].get("nl_original_text", "")
+                next_is_yepex = bool(re.search(r'yepex|yepexpress', original_text, re.IGNORECASE))
+                if next_is_yepex:
+                    await status_msg.edit_text(
+                        f"✅ Link {url_index}/{len(pending_urls)} generado.\n"
+                        f"Envíame tu link de afiliado YepExpress de '{next_name}' ({url_index+1}/{len(pending_urls)})."
+                    )
+                else:
+                    await status_msg.edit_text(
+                        f"✅ Link {url_index}/{len(pending_urls)} generado.\n"
+                        f"Envíame la captura de Hacoo de '{next_name}' ({url_index+1}/{len(pending_urls)}) o el link directo si es Yepex."
+                    )
                 return
 
             # Si es captura directa, pedir nombre y foto antes de guardar
