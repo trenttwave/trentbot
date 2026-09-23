@@ -2076,13 +2076,23 @@ async def _show_next_from_queue(user_id: int, chat_id: int, bot):
     """Muestra el siguiente mensaje de la cola del usuario, si hay."""
     import time
     queue = _fwd_queue.get(user_id, [])
+    # Saltar items vacíos (descarga fallida)
+    while queue:
+        item = queue[0]
+        if "future" in item:
+            photo_bytes_list = await item["future"]
+        else:
+            photo_bytes_list = item.get("photo_bytes_list", [])
+        if photo_bytes_list:
+            break
+        queue.pop(0)  # saltar item vacío
+
     if not queue:
         _fwd_active.discard(user_id)
         await bot.send_message(chat_id=chat_id, text="✅ Cola vacía, todos los productos procesados.")
         return
 
     item = queue.pop(0)
-    photo_bytes_list = item["photo_bytes_list"]
     original_text = item["original_text"]
     remaining = len(queue)
 
@@ -2111,16 +2121,12 @@ async def _show_next_from_queue(user_id: int, chat_id: int, bot):
 
 async def _process_forwarded_album(context: ContextTypes.DEFAULT_TYPE):
     """Job que se dispara 2s después de recibir el primer mensaje del álbum reenviado."""
-    import time
     mg_id = context.job.data
     group = _fwd_album_buffer.pop(mg_id, None)
     if not group:
         return
 
-    user_id = group["user_id"]
     chat_id = group["chat_id"]
-    original_text = group["text"]
-
     photo_bytes_list = []
     for fid in group["file_ids"]:
         try:
@@ -2129,19 +2135,12 @@ async def _process_forwarded_album(context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Error descargando foto álbum reenviado: {e}")
 
+    # Resolver el future para que _show_next_from_queue pueda continuar
+    fut = group.get("future")
+    if fut and not fut.done():
+        fut.set_result(photo_bytes_list if photo_bytes_list else [])
     if not photo_bytes_list:
-        await context.bot.send_message(chat_id=chat_id, text="⚠️ No pude descargar las fotos.")
-        return
-
-    # Encolar; si es el primero, programar job que arranca la cola en 3.5s
-    _fwd_queue.setdefault(user_id, []).append({"photo_bytes_list": photo_bytes_list, "original_text": original_text})
-    if user_id not in _fwd_active:
-        _fwd_active.add(user_id)
-        context.application.job_queue.run_once(
-            _start_fwd_queue_job, 3.5,
-            data={"user_id": user_id, "chat_id": chat_id},
-            name=f"startqueue_{user_id}",
-        )
+        await context.bot.send_message(chat_id=chat_id, text="⚠️ No pude descargar las fotos del álbum.")
 
 
 async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2236,37 +2235,56 @@ async def handle_forwarded_channel_msg(update: Update, context: ContextTypes.DEF
     file_id = msg.photo[-1].file_id
     mg_id = msg.media_group_id
 
+    chat_id = update.effective_chat.id
+
     if mg_id:
-        # Álbum: bufferizar y esperar 2s a que lleguen todas las fotos
+        # Álbum: reservar puesto en cola AL LLEGAR (con Future), luego descargar
         if mg_id not in _fwd_album_buffer:
+            fut = asyncio.get_event_loop().create_future()
             _fwd_album_buffer[mg_id] = {
                 "file_ids": [],
                 "text": original_text,
                 "user_id": user_id,
-                "chat_id": update.effective_chat.id,
+                "chat_id": chat_id,
+                "future": fut,
             }
+            # Reservar puesto en cola inmediatamente para mantener orden de llegada
+            _fwd_queue.setdefault(user_id, []).append({"future": fut, "original_text": original_text})
+            if user_id not in _fwd_active:
+                _fwd_active.add(user_id)
+                context.application.job_queue.run_once(
+                    _start_fwd_queue_job, 4,
+                    data={"user_id": user_id, "chat_id": chat_id},
+                    name=f"startqueue_{user_id}",
+                )
             context.application.job_queue.run_once(_process_forwarded_album, 2, data=mg_id, name=f"fwdalbum_{mg_id}")
         _fwd_album_buffer[mg_id]["file_ids"].append(file_id)
         if original_text:
             _fwd_album_buffer[mg_id]["text"] = original_text
     else:
-        # Foto individual: encolar
-        try:
-            f = await context.bot.get_file(file_id)
-            photo_bytes = bytes(await f.download_as_bytearray())
-        except Exception as e:
-            logger.error(f"Error descargando foto reenviada: {e}")
-            await msg.reply_text("⚠️ No pude descargar la foto.")
-            return
-
-        _fwd_queue.setdefault(user_id, []).append({"photo_bytes_list": [photo_bytes], "original_text": original_text})
+        # Foto individual: reservar puesto en cola AL LLEGAR, descargar en background
+        fut = asyncio.get_event_loop().create_future()
+        _fwd_queue.setdefault(user_id, []).append({"future": fut, "original_text": original_text})
         if user_id not in _fwd_active:
             _fwd_active.add(user_id)
             context.application.job_queue.run_once(
-                _start_fwd_queue_job, 3.5,
-                data={"user_id": user_id, "chat_id": update.effective_chat.id},
+                _start_fwd_queue_job, 4,
+                data={"user_id": user_id, "chat_id": chat_id},
                 name=f"startqueue_{user_id}",
             )
+
+        async def _download_single(fid=file_id, f=fut):
+            try:
+                file_obj = await context.bot.get_file(fid)
+                photo_bytes = bytes(await file_obj.download_as_bytearray())
+                if not f.done():
+                    f.set_result([photo_bytes])
+            except Exception as e:
+                logger.error(f"Error descargando foto reenviada: {e}")
+                if not f.done():
+                    f.set_result([])
+
+        asyncio.create_task(_download_single())
 
 
 
