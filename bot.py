@@ -833,18 +833,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await _compose_and_send(update.effective_chat.id, user_id, context.bot)
         return
 
-    # Descargar la imagen y encolar para mantener el orden de envío
-    try:
-        photo = update.message.photo[-1]
-        file = await context.bot.get_file(photo.file_id)
-        image_bytes = bytes(await file.download_as_bytearray())
-    except Exception as e:
-        logger.error(f"Error descargando captura Hacoo: {e}")
-        await update.message.reply_text("⚠️ No pude descargar la imagen. Inténtalo de nuevo.")
-        return
-
+    # Encolar el file_id inmediatamente (antes de descargar) para preservar el orden de envío
     chat_id = update.effective_chat.id
-    _hacoo_queue.setdefault(user_id, []).append({"image_bytes": image_bytes, "chat_id": chat_id})
+    file_id = update.message.photo[-1].file_id
+    _hacoo_queue.setdefault(user_id, []).append({"file_id": file_id, "chat_id": chat_id})
 
     if user_id not in _hacoo_active:
         _hacoo_active.add(user_id)
@@ -864,12 +856,25 @@ async def _process_hacoo_queue_job(context: ContextTypes.DEFAULT_TYPE):
         return
 
     item = queue.pop(0)
-    image_bytes = item["image_bytes"]
+    file_id = item["file_id"]
     chat_id = item["chat_id"]
     bot = context.bot
 
     status_msg = await bot.send_message(chat_id=chat_id, text="Analizando la imagen...")
     await bot.send_chat_action(chat_id=chat_id, action="typing")
+
+    try:
+        tg_file = await bot.get_file(file_id)
+        image_bytes = bytes(await tg_file.download_as_bytearray())
+    except Exception as e:
+        logger.error(f"Error descargando captura Hacoo: {e}")
+        await status_msg.edit_text("⚠️ No pude descargar la imagen. Inténtalo de nuevo.")
+        # Continuar con el siguiente
+        if _hacoo_queue.get(user_id):
+            context.application.job_queue.run_once(_process_hacoo_queue_job, 0.1, data={"user_id": user_id}, name=f"hacooqueue_{user_id}_{len(_hacoo_queue[user_id])}")
+        else:
+            _hacoo_active.discard(user_id)
+        return
 
     try:
         product_info = gemini_vision(
