@@ -1860,11 +1860,8 @@ _pending_channel_msgs: dict = {}
 _fwd_queue: dict = {}   # user_id → [{"photo_bytes_list": [...], "original_text": "..."}, ...]
 _fwd_active: set = set()  # user_ids con un flujo activo en curso
 
-# Cola de envío del canal Telethon (garantiza orden de llegada al owner)
-_telethon_seq: int = 0          # contador global de secuencia
-_telethon_next: int = 0         # próximo seq a enviar
-_telethon_pending: dict = {}    # seq → coroutine pendiente
-_telethon_lock = None           # asyncio.Lock (se crea en runtime)
+# Cola FIFO de envío del canal Telethon (garantiza orden de llegada al owner)
+_telethon_send_q = None         # asyncio.Queue, inicializada en _start_telethon_listener
 
 # Cola de capturas Hacoo (flujo normal) para mantener el orden de envío
 _hacoo_queue: dict = {}   # user_id → [{"image_bytes": bytes, "chat_id": int}, ...]
@@ -1895,6 +1892,21 @@ async def _start_telethon_listener(ptb_app):
     await client.start()
     logger.info("Telethon client started")
 
+    # Inicializar cola FIFO y arrancar consumer
+    global _telethon_send_q
+    import asyncio as _aio
+    _telethon_send_q = _aio.Queue()
+
+    async def _telethon_consumer():
+        while True:
+            coro = await _telethon_send_q.get()
+            try:
+                await coro
+            except Exception as e:
+                logger.error(f"[telethon consumer] {e}")
+
+    _aio.create_task(_telethon_consumer())
+
     # Resolver el canal
     try:
         watch_entity = await client.get_entity(WATCH_CHANNEL)
@@ -1910,7 +1922,6 @@ async def _start_telethon_listener(ptb_app):
 
     @client.on(events.NewMessage(chats=watch_entity))
     async def on_channel_message(event):
-        global _telethon_seq
         msg = event.message
 
         # Solo procesar mensajes con foto(s)
@@ -1920,29 +1931,24 @@ async def _start_telethon_listener(ptb_app):
         grouped_id = msg.grouped_id
 
         if grouped_id:
-            # Mensaje parte de un álbum — bufferizar
+            # Primer mensaje del álbum: crear evento y encolar YA (en orden de llegada)
             if grouped_id not in _album_buffer:
-                # Asignar número de secuencia al primer mensaje del álbum
-                seq = _telethon_seq
-                _telethon_seq += 1
-                _album_buffer[grouped_id] = {"msgs": [], "text": "", "seq": seq}
-                # Programar procesamiento tras 2s para que lleguen todos
-                asyncio.get_event_loop().call_later(
-                    2.5,
-                    lambda gid=grouped_id: asyncio.create_task(
-                        _forward_album_to_owner(client, ptb_app, _album_buffer, gid)
-                    )
+                ready_event = asyncio.Event()
+                _album_buffer[grouped_id] = {"msgs": [], "text": "", "ready": ready_event}
+                # Tras 2.5s señalar que el buffer está completo
+                asyncio.get_event_loop().call_later(2.5, ready_event.set)
+                # Poner en cola AHORA para respetar orden de llegada
+                _telethon_send_q.put_nowait(
+                    _forward_album_to_owner(client, ptb_app, _album_buffer, grouped_id, ready_event)
                 )
             _album_buffer[grouped_id]["msgs"].append(msg)
             if msg.text:
                 _album_buffer[grouped_id]["text"] = msg.text
         else:
-            # Foto individual — asignar secuencia y encolar
+            # Foto individual: encolar directamente en orden de llegada
             if msg.photo:
-                seq = _telethon_seq
-                _telethon_seq += 1
-                asyncio.create_task(
-                    _telethon_send_in_order(seq, _forward_single_to_owner(client, ptb_app, msg, seq))
+                _telethon_send_q.put_nowait(
+                    _forward_single_to_owner(client, ptb_app, msg)
                 )
 
     await client.run_until_disconnected()
@@ -1957,25 +1963,8 @@ async def _download_photo_bytes(client, msg) -> bytes | None:
         return None
 
 
-async def _telethon_send_in_order(seq: int, send_coro):
-    """Ejecuta send_coro cuando sea su turno según seq, garantizando el orden de llegada."""
-    global _telethon_next, _telethon_pending, _telethon_lock
-    if _telethon_lock is None:
-        import asyncio as _asyncio
-        _telethon_lock = _asyncio.Lock()
 
-    _telethon_pending[seq] = send_coro
-    async with _telethon_lock:
-        while _telethon_next in _telethon_pending:
-            coro = _telethon_pending.pop(_telethon_next)
-            _telethon_next += 1
-            try:
-                await coro
-            except Exception as e:
-                logger.error(f"Error enviando producto al owner (seq {seq}): {e}")
-
-
-async def _forward_single_to_owner(client, ptb_app, msg, seq: int = 0):
+async def _forward_single_to_owner(client, ptb_app, msg):
     """Reenvía un mensaje con foto individual al owner con botones ✅/❌."""
     import time
     photo_bytes = await _download_photo_bytes(client, msg)
@@ -2005,16 +1994,18 @@ async def _forward_single_to_owner(client, ptb_app, msg, seq: int = 0):
     )
 
 
-async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_id: int):
-    """Reenvía un álbum de fotos al owner con botones ✅/❌."""
+async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_id: int, ready_event):
+    """Reenvía un álbum de fotos al owner con botones ✅/❌. Espera a que el buffer esté completo."""
     import time
+    # Esperar a que lleguen todos los mensajes del álbum (2.5s)
+    await ready_event.wait()
+
     group = album_buffer.pop(grouped_id, None)
     if not group:
         return
 
     msgs = group["msgs"]
     original_text = group["text"]
-    seq = group.get("seq", 0)
 
     # Descargar todas las fotos
     photos_bytes = []
@@ -2032,40 +2023,30 @@ async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_i
         "original_text": original_text,
     }
 
-    # Enviar en orden de secuencia
-    await _telethon_send_in_order(seq, _do_send_album_to_owner(ptb_app, key, photos_bytes, original_text))
-    return
-
-async def _do_send_album_to_owner(ptb_app, key: str, photos_bytes: list, original_text: str):
-
     caption_text = f"📡 *Nuevo producto del canal* ({len(photos_bytes)} fotos)\n\n{original_text}" if original_text else f"📡 *Nuevo producto del canal* ({len(photos_bytes)} fotos)"
     kb = InlineKeyboardMarkup([[
         InlineKeyboardButton("✅ Publicar", callback_data=f"ch_ok_{key}"),
         InlineKeyboardButton("❌ Descartar", callback_data=f"ch_no_{key}"),
     ]])
 
-    try:
-        if len(photos_bytes) == 1:
-            await ptb_app.bot.send_photo(
-                chat_id=OWNER_ID,
-                photo=photos_bytes[0],
-                caption=caption_text,
-                parse_mode="Markdown",
-                reply_markup=kb,
-            )
-        else:
-            # Enviar álbum + mensaje con botones
-            from telegram import InputMediaPhoto as IMP
-            media = [IMP(media=b) for b in photos_bytes]
-            media[0] = IMP(media=photos_bytes[0], caption=caption_text, parse_mode="Markdown")
-            await ptb_app.bot.send_media_group(chat_id=OWNER_ID, media=media)
-            await ptb_app.bot.send_message(
-                chat_id=OWNER_ID,
-                text="¿Qué hacemos con este producto?",
-                reply_markup=kb,
-            )
-    except Exception as e:
-        logger.error(f"Error reenviando álbum al owner: {e}")
+    if len(photos_bytes) == 1:
+        await ptb_app.bot.send_photo(
+            chat_id=OWNER_ID,
+            photo=photos_bytes[0],
+            caption=caption_text,
+            parse_mode="Markdown",
+            reply_markup=kb,
+        )
+    else:
+        from telegram import InputMediaPhoto as IMP
+        media = [IMP(media=b) for b in photos_bytes]
+        media[0] = IMP(media=photos_bytes[0], caption=caption_text, parse_mode="Markdown")
+        await ptb_app.bot.send_media_group(chat_id=OWNER_ID, media=media)
+        await ptb_app.bot.send_message(
+            chat_id=OWNER_ID,
+            text="¿Qué hacemos con este producto?",
+            reply_markup=kb,
+        )
 
 
 # ---------------------------------------------------------------------------
