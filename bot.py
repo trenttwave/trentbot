@@ -2321,12 +2321,18 @@ async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE
     }
 
     is_yepex = bool(re.search(r'yepex|yepexpress', original_text, re.IGNORECASE))
+    # "Hacoo y yepex" = disponible en ambas plataformas → el usuario envía captura Hacoo
+    # "(yepex)" solo = solo en YepExpress → el usuario envía el link de YepExpress directamente
+    is_hacoo_and_yepex = bool(re.search(r'hacoo.*yepex|yepex.*hacoo', original_text, re.IGNORECASE))
     user_states[user_id]["is_yepex"] = is_yepex
 
     n = len(urls)
-    if is_yepex:
+    if is_hacoo_and_yepex:
         user_states[user_id]["state"] = "waiting_hacoo_for_channel"
-        texto_ok = "🟠 Producto Yepex detectado. Envíame la *captura del producto en Hacoo* para generar el link de afiliado."
+        texto_ok = "🟠 Producto en Hacoo y Yepex. Envíame la *captura del producto en Hacoo* para generar el link de afiliado."
+    elif is_yepex:
+        user_states[user_id]["state"] = "waiting_yepex_url_for_channel"
+        texto_ok = "🟠 Producto Yepex detectado. Envíame el *link de afiliado de YepExpress* y lo pondré en el mensaje."
     elif n > 1:
         texto_ok = f"✅ Este mensaje tiene {n} links. Envíame la captura de Hacoo del *primero* (1/{n})."
     else:
