@@ -1027,6 +1027,8 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
 
         # Todos los links procesados → construir texto final
         original_text = pending["original_text"]
+        # Limpiar anotaciones de fuente (yepex, hacoo y yepex, etc.)
+        original_text = re.sub(r'\n?.*\b(yepex|yepexpress)\b.*', '', original_text, flags=re.IGNORECASE).strip()
         url_pattern = r'https?://\S+'
         DISCOUNT_LINE = "🎁 Código descuento 14% en tu primer pedido: *TRENT14*\n"
 
@@ -2323,8 +2325,8 @@ async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     n = len(urls)
     if is_yepex:
-        user_states[user_id]["state"] = "waiting_yepex_url_for_channel"
-        texto_ok = "🟠 Producto Yepex detectado. Envíame el *link del producto* y lo pondré en el mensaje."
+        user_states[user_id]["state"] = "waiting_hacoo_for_channel"
+        texto_ok = "🟠 Producto Yepex detectado. Envíame la *captura del producto en Hacoo* para generar el link de afiliado."
     elif n > 1:
         texto_ok = f"✅ Este mensaje tiene {n} links. Envíame la captura de Hacoo del *primero* (1/{n})."
     else:
