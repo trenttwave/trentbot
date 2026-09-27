@@ -1441,6 +1441,8 @@ async def callback_calendario(update: Update, context: ContextTypes.DEFAULT_TYPE
                 f"✅ Programado para el {target.strftime('%d/%m/%Y')} a las {hour}:{minute}\n"
                 f"📤 Destino: canal\n\nUsa /pendientes para ver los mensajes programados."
             )
+            # Pasar al siguiente de la cola sin esperar a que se envíe el programado
+            await _show_next_from_queue(user_id, query.message.chat_id, context.bot)
             return
 
         # ── Flujo normal ──
@@ -1520,10 +1522,7 @@ async def _send_channel_scheduled(context) -> None:
             await context.bot.send_media_group(chat_id=CHANNEL_ID or chat_id, media=media)
         else:
             await context.bot.send_message(chat_id=CHANNEL_ID or chat_id, text=final_text, parse_mode="Markdown")
-        user_id = data.get("user_id", 0)
         await context.bot.send_message(chat_id=chat_id, text="✅ Mensaje del canal enviado.")
-        if user_id:
-            await _show_next_from_queue(user_id, chat_id, context.bot)
     except Exception as e:
         await context.bot.send_message(chat_id=chat_id, text=f"❌ Error al enviar: {e}")
 
