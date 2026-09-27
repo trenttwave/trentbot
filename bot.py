@@ -1680,6 +1680,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     logger.info(f"Message from {user.first_name} (@{user.username}): {user_message}")
 
+    # Si esperamos captura Hacoo O link Yepex (cuando el producto está en ambas plataformas)
+    if (user_states.get(user_id, {}).get("state") == "waiting_hacoo_for_channel"
+            and user_states.get(user_id, {}).get("is_hacoo_and_yepex")
+            and re.search(r'https?://\S+', user_message)):
+        # Usuario envió un link de YepExpress en vez de captura Hacoo → tratar como yepex link
+        user_states[user_id]["state"] = "waiting_yepex_url_for_channel"
+        # Procesar en el bloque siguiente
+
     # Si esperamos link de Yepex para canal externo
     if user_states.get(user_id, {}).get("state") == "waiting_yepex_url_for_channel":
         yepex_url = re.search(r'https?://\S+', user_message)
@@ -2329,7 +2337,8 @@ async def callback_channel_ok(update: Update, context: ContextTypes.DEFAULT_TYPE
     n = len(urls)
     if is_hacoo_and_yepex:
         user_states[user_id]["state"] = "waiting_hacoo_for_channel"
-        texto_ok = "🟠 Producto en Hacoo y Yepex. Envíame la *captura del producto en Hacoo* para generar el link de afiliado."
+        user_states[user_id]["is_hacoo_and_yepex"] = True
+        texto_ok = "🟠 Producto en Hacoo y Yepex. Envíame la *captura de Hacoo* para generar el link, o el *link de afiliado de YepExpress* directamente."
     elif is_yepex:
         user_states[user_id]["state"] = "waiting_yepex_url_for_channel"
         texto_ok = "🟠 Producto Yepex detectado. Envíame el *link de afiliado de YepExpress* y lo pondré en el mensaje."
