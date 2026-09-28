@@ -1027,8 +1027,9 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
 
         # Todos los links procesados → construir texto final
         original_text = pending["original_text"]
-        # Limpiar anotaciones de fuente (yepex, hacoo y yepex, etc.)
+        # Limpiar anotaciones de fuente y hashtags
         original_text = re.sub(r'\n?.*\b(yepex|yepexpress)\b.*', '', original_text, flags=re.IGNORECASE).strip()
+        original_text = _clean_channel_text(original_text)
         url_pattern = r'https?://\S+'
         DISCOUNT_LINE = "🎁 Código descuento 14% en tu primer pedido: *TRENT14*\n"
 
@@ -1702,7 +1703,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_states.pop(user_id, None)
             return
 
-        original_text = pending["original_text"]
+        original_text = _clean_channel_text(pending["original_text"])
         DISCOUNT_LINE = "🎁 Código descuento 14% en tu primer pedido: *TRENT14*\n"
         url_pattern = r'https?://\S+'
 
@@ -2897,6 +2898,15 @@ async def _nl_save_all(chat_id: int, user_id: int, section: str, affiliate_map: 
         chat_id=chat_id,
         text=f"✅ {len(added)} producto{'s' if len(added)!=1 else ''} añadido{'s' if len(added)!=1 else ''} a {section_name}:\n\n{resumen}\n\nReenvía otro mensaje o /newsletter para cambiar de sección."
     )
+
+
+def _clean_channel_text(text: str) -> str:
+    """Quita hashtags de un texto de canal externo."""
+    # Eliminar cada #hashtag y limpiar líneas que queden vacías
+    text = re.sub(r'#\S+', '', text)
+    # Colapsar líneas vacías extra
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 
 def _clean_product_name(name: str) -> str:
