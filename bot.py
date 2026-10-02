@@ -2901,9 +2901,19 @@ async def _nl_save_all(chat_id: int, user_id: int, section: str, affiliate_map: 
 
 
 def _clean_channel_text(text: str) -> str:
-    """Quita hashtags de un texto de canal externo."""
-    # Eliminar cada #hashtag y limpiar líneas que queden vacías
+    """Quita hashtags y códigos de descuento ajenos de un texto de canal externo."""
+    # Eliminar cada #hashtag
     text = re.sub(r'#\S+', '', text)
+    # Eliminar líneas que mencionen un código de descuento ajeno
+    # Detecta patrones como: "código de descuento ...", "codigo descuento ...",
+    # "código: XXXX", "recordad ... código ...", etc.
+    lines = text.splitlines()
+    filtered = []
+    for line in lines:
+        if re.search(r'c[oó]digo[\s\w]*descuento|descuento[\s\w]*c[oó]digo|c[oó]digo\s*[:]\s*\w+', line, re.IGNORECASE):
+            continue
+        filtered.append(line)
+    text = '\n'.join(filtered)
     # Colapsar líneas vacías extra
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
