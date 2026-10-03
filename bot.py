@@ -3343,6 +3343,21 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_newsletter_send, pattern="^nl_send_"))
     app.add_handler(MessageHandler(filters.Regex(r"^📋BACKUP\n"), cmd_restore))
     app.add_handler(CommandHandler("cancelar", lambda u, c: (user_states.pop(u.effective_user.id, None), u.message.reply_text("✅ Listo."))))
+
+    async def cmd_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Reinicia completamente el estado del usuario — desbloquea el bot."""
+        uid = update.effective_user.id
+        user_states.pop(uid, None)
+        # Limpiar también colas activas de este usuario
+        _hacoo_queue.pop(uid, None)
+        _hacoo_active.discard(uid)
+        _fwd_queue.pop(uid, None)
+        _fwd_active.discard(uid)
+        await update.message.reply_text(
+            "🔄 Bot reiniciado. Todo limpio — puedes empezar de nuevo.\n\n"
+            "Envíame una captura de Hacoo o un mensaje del canal para continuar."
+        )
+    app.add_handler(CommandHandler("reset", cmd_reset))
     app.add_handler(CallbackQueryHandler(callback_calendario, pattern="^cal_"))
     app.add_handler(CallbackQueryHandler(callback_cancel_job, pattern="^cancel_job_"))
     # ── Nuevos handlers canal externo ──
