@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 HACOO_COOKIE = os.environ.get("HACOO_COOKIE", "").strip()
 CHANNEL_ID = os.environ.get("CHANNEL_ID", "").strip()
 HACOO_EMAIL = os.environ.get("HACOO_EMAIL", "").strip()
@@ -259,30 +260,31 @@ def _load_scheduled_jobs_local() -> list:
     return []
 
 
-from google import genai as _genai
-_genai_client = _genai.Client(api_key=GEMINI_API_KEY)
-_GEMINI_MODEL_NAME = "gemini-2.0-flash"
+from openai import OpenAI as _OpenAI
+_openai_client = _OpenAI(api_key=OPENAI_API_KEY)
+_OPENAI_MODEL = "gpt-4o-mini"
 
 
-def _gemini_call(contents, attempt_limit=5) -> str:
+def _ai_call(messages, attempt_limit=5) -> str:
     for attempt in range(attempt_limit):
         try:
-            response = _genai_client.models.generate_content(
-                model=_GEMINI_MODEL_NAME,
-                contents=contents,
+            response = _openai_client.chat.completions.create(
+                model=_OPENAI_MODEL,
+                messages=messages,
+                max_tokens=1024,
             )
-            return response.text
+            return response.choices[0].message.content
         except Exception as e:
             err = str(e)
-            logger.warning(f"Gemini intento {attempt+1}: {err}")
+            logger.warning(f"OpenAI intento {attempt+1}: {err}")
             if attempt < attempt_limit - 1:
                 time.sleep(4 * (attempt + 1))
             else:
-                raise Exception(f"Gemini no disponible: {err}")
+                raise Exception(f"IA no disponible: {err}")
 
 
 def gemini_text(prompt: str) -> str:
-    return _gemini_call(prompt)
+    return _ai_call([{"role": "user", "content": prompt}])
 
 
 def _enrich_title(titulo: str) -> tuple[str, str, str]:
@@ -311,14 +313,11 @@ def _enrich_title(titulo: str) -> tuple[str, str, str]:
 
 
 def gemini_vision(image_bytes: bytes, prompt: str) -> str:
-    import PIL.Image, io
-    img = PIL.Image.open(io.BytesIO(image_bytes))
-    return _gemini_call([prompt, img])
-
-
-# URLs mantenidas por compatibilidad con logs
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{_GEMINI_MODEL_NAME}:generateContent"
-GEMINI_FALLBACK_URL = GEMINI_URL
+    image_b64 = base64.b64encode(image_bytes).decode()
+    return _ai_call([{"role": "user", "content": [
+        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
+        {"type": "text", "text": prompt},
+    ]}])
 
 
 def _fetch_og_image_url(product_id: str) -> str | None:
