@@ -260,14 +260,23 @@ def _load_scheduled_jobs_local() -> list:
 
 
 def _gemini_post(url: str, body: dict) -> str:
+    _is_bearer = GEMINI_API_KEY.startswith("AQ.")
     for attempt in range(5):
         current_url = GEMINI_FALLBACK_URL if attempt >= 3 else url
         try:
-            resp = requests.post(
-                f"{current_url}?key={GEMINI_API_KEY}",
-                json=body,
-                timeout=30,
-            )
+            if _is_bearer:
+                resp = requests.post(
+                    current_url,
+                    json=body,
+                    timeout=30,
+                    headers={"Authorization": f"Bearer {GEMINI_API_KEY}"},
+                )
+            else:
+                resp = requests.post(
+                    f"{current_url}?key={GEMINI_API_KEY}",
+                    json=body,
+                    timeout=30,
+                )
         except requests.exceptions.RequestException as e:
             if attempt < 4:
                 time.sleep(4 * (attempt + 1))
