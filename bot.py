@@ -37,8 +37,6 @@ HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 FIREBASE_CREDENTIALS = os.environ.get("FIREBASE_CREDENTIALS", "").strip()
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
-GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
 _JOBS_FILE = "/tmp/scheduled_jobs.json"
 
@@ -3311,8 +3309,8 @@ async def _handle_newsletter_links(update: Update, context: ContextTypes.DEFAULT
 def main():
     if not BOT_TOKEN:
         raise ValueError("BOT_TOKEN is not set")
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY is not set")
+    if not OPENAI_API_KEY:
+        raise ValueError("OPENAI_API_KEY is not set")
 
     app = Application.builder().token(BOT_TOKEN).post_init(_restore_scheduled_jobs).build()
     app.add_handler(CommandHandler("start", start))
