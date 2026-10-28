@@ -260,28 +260,8 @@ def _load_scheduled_jobs_local() -> list:
 
 
 from google import genai as _genai
-from google.oauth2 import service_account as _sa
+_genai_client = _genai.Client(api_key=GEMINI_API_KEY)
 _GEMINI_MODEL_NAME = "gemini-2.0-flash"
-
-def _build_genai_client():
-    if FIREBASE_CREDENTIALS:
-        try:
-            creds_dict = json.loads(FIREBASE_CREDENTIALS)
-            creds = _sa.Credentials.from_service_account_info(
-                creds_dict,
-                scopes=["https://www.googleapis.com/auth/cloud-platform"],
-            )
-            return _genai.Client(
-                vertexai=True,
-                project=creds_dict.get("project_id", "trentbot-be272"),
-                location="us-central1",
-                credentials=creds,
-            )
-        except Exception as e:
-            logger.warning(f"Firebase creds failed, using API key: {e}")
-    return _genai.Client(api_key=GEMINI_API_KEY)
-
-_genai_client = _build_genai_client()
 
 
 def _gemini_call(contents, attempt_limit=5) -> str:
