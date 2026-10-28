@@ -36,8 +36,8 @@ HACOO_PASSWORD = os.environ.get("HACOO_PASSWORD", "").strip()
 FIREBASE_CREDENTIALS = os.environ.get("FIREBASE_CREDENTIALS", "").strip()
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY", "").strip()
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent"
+GEMINI_FALLBACK_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent"
 _SESSION_COOKIES_FILE = "/tmp/hacoo_session.json"
 _JOBS_FILE = "/tmp/scheduled_jobs.json"
 
