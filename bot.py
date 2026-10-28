@@ -259,15 +259,18 @@ def _load_scheduled_jobs_local() -> list:
     return []
 
 
-import google.generativeai as _genai
-_genai.configure(api_key=GEMINI_API_KEY)
-_GEMINI_MODEL = _genai.GenerativeModel("gemini-1.5-flash")
+from google import genai as _genai
+_genai_client = _genai.Client(api_key=GEMINI_API_KEY)
+_GEMINI_MODEL_NAME = "gemini-2.0-flash"
 
 
 def _gemini_call(contents, attempt_limit=5) -> str:
     for attempt in range(attempt_limit):
         try:
-            response = _GEMINI_MODEL.generate_content(contents)
+            response = _genai_client.models.generate_content(
+                model=_GEMINI_MODEL_NAME,
+                contents=contents,
+            )
             return response.text
         except Exception as e:
             err = str(e)
@@ -311,6 +314,11 @@ def gemini_vision(image_bytes: bytes, prompt: str) -> str:
     import PIL.Image, io
     img = PIL.Image.open(io.BytesIO(image_bytes))
     return _gemini_call([prompt, img])
+
+
+# URLs mantenidas por compatibilidad con logs
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{_GEMINI_MODEL_NAME}:generateContent"
+GEMINI_FALLBACK_URL = GEMINI_URL
 
 
 def _fetch_og_image_url(product_id: str) -> str | None:

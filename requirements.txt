@@ -3,4 +3,4 @@ requests==2.31.0
 playwright==1.44.0
 Pillow==10.4.0
 firebase-admin==6.5.0
-google-generativeai==0.8.3
+google-genai==1.16.0
