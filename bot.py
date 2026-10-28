@@ -259,49 +259,27 @@ def _load_scheduled_jobs_local() -> list:
     return []
 
 
-def _gemini_post(url: str, body: dict) -> str:
-    _is_bearer = GEMINI_API_KEY.startswith("AQ.")
-    for attempt in range(5):
-        current_url = GEMINI_FALLBACK_URL if attempt >= 3 else url
+import google.generativeai as _genai
+_genai.configure(api_key=GEMINI_API_KEY)
+_GEMINI_MODEL = _genai.GenerativeModel("gemini-1.5-flash")
+
+
+def _gemini_call(contents, attempt_limit=5) -> str:
+    for attempt in range(attempt_limit):
         try:
-            if _is_bearer:
-                resp = requests.post(
-                    current_url,
-                    json=body,
-                    timeout=30,
-                    headers={"Authorization": f"Bearer {GEMINI_API_KEY}"},
-                )
-            else:
-                resp = requests.post(
-                    f"{current_url}?key={GEMINI_API_KEY}",
-                    json=body,
-                    timeout=30,
-                )
-        except requests.exceptions.RequestException as e:
-            if attempt < 4:
+            response = _GEMINI_MODEL.generate_content(contents)
+            return response.text
+        except Exception as e:
+            err = str(e)
+            logger.warning(f"Gemini intento {attempt+1}: {err}")
+            if attempt < attempt_limit - 1:
                 time.sleep(4 * (attempt + 1))
-                continue
-            raise Exception("No se pudo conectar con Gemini. Inténtalo de nuevo.") from e
-        logger.info(f"Gemini status ({current_url.split('/models/')[1].split(':')[0]}): {resp.status_code}")
-        if resp.status_code in (429, 500, 503):
-            if attempt < 4:
-                wait = 4 * (attempt + 1)
-                logger.warning(f"Gemini {resp.status_code}, reintentando en {wait}s...")
-                time.sleep(wait)
-                continue
-            raise Exception("Gemini no está disponible ahora mismo (503). Espera unos segundos e inténtalo de nuevo.")
-        resp.raise_for_status()
-        data = resp.json()
-        candidates = data.get("candidates")
-        if not candidates:
-            feedback = data.get("promptFeedback", {})
-            reason = feedback.get("blockReason", "sin candidatos")
-            raise Exception(f"Gemini no devolvió respuesta ({reason}). Espera un momento e inténtalo de nuevo.")
-        return candidates[0]["content"]["parts"][0]["text"]
+            else:
+                raise Exception(f"Gemini no disponible: {err}")
 
 
 def gemini_text(prompt: str) -> str:
-    return _gemini_post(GEMINI_URL, {"contents": [{"parts": [{"text": prompt}]}]})
+    return _gemini_call(prompt)
 
 
 def _enrich_title(titulo: str) -> tuple[str, str, str]:
@@ -330,15 +308,9 @@ def _enrich_title(titulo: str) -> tuple[str, str, str]:
 
 
 def gemini_vision(image_bytes: bytes, prompt: str) -> str:
-    image_b64 = base64.b64encode(image_bytes).decode()
-    return _gemini_post(GEMINI_URL, {
-        "contents": [{
-            "parts": [
-                {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
-                {"text": prompt},
-            ]
-        }]
-    })
+    import PIL.Image, io
+    img = PIL.Image.open(io.BytesIO(image_bytes))
+    return _gemini_call([prompt, img])
 
 
 def _fetch_og_image_url(product_id: str) -> str | None:
