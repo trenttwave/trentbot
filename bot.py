@@ -867,7 +867,7 @@ async def _process_hacoo_queue_job(context: ContextTypes.DEFAULT_TYPE):
             image_bytes,
             (
                 "Analiza esta captura de la app Hacoo. Devuelve exactamente tres líneas:\n"
-                "ID: [solo el número de ID del producto]\n"
+                "ID: [el número de ID del producto, siempre exactamente 8 dígitos]\n"
                 "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]\n"
                 "Colores: [si ves el texto 'Total X están disponibles' devuelve ese número; "
                 "si no, cuenta todas las miniaturas de la sección Style y devuelve solo el número]"
@@ -879,7 +879,9 @@ async def _process_hacoo_queue_job(context: ContextTypes.DEFAULT_TYPE):
         colores = ""
         for line in product_info.splitlines():
             if line.startswith("ID:"):
-                product_id = line.replace("ID:", "").strip()
+                raw = line.replace("ID:", "").strip()
+                digits = re.sub(r"\D", "", raw)
+                product_id = digits[:8] if len(digits) >= 8 else digits
             elif line.startswith("Precio:"):
                 price_raw = line.replace("Precio:", "").strip()
             elif line.startswith("Colores:"):
@@ -887,7 +889,7 @@ async def _process_hacoo_queue_job(context: ContextTypes.DEFAULT_TYPE):
                 if re.search(r"\d+", val):
                     colores = re.search(r"\d+", val).group()
 
-        if not product_id.isdigit():
+        if not product_id.isdigit() or len(product_id) != 8:
             await status_msg.edit_text(
                 "No encontré el ID del producto. Asegúrate de que la captura muestre el ID numérico."
             )
@@ -959,7 +961,7 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
             image_bytes,
             (
                 "Analiza esta captura de la app Hacoo. Devuelve exactamente tres líneas:\n"
-                "ID: [solo el número de ID del producto]\n"
+                "ID: [el número de ID del producto, siempre exactamente 8 dígitos]\n"
                 "Precio: [precio redondeado sin decimales con símbolo €, ejemplo: 29€]\n"
                 "Colores: [si ves el texto 'Total X están disponibles' devuelve ese número; "
                 "si no, cuenta todas las miniaturas de la sección Style y devuelve solo el número]"
@@ -971,7 +973,9 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
         colores = ""
         for line in product_info.splitlines():
             if line.startswith("ID:"):
-                product_id = line.replace("ID:", "").strip()
+                raw = line.replace("ID:", "").strip()
+                digits = re.sub(r"\D", "", raw)
+                product_id = digits[:8] if len(digits) >= 8 else digits
             elif line.startswith("Precio:"):
                 price_raw = line.replace("Precio:", "").strip()
             elif line.startswith("Colores:"):
@@ -979,7 +983,7 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
                 if re.search(r"\d+", val):
                     colores = re.search(r"\d+", val).group()
 
-        if not product_id.isdigit():
+        if not product_id.isdigit() or len(product_id) != 8:
             await status_msg.edit_text("No encontré el ID del producto. Envía otra captura.")
             return
 
