@@ -881,7 +881,7 @@ async def _process_hacoo_queue_job(context: ContextTypes.DEFAULT_TYPE):
             if line.startswith("ID:"):
                 raw = line.replace("ID:", "").strip()
                 digits = re.sub(r"\D", "", raw)
-                product_id = digits[:8] if len(digits) >= 8 else digits
+                product_id = digits
             elif line.startswith("Precio:"):
                 price_raw = line.replace("Precio:", "").strip()
             elif line.startswith("Colores:"):
@@ -889,12 +889,23 @@ async def _process_hacoo_queue_job(context: ContextTypes.DEFAULT_TYPE):
                 if re.search(r"\d+", val):
                     colores = re.search(r"\d+", val).group()
 
+        # Si no son exactamente 8 dígitos, reintentar con prompt más específico
+        if not product_id.isdigit() or len(product_id) != 8:
+            await status_msg.edit_text("Releyendo el ID del producto...")
+            retry_info = gemini_vision(
+                image_bytes,
+                "Busca en esta captura de Hacoo el número de producto. Está debajo del precio, "
+                "es un número de EXACTAMENTE 8 dígitos (ni más ni menos). "
+                "Responde ÚNICAMENTE con esos 8 dígitos, sin texto adicional."
+            ).strip()
+            product_id = re.sub(r"\D", "", retry_info)
+
         if not product_id.isdigit() or len(product_id) != 8:
             await status_msg.edit_text(
                 "No encontré el ID del producto. Asegúrate de que la captura muestre el ID numérico."
             )
         else:
-            await status_msg.edit_text(f"ID encontrado: {product_id}\nGenerando link de afiliado...")
+            await status_msg.edit_text(f"ID: {product_id} ✓\nGenerando link de afiliado...")
 
             affiliate_link, image_url = await asyncio.gather(
                 generate_affiliate_link(product_id),
@@ -975,13 +986,24 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
             if line.startswith("ID:"):
                 raw = line.replace("ID:", "").strip()
                 digits = re.sub(r"\D", "", raw)
-                product_id = digits[:8] if len(digits) >= 8 else digits
+                product_id = digits
             elif line.startswith("Precio:"):
                 price_raw = line.replace("Precio:", "").strip()
             elif line.startswith("Colores:"):
                 val = line.replace("Colores:", "").strip()
                 if re.search(r"\d+", val):
                     colores = re.search(r"\d+", val).group()
+
+        # Si no son exactamente 8 dígitos, reintentar con prompt más específico
+        if not product_id.isdigit() or len(product_id) != 8:
+            await status_msg.edit_text("Releyendo el ID del producto...")
+            retry_info = gemini_vision(
+                image_bytes,
+                "Busca en esta captura de Hacoo el número de producto. Está debajo del precio, "
+                "es un número de EXACTAMENTE 8 dígitos (ni más ni menos). "
+                "Responde ÚNICAMENTE con esos 8 dígitos, sin texto adicional."
+            ).strip()
+            product_id = re.sub(r"\D", "", retry_info)
 
         if not product_id.isdigit() or len(product_id) != 8:
             await status_msg.edit_text("No encontré el ID del producto. Envía otra captura.")
