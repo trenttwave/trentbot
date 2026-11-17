@@ -1138,26 +1138,50 @@ async def callback_channel_publish(update: Update, context: ContextTypes.DEFAULT
         final_text = state.get("final_text", "")
         photos_bytes = pending["photo_bytes_list"]
 
-        try:
-            if len(photos_bytes) == 1:
-                await context.bot.send_photo(
-                    chat_id=CHANNEL_ID,
-                    photo=photos_bytes[0],
-                    caption=final_text,
-                    parse_mode="Markdown",
-                )
-            else:
-                from telegram import InputMediaPhoto as IMP
-                media = [IMP(media=b) for b in photos_bytes]
-                media[0] = IMP(media=photos_bytes[0], caption=final_text, parse_mode="Markdown")
-                await context.bot.send_media_group(chat_id=CHANNEL_ID, media=media)
-
-            _pending_channel_msgs.pop(key, None)
-            user_states.pop(user_id, None)
-            await query.edit_message_text("✅ Publicado en el canal.")
-            await _show_next_from_queue(user_id, query.message.chat.id, context.bot)
-        except Exception as e:
-            await query.edit_message_text(f"❌ Error al publicar: {e}")
+        last_err = None
+        for attempt in range(3):
+            try:
+                if len(photos_bytes) == 1:
+                    await context.bot.send_photo(
+                        chat_id=CHANNEL_ID,
+                        photo=photos_bytes[0],
+                        caption=final_text,
+                        parse_mode="Markdown",
+                        read_timeout=60,
+                        write_timeout=60,
+                        connect_timeout=30,
+                    )
+                else:
+                    from telegram import InputMediaPhoto as IMP
+                    media = [IMP(media=b) for b in photos_bytes]
+                    media[0] = IMP(media=photos_bytes[0], caption=final_text, parse_mode="Markdown")
+                    await context.bot.send_media_group(
+                        chat_id=CHANNEL_ID,
+                        media=media,
+                        read_timeout=60,
+                        write_timeout=60,
+                        connect_timeout=30,
+                    )
+                _pending_channel_msgs.pop(key, None)
+                user_states.pop(user_id, None)
+                await query.edit_message_text("✅ Publicado en el canal.")
+                await _show_next_from_queue(user_id, query.message.chat.id, context.bot)
+                last_err = None
+                break
+            except Exception as e:
+                last_err = e
+                logger.warning(f"Error al publicar intento {attempt+1}: {e}")
+                if attempt < 2:
+                    await asyncio.sleep(3)
+        if last_err is not None:
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔄 Reintentar", callback_data=f"chpub_now_{key}"),
+                InlineKeyboardButton("❌ Cancelar", callback_data=f"chpub_cancel_{key}"),
+            ]])
+            await query.edit_message_text(
+                f"❌ Error al publicar (timeout). Pulsa Reintentar.",
+                reply_markup=kb,
+            )
         return
 
     if data.startswith("chpub_sched_"):
