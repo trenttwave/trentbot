@@ -711,14 +711,12 @@ async def generate_affiliate_link(product_id: str) -> str:
 
     if HACOO_EMAIL and HACOO_PASSWORD:
         try:
-            link = await asyncio.wait_for(_generate_via_playwright(product_id), timeout=90)
+            link = await asyncio.wait_for(_generate_via_playwright(product_id), timeout=120)
             if link:
                 logger.info(f"Affiliate link via Playwright: {link}")
                 return link
-        except asyncio.TimeoutError:
-            logger.warning("Playwright timeout (45s), falling back")
-        except Exception as e:
-            logger.warning(f"Playwright failed: {e}")
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.warning(f"Playwright failed/timeout, falling back: {e}")
 
     if HACOO_COOKIE:
         f_tracking = _parse_f_tracking(HACOO_COOKIE)
@@ -937,7 +935,7 @@ async def _process_hacoo_queue_job(context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Error procesando captura Hacoo: {e}")
-        await status_msg.edit_text(f"Error: {e}")
+        await status_msg.edit_text(f"❌ Error inesperado. Vuelve a enviar la captura.")
 
     # Procesar el siguiente si hay más en cola
     if _hacoo_queue.get(user_id):
@@ -1111,7 +1109,7 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
 
     except Exception as e:
         logger.error(f"Error en flujo canal externo: {e}")
-        await status_msg.edit_text(f"Error: {e}")
+        await status_msg.edit_text(f"❌ Error inesperado. Vuelve a enviar la captura.")
 
 
 async def callback_channel_publish(update: Update, context: ContextTypes.DEFAULT_TYPE):
