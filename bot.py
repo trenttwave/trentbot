@@ -1174,14 +1174,11 @@ async def callback_channel_publish(update: Update, context: ContextTypes.DEFAULT
                 if attempt < 2:
                     await asyncio.sleep(3)
         if last_err is not None:
-            kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔄 Reintentar", callback_data=f"chpub_now_{key}"),
-                InlineKeyboardButton("❌ Cancelar", callback_data=f"chpub_cancel_{key}"),
-            ]])
-            await query.edit_message_text(
-                f"❌ Error al publicar (timeout). Pulsa Reintentar.",
-                reply_markup=kb,
-            )
+            logger.error(f"Publicación fallida tras 3 intentos: {last_err}")
+            _pending_channel_msgs.pop(key, None)
+            user_states.pop(user_id, None)
+            await query.edit_message_text("⚠️ No se pudo publicar (timeout). Pasando al siguiente producto...")
+            await _show_next_from_queue(user_id, query.message.chat.id, context.bot)
         return
 
     if data.startswith("chpub_sched_"):
