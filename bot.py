@@ -3379,11 +3379,19 @@ def main():
         """Reinicia completamente el estado del usuario — desbloquea el bot."""
         uid = update.effective_user.id
         user_states.pop(uid, None)
-        # Limpiar también colas activas de este usuario
         _hacoo_queue.pop(uid, None)
         _hacoo_active.discard(uid)
         _fwd_queue.pop(uid, None)
         _fwd_active.discard(uid)
+        # Limpiar buffers de álbumes reenviados
+        for buf_dict in [_fwd_album_buffer, _nl_album_buffer]:
+            keys_to_del = [k for k, v in buf_dict.items() if v.get("user_id") == uid or v.get("chat_id") == uid]
+            for k in keys_to_del:
+                buf_dict.pop(k, None)
+        # Limpiar mensajes pendientes de publicación de este usuario (key contiene uid)
+        keys_to_del = [k for k in _pending_channel_msgs if str(uid) in k]
+        for k in keys_to_del:
+            _pending_channel_msgs.pop(k, None)
         await update.message.reply_text(
             "🔄 Bot reiniciado. Todo limpio — puedes empezar de nuevo.\n\n"
             "Envíame una captura de Hacoo o un mensaje del canal para continuar."
