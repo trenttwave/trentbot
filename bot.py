@@ -2095,22 +2095,21 @@ async def _download_photo_bytes(client, msg) -> bytes | None:
 
 
 def _has_foreign_watermark(image_bytes: bytes) -> bool:
-    """Detecta si la imagen tiene una marca de agua de canal Telegram superpuesta."""
+    """Detecta si la imagen tiene un @ superpuesto como marca de agua."""
     try:
+        logger.info("[WM-DETECT] Iniciando detección de watermark...")
         result = gemini_vision(
             image_bytes,
-            "Look carefully at this product photo. Is there a semi-transparent or opaque TEXT OVERLAY "
-            "superimposed on top of the image, specifically a Telegram channel username or handle "
-            "(text starting with @ like @hacoolinksbladefinds or similar)? "
-            "Do NOT count brand logos printed on the product itself, packaging text, or product labels. "
-            "Only count text that has been digitally added on top of the photo as a watermark. "
+            "Is there an '@' symbol visible as a text watermark overlaid on top of this image "
+            "(for example @hacoolinksbladefinds or any other @username)? "
             "Answer only YES or NO."
         ).strip().upper()
-        has_wm = result.startswith("YES")
-        logger.info(f"[WM-DETECT] Foreign watermark detected: {has_wm} (response: {result})")
+        logger.info(f"[WM-DETECT] Respuesta IA: '{result}'")
+        has_wm = "YES" in result
+        logger.info(f"[WM-DETECT] Tiene watermark: {has_wm}")
         return has_wm
     except Exception as e:
-        logger.warning(f"[WM-DETECT] Detection failed, assuming no watermark: {e}")
+        logger.warning(f"[WM-DETECT] Error en detección: {e}", exc_info=True)
         return False
 
 
