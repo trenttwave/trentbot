@@ -703,6 +703,63 @@ def _parse_f_tracking(cookie: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Watermark
+# ---------------------------------------------------------------------------
+
+WATERMARK_TEXT = "@trentthacoo"
+WATERMARK_ENABLED = True  # cambiar a False para desactivar
+
+def _add_watermark(image_bytes: bytes) -> bytes:
+    """Añade marca de agua sobre la imagen. Si falla, devuelve la original."""
+    if not WATERMARK_ENABLED:
+        return image_bytes
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+        import io
+
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+        w, h = img.size
+
+        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+
+        font_size = max(20, w // 20)
+        font = None
+        for font_path in [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        ]:
+            try:
+                font = ImageFont.truetype(font_path, font_size)
+                break
+            except Exception:
+                continue
+        if font is None:
+            font = ImageFont.load_default()
+
+        bbox = draw.textbbox((0, 0), WATERMARK_TEXT, font=font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+        # Centro de la imagen (donde suelen estar las marcas de agua ajenas)
+        x = (w - tw) // 2
+        y = (h - th) // 2
+
+        # Sombra para legibilidad
+        draw.text((x + 2, y + 2), WATERMARK_TEXT, font=font, fill=(0, 0, 0, 160))
+        draw.text((x, y), WATERMARK_TEXT, font=font, fill=(255, 255, 255, 220))
+
+        combined = Image.alpha_composite(img, overlay).convert("RGB")
+        buf = io.BytesIO()
+        combined.save(buf, format="JPEG", quality=90)
+        return buf.getvalue()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Watermark failed, usando original: {e}")
+        return image_bytes
+
+
+# ---------------------------------------------------------------------------
 # Main link generation
 # ---------------------------------------------------------------------------
 
@@ -1136,7 +1193,7 @@ async def callback_channel_publish(update: Update, context: ContextTypes.DEFAULT
             return
 
         final_text = state.get("final_text", "")
-        photos_bytes = pending["photo_bytes_list"]
+        photos_bytes = [_add_watermark(b) for b in pending["photo_bytes_list"]]
 
         last_err = None
         for attempt in range(3):
