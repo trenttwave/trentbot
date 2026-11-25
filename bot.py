@@ -762,7 +762,7 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         # Barra solo del ancho del texto propio (no de la marca ajena)
         cx = (w - tw) // 2
 
-        pad_x = 50   # margen horizontal
+        pad_x = 58   # margen horizontal
         pad_y = 5    # grosor vertical
         rect_top = y + bbox[1] - pad_y
         rect_bot = y + bbox[1] + th + pad_y
