@@ -754,10 +754,11 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         x = (w - tw) // 2
         y = (h - th) // 2
 
-        pad = 6
-        # Fondo negro semitransparente
-        draw.rectangle([x - pad, y - pad, x + tw + pad, y + th + pad], fill=(0, 0, 0))
-        # Texto blanco fino
+        # Rectángulo negro más ancho que el texto para cubrir bien la marca ajena
+        pad_x = max(60, tw // 3)  # margen horizontal generoso
+        pad_y = max(10, th // 2)
+        draw.rectangle([x - pad_x, y - pad_y, x + tw + pad_x, y + th + pad_y], fill=(0, 0, 0))
+        # Texto blanco centrado encima
         draw.text((x, y), WATERMARK_TEXT, font=font, fill=(255, 255, 255))
 
         buf = io.BytesIO()
