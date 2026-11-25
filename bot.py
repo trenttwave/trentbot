@@ -767,9 +767,12 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         cx = (w - cover_w) // 2
 
         pad_x = 12
-        pad_y = 2
-        rect_top = y + bbox[1] - pad_y
-        rect_bot = y + bbox[1] + th + pad_y
+        pad_y = 1
+        # th real visible (sin espacio de línea extra)
+        th_vis = int(th * 0.72)
+        offset_y = (th - th_vis) // 2
+        rect_top = y + bbox[1] + offset_y - pad_y
+        rect_bot = y + bbox[1] + offset_y + th_vis + pad_y
         draw.rectangle([cx - pad_x, rect_top, cx + cover_w + pad_x, rect_bot], fill=(0, 0, 0))
         draw.text((x, y), WATERMARK_TEXT, font=font, fill=(255, 255, 255))
 
