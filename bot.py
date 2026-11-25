@@ -727,39 +727,37 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         w, h = img.size
         draw = ImageDraw.Draw(img)
 
-        font_size = max(36, w // 14)
+        font_size = max(24, w // 22)  # más pequeño y fino
         font = None
         for font_path in [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-            "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",        # regular (no bold)
+            "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",   # fallback bold
         ]:
             try:
                 font = ImageFont.truetype(font_path, font_size)
-                logger.info(f"[WM] Font loaded: {font_path}")
                 break
             except Exception:
                 continue
         if font is None:
             try:
                 font = ImageFont.load_default(size=font_size)
-                logger.info("[WM] Using load_default with size")
             except TypeError:
                 font = ImageFont.load_default()
-                logger.info("[WM] Using load_default fallback")
 
         bbox = draw.textbbox((0, 0), WATERMARK_TEXT, font=font)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-        # Centro de la imagen (donde suelen estar las marcas de agua ajenas)
+        # Centro de la imagen
         x = (w - tw) // 2
         y = (h - th) // 2
 
-        pad = 10
-        # Rectángulo negro sólido para tapar la marca ajena
+        pad = 6
+        # Fondo negro semitransparente
         draw.rectangle([x - pad, y - pad, x + tw + pad, y + th + pad], fill=(0, 0, 0))
-        # Texto blanco encima
+        # Texto blanco fino
         draw.text((x, y), WATERMARK_TEXT, font=font, fill=(255, 255, 255))
 
         buf = io.BytesIO()
@@ -1151,8 +1149,13 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
             "original_text": original_text,
         })
 
-        # Mostrar preview con las fotos del canal + texto modificado
-        photos_bytes = pending["photo_bytes_list"]
+        # Mostrar preview con las fotos ya con watermark
+        needs_wm = pending.get("watermark", False)
+        photos_bytes = [_add_watermark(b) if needs_wm else b for b in pending["photo_bytes_list"]]
+        # Guardar fotos con watermark para no procesarlas dos veces al publicar
+        pending["photo_bytes_list"] = photos_bytes
+        pending["watermark"] = False  # ya aplicada
+
         if len(photos_bytes) == 1:
             await context.bot.send_photo(
                 chat_id=update.effective_chat.id,
