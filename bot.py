@@ -709,9 +709,23 @@ def _parse_f_tracking(cookie: str) -> str | None:
 WATERMARK_TEXT = "@trentthacoo"
 WATERMARK_ENABLED = True  # cambiar a False para desactivar
 
+def _has_foreign_watermark(image_bytes: bytes) -> bool:
+    """Detecta si la imagen tiene marca de agua de otro canal."""
+    try:
+        result = gemini_vision(image_bytes,
+            "¿Esta imagen tiene alguna marca de agua, texto de canal o arroba (@) superpuesto? "
+            "Responde solo 'si' o 'no'."
+        ).strip().lower()
+        return result.startswith("s")
+    except Exception:
+        return False
+
+
 def _add_watermark(image_bytes: bytes) -> bytes:
-    """Añade marca de agua sobre la imagen. Si falla, devuelve la original."""
+    """Añade marca de agua solo si la imagen ya tiene una ajena. Si falla, devuelve la original."""
     if not WATERMARK_ENABLED:
+        return image_bytes
+    if not _has_foreign_watermark(image_bytes):
         return image_bytes
     try:
         from PIL import Image, ImageDraw, ImageFont
