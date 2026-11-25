@@ -2089,20 +2089,23 @@ async def _download_photo_bytes(client, msg) -> bytes | None:
 
 
 def _has_foreign_watermark(image_bytes: bytes) -> bool:
-    """Detecta si la imagen tiene una marca de agua ajena usando visión IA."""
+    """Detecta si la imagen tiene una marca de agua de canal Telegram superpuesta."""
     try:
         result = gemini_vision(
             image_bytes,
-            "Does this image contain a watermark, logo, or text overlay from a channel or brand "
-            "(such as @hacoolinksbladefinds or any other @username or brand text)? "
+            "Look carefully at this product photo. Is there a semi-transparent or opaque TEXT OVERLAY "
+            "superimposed on top of the image, specifically a Telegram channel username or handle "
+            "(text starting with @ like @hacoolinksbladefinds or similar)? "
+            "Do NOT count brand logos printed on the product itself, packaging text, or product labels. "
+            "Only count text that has been digitally added on top of the photo as a watermark. "
             "Answer only YES or NO."
         ).strip().upper()
         has_wm = result.startswith("YES")
         logger.info(f"[WM-DETECT] Foreign watermark detected: {has_wm} (response: {result})")
         return has_wm
     except Exception as e:
-        logger.warning(f"[WM-DETECT] Detection failed, assuming watermark present: {e}")
-        return True  # por seguridad, aplicar si falla la detección
+        logger.warning(f"[WM-DETECT] Detection failed, assuming no watermark: {e}")
+        return False
 
 
 async def _forward_single_to_owner(client, ptb_app, msg):
