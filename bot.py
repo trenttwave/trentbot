@@ -759,21 +759,14 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         x = (w - tw) // 2 - bbox[0]
         y = (h - th) // 2 - bbox[1]
 
-        # Calcular el ancho de "@hacoolinksbladefinds" (la marca más larga a tapar)
-        foreign_text = "@hacoolinksbladefinds"
-        fb = draw.textbbox((0, 0), foreign_text, font=font)
-        fw = fb[2] - fb[0]
-        cover_w = max(tw, fw)
-        cx = (w - cover_w) // 2
+        # Barra solo del ancho del texto propio (no de la marca ajena)
+        cx = (w - tw) // 2
 
-        pad_x = 12
-        pad_y = 1
-        # th real visible (sin espacio de línea extra)
-        th_vis = int(th * 0.72)
-        offset_y = (th - th_vis) // 2
-        rect_top = y + bbox[1] + offset_y - pad_y
-        rect_bot = y + bbox[1] + offset_y + th_vis + pad_y
-        draw.rectangle([cx - pad_x, rect_top, cx + cover_w + pad_x, rect_bot], fill=(0, 0, 0))
+        pad_x = 18   # margen horizontal
+        pad_y = 5    # grosor vertical
+        rect_top = y + bbox[1] - pad_y
+        rect_bot = y + bbox[1] + th + pad_y
+        draw.rectangle([cx - pad_x, rect_top, cx + tw + pad_x, rect_bot], fill=(0, 0, 0))
         draw.text((x, y), WATERMARK_TEXT, font=font, fill=(255, 255, 255))
 
         buf = io.BytesIO()
