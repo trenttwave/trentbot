@@ -520,6 +520,12 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 json.dump(cookies, f)
             logger.info(f"[PW] Cookies guardadas ({len(cookies)})")
 
+            # Si tras el login seguimos en /join, navegar explícitamente a promo_url
+            if "join" in page.url.lower() or "login" in page.url.lower():
+                logger.warning("[PW] Aún en join/login tras guardar cookies, navegando a promo_url...")
+                await page.goto(promo_url, timeout=30000, wait_until="networkidle")
+                logger.info(f"[PW] URL tras goto forzado: {page.url}")
+
             # Esperar a que Vue monte el formulario
             try:
                 await page.wait_for_selector('textarea, input', timeout=15000)
@@ -2245,7 +2251,8 @@ async def _show_next_from_queue(user_id: int, chat_id: int, bot):
     remaining = len(queue)
 
     key = f"ch_{int(time.time())}_{user_id}"
-    _pending_channel_msgs[key] = {"photo_bytes_list": photo_bytes_list, "original_text": original_text, "watermark": True}
+    needs_wm = await asyncio.get_event_loop().run_in_executor(None, _has_foreign_watermark, photo_bytes_list[0])
+    _pending_channel_msgs[key] = {"photo_bytes_list": photo_bytes_list, "original_text": original_text, "watermark": needs_wm}
 
     caption = f"📡 *Producto reenviado*"
     if remaining:
