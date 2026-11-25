@@ -717,13 +717,11 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         from PIL import Image, ImageDraw, ImageFont
         import io
 
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         w, h = img.size
+        draw = ImageDraw.Draw(img)
 
-        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(overlay)
-
-        font_size = max(30, w // 15)
+        font_size = max(36, w // 14)
         font = None
         for font_path in [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -733,15 +731,17 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         ]:
             try:
                 font = ImageFont.truetype(font_path, font_size)
+                logger.info(f"[WM] Font loaded: {font_path}")
                 break
             except Exception:
                 continue
         if font is None:
-            # Pillow 10+ soporta size en load_default
             try:
                 font = ImageFont.load_default(size=font_size)
+                logger.info("[WM] Using load_default with size")
             except TypeError:
                 font = ImageFont.load_default()
+                logger.info("[WM] Using load_default fallback")
 
         bbox = draw.textbbox((0, 0), WATERMARK_TEXT, font=font)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -750,19 +750,19 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         x = (w - tw) // 2
         y = (h - th) // 2
 
-        # Fondo semitransparente negro para tapar la marca ajena
-        pad = 8
-        draw.rectangle([x - pad, y - pad, x + tw + pad, y + th + pad], fill=(0, 0, 0, 160))
-        # Texto en blanco encima
-        draw.text((x, y), WATERMARK_TEXT, font=font, fill=(255, 255, 255, 230))
+        pad = 10
+        # Rectángulo negro sólido para tapar la marca ajena
+        draw.rectangle([x - pad, y - pad, x + tw + pad, y + th + pad], fill=(0, 0, 0))
+        # Texto blanco encima
+        draw.text((x, y), WATERMARK_TEXT, font=font, fill=(255, 255, 255))
 
-        combined = Image.alpha_composite(img, overlay).convert("RGB")
         buf = io.BytesIO()
-        combined.save(buf, format="JPEG", quality=90)
-        return buf.getvalue()
+        img.save(buf, format="JPEG", quality=90)
+        result = buf.getvalue()
+        logger.info(f"[WM] Watermark OK: {w}x{h}, font_size={font_size}, text_size={tw}x{th}")
+        return result
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Watermark failed, usando original: {e}")
+        logger.warning(f"[WM] Watermark failed: {e}", exc_info=True)
         return image_bytes
 
 
