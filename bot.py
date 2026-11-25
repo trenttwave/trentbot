@@ -754,11 +754,17 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         x = (w - tw) // 2
         y = (h - th) // 2
 
-        # Rectángulo negro más ancho que el texto para cubrir bien la marca ajena
-        pad_x = max(60, tw // 3)  # margen horizontal generoso
-        pad_y = max(10, th // 2)
-        draw.rectangle([x - pad_x, y - pad_y, x + tw + pad_x, y + th + pad_y], fill=(0, 0, 0))
-        # Texto blanco centrado encima
+        # Calcular el ancho de "@hacoolinksbladefinds" (la marca más larga a tapar)
+        foreign_text = "@hacoolinksbladefinds"
+        fb = draw.textbbox((0, 0), foreign_text, font=font)
+        fw = fb[2] - fb[0]
+        cover_w = max(tw, fw)  # cubre lo que sea más ancho
+        cx = (w - cover_w) // 2  # centrado
+
+        pad_x = 12
+        pad_y = 6
+        draw.rectangle([cx - pad_x, y - pad_y, cx + cover_w + pad_x, y + th + pad_y], fill=(0, 0, 0))
+        # Texto centrado dentro del rectángulo
         draw.text((x, y), WATERMARK_TEXT, font=font, fill=(255, 255, 255))
 
         buf = io.BytesIO()
