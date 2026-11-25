@@ -2088,6 +2088,23 @@ async def _download_photo_bytes(client, msg) -> bytes | None:
 
 
 
+def _has_foreign_watermark(image_bytes: bytes) -> bool:
+    """Detecta si la imagen tiene una marca de agua ajena usando visión IA."""
+    try:
+        result = gemini_vision(
+            image_bytes,
+            "Does this image contain a watermark, logo, or text overlay from a channel or brand "
+            "(such as @hacoolinksbladefinds or any other @username or brand text)? "
+            "Answer only YES or NO."
+        ).strip().upper()
+        has_wm = result.startswith("YES")
+        logger.info(f"[WM-DETECT] Foreign watermark detected: {has_wm} (response: {result})")
+        return has_wm
+    except Exception as e:
+        logger.warning(f"[WM-DETECT] Detection failed, assuming watermark present: {e}")
+        return True  # por seguridad, aplicar si falla la detección
+
+
 async def _forward_single_to_owner(client, ptb_app, msg):
     """Reenvía un mensaje con foto individual al owner con botones ✅/❌."""
     import time
@@ -2098,10 +2115,11 @@ async def _forward_single_to_owner(client, ptb_app, msg):
     key = f"ch_{int(time.time())}_{msg.id}"
     original_text = msg.text or msg.message or ""
 
+    needs_wm = await asyncio.get_event_loop().run_in_executor(None, _has_foreign_watermark, photo_bytes)
     _pending_channel_msgs[key] = {
         "photo_bytes_list": [photo_bytes],
         "original_text": original_text,
-        "watermark": True,
+        "watermark": needs_wm,
     }
 
     caption = f"📡 *Nuevo producto del canal*\n\n{original_text}" if original_text else "📡 *Nuevo producto del canal*"
@@ -2143,10 +2161,11 @@ async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_i
         return
 
     key = f"ch_{int(time.time())}_{grouped_id}"
+    needs_wm = await asyncio.get_event_loop().run_in_executor(None, _has_foreign_watermark, photos_bytes[0])
     _pending_channel_msgs[key] = {
         "photo_bytes_list": photos_bytes,
         "original_text": original_text,
-        "watermark": True,
+        "watermark": needs_wm,
     }
 
     caption_text = f"📡 *Nuevo producto del canal* ({len(photos_bytes)} fotos)\n\n{original_text}" if original_text else f"📡 *Nuevo producto del canal* ({len(photos_bytes)} fotos)"
