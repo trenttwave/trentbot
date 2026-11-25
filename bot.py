@@ -709,23 +709,9 @@ def _parse_f_tracking(cookie: str) -> str | None:
 WATERMARK_TEXT = "@trentthacoo"
 WATERMARK_ENABLED = True  # cambiar a False para desactivar
 
-def _has_foreign_watermark(image_bytes: bytes) -> bool:
-    """Detecta si la imagen tiene marca de agua de otro canal."""
-    try:
-        result = gemini_vision(image_bytes,
-            "¿Esta imagen tiene alguna marca de agua, texto de canal o arroba (@) superpuesto? "
-            "Responde solo 'si' o 'no'."
-        ).strip().lower()
-        return result.startswith("s")
-    except Exception:
-        return False
-
-
 def _add_watermark(image_bytes: bytes) -> bytes:
-    """Añade marca de agua solo si la imagen ya tiene una ajena. Si falla, devuelve la original."""
+    """Añade marca de agua sobre la imagen. Si falla, devuelve la original."""
     if not WATERMARK_ENABLED:
-        return image_bytes
-    if not _has_foreign_watermark(image_bytes):
         return image_bytes
     try:
         from PIL import Image, ImageDraw, ImageFont
@@ -1207,7 +1193,8 @@ async def callback_channel_publish(update: Update, context: ContextTypes.DEFAULT
             return
 
         final_text = state.get("final_text", "")
-        photos_bytes = [_add_watermark(b) for b in pending["photo_bytes_list"]]
+        needs_wm = pending.get("watermark", False)
+        photos_bytes = [_add_watermark(b) if needs_wm else b for b in pending["photo_bytes_list"]]
 
         last_err = None
         for attempt in range(3):
@@ -2089,6 +2076,7 @@ async def _forward_single_to_owner(client, ptb_app, msg):
     _pending_channel_msgs[key] = {
         "photo_bytes_list": [photo_bytes],
         "original_text": original_text,
+        "watermark": True,
     }
 
     caption = f"📡 *Nuevo producto del canal*\n\n{original_text}" if original_text else "📡 *Nuevo producto del canal*"
@@ -2133,6 +2121,7 @@ async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_i
     _pending_channel_msgs[key] = {
         "photo_bytes_list": photos_bytes,
         "original_text": original_text,
+        "watermark": True,
     }
 
     caption_text = f"📡 *Nuevo producto del canal* ({len(photos_bytes)} fotos)\n\n{original_text}" if original_text else f"📡 *Nuevo producto del canal* ({len(photos_bytes)} fotos)"
@@ -2209,7 +2198,7 @@ async def _show_next_from_queue(user_id: int, chat_id: int, bot):
     remaining = len(queue)
 
     key = f"ch_{int(time.time())}_{user_id}"
-    _pending_channel_msgs[key] = {"photo_bytes_list": photo_bytes_list, "original_text": original_text}
+    _pending_channel_msgs[key] = {"photo_bytes_list": photo_bytes_list, "original_text": original_text, "watermark": True}
 
     caption = f"📡 *Producto reenviado*"
     if remaining:
