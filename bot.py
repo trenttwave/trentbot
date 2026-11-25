@@ -1164,12 +1164,13 @@ async def _handle_channel_hacoo_photo(update: Update, context: ContextTypes.DEFA
             "original_text": original_text,
         })
 
-        # Mostrar preview con las fotos ya con watermark
-        needs_wm = pending.get("watermark", False)
-        photos_bytes = [_add_watermark(b) if needs_wm else b for b in pending["photo_bytes_list"]]
-        # Guardar fotos con watermark para no procesarlas dos veces al publicar
+        # Mostrar preview con las fotos ya con watermark (por foto individual)
+        wm_flags = pending.get("watermark", [])
+        if isinstance(wm_flags, bool):
+            wm_flags = [wm_flags] * len(pending["photo_bytes_list"])
+        photos_bytes = [_add_watermark(b) if wm else b for b, wm in zip(pending["photo_bytes_list"], wm_flags)]
         pending["photo_bytes_list"] = photos_bytes
-        pending["watermark"] = False  # ya aplicada
+        pending["watermark"] = [False] * len(photos_bytes)  # ya aplicada
 
         if len(photos_bytes) == 1:
             await context.bot.send_photo(
@@ -1224,8 +1225,10 @@ async def callback_channel_publish(update: Update, context: ContextTypes.DEFAULT
             return
 
         final_text = state.get("final_text", "")
-        needs_wm = pending.get("watermark", False)
-        photos_bytes = [_add_watermark(b) if needs_wm else b for b in pending["photo_bytes_list"]]
+        wm_flags = pending.get("watermark", [])
+        if isinstance(wm_flags, bool):
+            wm_flags = [wm_flags] * len(pending["photo_bytes_list"])
+        photos_bytes = [_add_watermark(b) if wm else b for b, wm in zip(pending["photo_bytes_list"], wm_flags)]
 
         last_err = None
         for attempt in range(3):
@@ -2127,7 +2130,7 @@ async def _forward_single_to_owner(client, ptb_app, msg):
     _pending_channel_msgs[key] = {
         "photo_bytes_list": [photo_bytes],
         "original_text": original_text,
-        "watermark": needs_wm,
+        "watermark": [needs_wm],
     }
 
     caption = f"📡 *Nuevo producto del canal*\n\n{original_text}" if original_text else "📡 *Nuevo producto del canal*"
@@ -2169,11 +2172,14 @@ async def _forward_album_to_owner(client, ptb_app, album_buffer: dict, grouped_i
         return
 
     key = f"ch_{int(time.time())}_{grouped_id}"
-    needs_wm = await asyncio.get_event_loop().run_in_executor(None, _has_foreign_watermark, photos_bytes[0])
+    loop = asyncio.get_event_loop()
+    wm_flags = await asyncio.gather(*[
+        loop.run_in_executor(None, _has_foreign_watermark, b) for b in photos_bytes
+    ])
     _pending_channel_msgs[key] = {
         "photo_bytes_list": photos_bytes,
         "original_text": original_text,
-        "watermark": needs_wm,
+        "watermark": list(wm_flags),
     }
 
     caption_text = f"📡 *Nuevo producto del canal* ({len(photos_bytes)} fotos)\n\n{original_text}" if original_text else f"📡 *Nuevo producto del canal* ({len(photos_bytes)} fotos)"
@@ -2250,8 +2256,11 @@ async def _show_next_from_queue(user_id: int, chat_id: int, bot):
     remaining = len(queue)
 
     key = f"ch_{int(time.time())}_{user_id}"
-    needs_wm = await asyncio.get_event_loop().run_in_executor(None, _has_foreign_watermark, photo_bytes_list[0])
-    _pending_channel_msgs[key] = {"photo_bytes_list": photo_bytes_list, "original_text": original_text, "watermark": needs_wm}
+    loop = asyncio.get_event_loop()
+    wm_flags = await asyncio.gather(*[
+        loop.run_in_executor(None, _has_foreign_watermark, b) for b in photo_bytes_list
+    ])
+    _pending_channel_msgs[key] = {"photo_bytes_list": photo_bytes_list, "original_text": original_text, "watermark": list(wm_flags)}
 
     caption = f"📡 *Producto reenviado*"
     if remaining:
