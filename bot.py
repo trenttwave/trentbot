@@ -499,15 +499,20 @@ async def _generate_via_playwright(product_id: str) -> str | None:
                 await page.goto("https://affiliate.hacoo.app/es-ES/login", timeout=30000, wait_until="domcontentloaded")
                 await _hacoo_login(page)
                 await page.goto(promo_url, timeout=30000, wait_until="domcontentloaded")
-                # Esperar que Vue carregui el formulari post-login
+                # Esperar que Vue cargue el formulario post-login
                 try:
                     await page.wait_for_function(
                         "window.location.href.includes('promotion/link')",
-                        timeout=5000,
+                        timeout=10000,
                     )
                 except Exception:
                     pass
                 logger.info(f"[PW] URL tras login+goto: {page.url}")
+                # Si sigue en /join, forzar navegación directa
+                if "join" in page.url.lower() or "login" in page.url.lower():
+                    logger.warning("[PW] Sigue en join/login, reintentando goto promo_url...")
+                    await page.goto(promo_url, timeout=30000, wait_until="networkidle")
+                    logger.info(f"[PW] URL tras reintento: {page.url}")
 
             # Guardar cookies
             cookies = await context.cookies()
@@ -517,9 +522,10 @@ async def _generate_via_playwright(product_id: str) -> str | None:
 
             # Esperar a que Vue monte el formulario
             try:
-                await page.wait_for_selector('textarea, input', timeout=8000)
+                await page.wait_for_selector('textarea, input', timeout=15000)
             except Exception:
                 pass
+            logger.info(f"[PW] URL antes de buscar input: {page.url}")
 
             # Find URL input
             input_el = None
