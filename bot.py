@@ -727,14 +727,19 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         w, h = img.size
         draw = ImageDraw.Draw(img)
 
-        font_size = max(24, w // 22)  # más pequeño y fino
+        font_size = max(24, w // 22)
         font = None
         for font_path in [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",        # regular (no bold)
-            "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-L.ttf",           # fino y moderno
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
+            "/usr/share/fonts/truetype/lato/Lato-Light.ttf",
+            "/usr/share/fonts/truetype/lato/Lato-Regular.ttf",
+            "/usr/share/fonts/truetype/nunito/Nunito-Light.ttf",
+            "/usr/share/fonts/truetype/nunito/Nunito-Regular.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/dejavu/DejaVuSans.ttf",
             "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",   # fallback bold
         ]:
             try:
                 font = ImageFont.truetype(font_path, font_size)
@@ -762,7 +767,7 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         cx = (w - cover_w) // 2  # centrado
 
         pad_x = 12
-        pad_y = 6
+        pad_y = 3
         draw.rectangle([cx - pad_x, y - pad_y, cx + cover_w + pad_x, y + th + pad_y], fill=(0, 0, 0))
         # Texto centrado dentro del rectángulo
         draw.text((x, y), WATERMARK_TEXT, font=font, fill=(255, 255, 255))
