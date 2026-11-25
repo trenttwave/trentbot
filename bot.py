@@ -723,12 +723,13 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
 
-        font_size = max(20, w // 20)
+        font_size = max(30, w // 15)
         font = None
         for font_path in [
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
             "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
         ]:
             try:
                 font = ImageFont.truetype(font_path, font_size)
@@ -736,7 +737,11 @@ def _add_watermark(image_bytes: bytes) -> bytes:
             except Exception:
                 continue
         if font is None:
-            font = ImageFont.load_default()
+            # Pillow 10+ soporta size en load_default
+            try:
+                font = ImageFont.load_default(size=font_size)
+            except TypeError:
+                font = ImageFont.load_default()
 
         bbox = draw.textbbox((0, 0), WATERMARK_TEXT, font=font)
         tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -745,9 +750,11 @@ def _add_watermark(image_bytes: bytes) -> bytes:
         x = (w - tw) // 2
         y = (h - th) // 2
 
-        # Sombra para legibilidad
-        draw.text((x + 2, y + 2), WATERMARK_TEXT, font=font, fill=(0, 0, 0, 160))
-        draw.text((x, y), WATERMARK_TEXT, font=font, fill=(255, 255, 255, 220))
+        # Fondo semitransparente negro para tapar la marca ajena
+        pad = 8
+        draw.rectangle([x - pad, y - pad, x + tw + pad, y + th + pad], fill=(0, 0, 0, 160))
+        # Texto en blanco encima
+        draw.text((x, y), WATERMARK_TEXT, font=font, fill=(255, 255, 255, 230))
 
         combined = Image.alpha_composite(img, overlay).convert("RGB")
         buf = io.BytesIO()
